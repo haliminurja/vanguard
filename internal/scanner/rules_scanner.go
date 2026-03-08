@@ -7,12 +7,18 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
-
 	"sync"
+	"time"
 
 	"vanguard/internal/config"
 	"vanguard/internal/models"
+)
+
+const (
+	MaxFileSize  = 5 * 1024 * 1024
+	RegexTimeout = 2 * time.Second
 )
 
 type fileContent struct {
@@ -21,19 +27,17 @@ type fileContent struct {
 }
 
 type RulesScanner struct {
-	rules      []config.RuleDefinition
-	fileCache  map[string]*fileContent
-	cacheMu    sync.RWMutex
-	targetList map[string][]string
-	reCache    map[string]*regexp.Regexp
+	rules       []config.RuleDefinition
+	targetFiles map[string][]string
+	reCache     map[string]*regexp.Regexp
+	cacheMu     sync.RWMutex
 }
 
 func NewRulesScanner(rules []config.RuleDefinition) *RulesScanner {
 	scanner := &RulesScanner{
-		rules:      rules,
-		fileCache:  make(map[string]*fileContent),
-		targetList: make(map[string][]string),
-		reCache:    make(map[string]*regexp.Regexp),
+		rules:       rules,
+		targetFiles: make(map[string][]string),
+		reCache:     make(map[string]*regexp.Regexp),
 	}
 	scanner.precompile()
 	return scanner
@@ -61,95 +65,128 @@ func (s *RulesScanner) precompile() {
 }
 
 func (s *RulesScanner) Name() string        { return "rules-scanner" }
-func (s *RulesScanner) Description() string { return "Custom YAML rule checks" }
+func (s *RulesScanner) Description() string { return "Elite high-performance security engine" }
 
 func (s *RulesScanner) Scan(ctx context.Context, project models.ProjectContext, emit func(models.Finding)) ([]models.Finding, error) {
-	var findings []models.Finding
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-
-	errCh := make(chan error, 1)
-
+	targetToRules := make(map[string][]config.RuleDefinition)
 	for _, rule := range s.rules {
 		if rule.Enabled != nil && !*rule.Enabled {
 			continue
 		}
+		for _, pat := range rule.Patterns {
+			targetToRules[pat.Target] = append(targetToRules[pat.Target], rule)
+		}
+	}
 
+	fileToRules := make(map[string][]config.RuleDefinition)
+	var allFiles []string
+	seenFiles := make(map[string]bool)
+
+	for target, rules := range targetToRules {
+		files := s.resolveCachedFiles(target, project.RootPath)
+		for _, f := range files {
+			fileToRules[f] = append(fileToRules[f], rules...)
+			if !seenFiles[f] {
+				seenFiles[f] = true
+				allFiles = append(allFiles, f)
+			}
+		}
+	}
+
+	var wg sync.WaitGroup
+	var findings []models.Finding
+	var mu sync.Mutex
+
+	numWorkers := runtime.NumCPU() * 2
+	fileChan := make(chan string, len(allFiles))
+	for _, f := range allFiles {
+		fileChan <- f
+	}
+	close(fileChan)
+
+	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
-		go func(r config.RuleDefinition) {
+		go func() {
 			defer wg.Done()
-
-			select {
-			case <-ctx.Done():
+			for fpath := range fileChan {
 				select {
-				case errCh <- ctx.Err():
+				case <-ctx.Done():
+					return
 				default:
 				}
-				return
-			default:
-			}
 
-			rf := s.evaluateRule(r, project.RootPath)
-			if len(rf) > 0 {
-				mu.Lock()
-				findings = append(findings, rf...)
-				for _, f := range rf {
-					emit(f)
+				fileFindings := s.scanFile(fpath, fileToRules[fpath], project.RootPath)
+				if len(fileFindings) > 0 {
+					mu.Lock()
+					findings = append(findings, fileFindings...)
+					for _, f := range fileFindings {
+						emit(f)
+					}
+					mu.Unlock()
 				}
-				mu.Unlock()
 			}
-		}(rule)
+		}()
 	}
 
 	wg.Wait()
-
-	select {
-	case err := <-errCh:
-		return findings, err
-	default:
-	}
-
-	return findings, nil
+	return findings, ctx.Err()
 }
 
-func (s *RulesScanner) evaluateRule(rule config.RuleDefinition, root string) []models.Finding {
-	var findings []models.Finding
+func (s *RulesScanner) scanFile(fpath string, rules []config.RuleDefinition, root string) []models.Finding {
+	info, err := os.Stat(fpath)
+	if err != nil || info.IsDir() || info.Size() > MaxFileSize {
+		return nil
+	}
 
+	data, err := os.ReadFile(fpath)
+	if err != nil {
+		return nil
+	}
+
+	fc := &fileContent{
+		data:  data,
+		lines: strings.Split(string(data), "\n"),
+	}
+
+	var findings []models.Finding
+	rel, _ := filepath.Rel(root, fpath)
+
+	uniqueRules := make(map[string]config.RuleDefinition)
+	for _, r := range rules {
+		uniqueRules[r.ID] = r
+	}
+
+	for _, rule := range uniqueRules {
+		findings = append(findings, s.evaluateRule(rule, fc, fpath, rel)...)
+	}
+
+	return findings
+}
+
+func (s *RulesScanner) evaluateRule(rule config.RuleDefinition, fc *fileContent, fpath, rel string) []models.Finding {
+	var findings []models.Finding
 	condition := rule.Condition
 	if condition == "" {
 		condition = "any"
 	}
 
 	if condition == "all" {
-		if len(rule.Patterns) == 0 {
-			return findings
-		}
-
-		fileMatches := make(map[string]map[int][]models.Finding)
-
-		for i, pat := range rule.Patterns {
-			pf := s.evaluatePattern(rule, pat, root)
-			for _, f := range pf {
-				if fileMatches[f.File] == nil {
-					fileMatches[f.File] = make(map[int][]models.Finding)
-				}
-				fileMatches[f.File][i] = append(fileMatches[f.File][i], f)
+		matchedAll := true
+		var ruleFindings []models.Finding
+		for _, pat := range rule.Patterns {
+			pf := s.evaluatePattern(rule, pat, fc, fpath, rel)
+			if len(pf) == 0 {
+				matchedAll = false
+				break
 			}
+			ruleFindings = append(ruleFindings, pf...)
 		}
-
-		for _, patMap := range fileMatches {
-			if len(patMap) == len(rule.Patterns) {
-				for i := 0; i < len(rule.Patterns); i++ {
-					if fs, ok := patMap[i]; ok && len(fs) > 0 {
-						findings = append(findings, fs...)
-						break
-					}
-				}
-			}
+		if matchedAll {
+			findings = append(findings, ruleFindings...)
 		}
 	} else {
 		for _, pat := range rule.Patterns {
-			pf := s.evaluatePattern(rule, pat, root)
+			pf := s.evaluatePattern(rule, pat, fc, fpath, rel)
 			findings = append(findings, pf...)
 		}
 	}
@@ -157,221 +194,61 @@ func (s *RulesScanner) evaluateRule(rule config.RuleDefinition, root string) []m
 	return findings
 }
 
-func allPatternsMatched(results [][]models.Finding) bool {
-	for _, r := range results {
-		if len(r) == 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func (s *RulesScanner) evaluatePattern(rule config.RuleDefinition, pat config.PatternDef, root string) []models.Finding {
+func (s *RulesScanner) evaluatePattern(rule config.RuleDefinition, pat config.PatternDef, fc *fileContent, fpath, rel string) []models.Finding {
 	switch pat.Type {
-	case "file-exists":
-		return s.checkFileExists(rule, pat, root)
-	case "regex", "contains", "regex-multiline":
-		return s.checkFileContent(rule, pat, root)
+	case "regex", "contains":
+		return s.checkLineContent(rule, pat, fc, fpath, rel)
+	case "regex-multiline":
+		return s.checkMultilineContent(rule, pat, fc, fpath, rel)
 	case "entropy":
-		return s.checkEntropy(rule, pat, root)
+		return s.checkEntropy(rule, pat, fc, rel)
 	default:
 		return nil
 	}
 }
 
-func (s *RulesScanner) checkFileExists(rule config.RuleDefinition, pat config.PatternDef, root string) []models.Finding {
-	matches, _ := filepath.Glob(filepath.Join(root, pat.Pattern))
-	found := len(matches) > 0
-
-	if pat.Negative {
-		if found {
-			return nil
-		}
-		return []models.Finding{s.buildFinding(rule, pat.Pattern, 0, "[POLA TIDAK DITEMUKAN]", nil, nil)}
-	}
-
-	if !found {
-		return nil
-	}
-
-	var findings []models.Finding
-	for _, m := range matches {
-		rel, _ := filepath.Rel(root, m)
-		findings = append(findings, s.buildFinding(rule, rel, 0, "[FILE EXISTS]", nil, nil))
-	}
-	return findings
-}
-
-func (s *RulesScanner) checkFileContent(rule config.RuleDefinition, pat config.PatternDef, root string) []models.Finding {
-	files := s.getCachedTargetFiles(pat.Target, root)
-	if len(files) == 0 {
-		return nil
-	}
-
+func (s *RulesScanner) checkLineContent(rule config.RuleDefinition, pat config.PatternDef, fc *fileContent, fpath, rel string) []models.Finding {
 	re := s.reCache[pat.Pattern]
-	if (pat.Type == "regex" || pat.Type == "regex-multiline") && re == nil {
-		return nil
-	}
+	exRe := s.reCache[pat.ExcludePattern]
 
 	var findings []models.Finding
+	matched := false
 
-	for _, fpath := range files {
-		content, err := s.getFileContent(fpath)
-		if err != nil {
-			continue
+	for i, line := range fc.lines {
+		isMatch := false
+		if pat.Type == "contains" {
+			isMatch = strings.Contains(line, pat.Pattern)
+		} else if re != nil {
+			isMatch = re.MatchString(line)
 		}
 
-		var matches []match
-		if pat.Type == "regex-multiline" {
-			matches = s.scanContentMultiline(content, pat, re, fpath)
-		} else {
-			matches = s.scanContent(content, pat, re, fpath)
-		}
-
-		rel, _ := filepath.Rel(root, fpath)
-
-		if pat.Negative {
-			if len(matches) == 0 {
-				findings = append(findings, s.buildFinding(rule, rel, 0, "[POLA TIDAK DITEMUKAN]", nil, nil))
+		if isMatch {
+			if exRe != nil && (exRe.MatchString(line) || exRe.MatchString(filepath.ToSlash(fpath))) {
+				continue
 			}
-		} else {
-			for _, m := range matches {
-				findings = append(findings, s.buildFinding(rule, rel, m.line, m.text, m.contextBefore, m.contextAfter))
+			matched = true
+			if !pat.Negative {
+				findings = append(findings, s.buildFinding(rule, rel, i+1, strings.TrimSpace(line), fc.lines, i))
 			}
 		}
+	}
+
+	if pat.Negative && !matched {
+		findings = append(findings, s.buildFinding(rule, rel, 0, "[PATTERN NOT FOUND]", nil, 0))
 	}
 
 	return findings
 }
 
-func (s *RulesScanner) getCachedTargetFiles(target, root string) []string {
-	s.cacheMu.RLock()
-	if list, ok := s.targetList[target]; ok {
-		s.cacheMu.RUnlock()
-		return list
-	}
-	s.cacheMu.RUnlock()
-
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-
-	list := resolveTarget(target, root)
-	s.targetList[target] = list
-	return list
-}
-
-func (s *RulesScanner) getFileContent(path string) (*fileContent, error) {
-	s.cacheMu.RLock()
-	if fc, ok := s.fileCache[path]; ok {
-		s.cacheMu.RUnlock()
-		return fc, nil
-	}
-	s.cacheMu.RUnlock()
-
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	strData := string(data)
-	lines := strings.Split(strData, "\n")
-	fc := &fileContent{data: data, lines: lines}
-	s.fileCache[path] = fc
-	return fc, nil
-}
-
-type match struct {
-	line          int
-	text          string
-	contextBefore []string
-	contextAfter  []string
-}
-
-func (s *RulesScanner) scanContent(fc *fileContent, pat config.PatternDef, re *regexp.Regexp, path string) []match {
-	excludeRe := s.reCache[pat.ExcludePattern]
-
-	var matches []match
-
-	if pat.Type == "regex" && re != nil {
-		strData := string(fc.data)
-		indexes := re.FindAllStringIndex(strData, -1)
-		if len(indexes) == 0 {
-			return nil
-		}
-
-		lineStarts := make([]int, len(fc.lines))
-		pos := 0
-		for i, l := range fc.lines {
-			lineStarts[i] = pos
-			pos += len(l) + 1
-		}
-
-		seenLines := make(map[int]bool)
-
-		for _, loc := range indexes {
-			startIdx := loc[0]
-			lineIdx := 0
-			for i := 1; i < len(lineStarts); i++ {
-				if lineStarts[i] > startIdx {
-					break
-				}
-				lineIdx = i
-			}
-
-			if seenLines[lineIdx] {
-				continue
-			}
-			seenLines[lineIdx] = true
-
-			if excludeRe != nil {
-				if excludeRe.MatchString(fc.lines[lineIdx]) || excludeRe.MatchString(filepath.ToSlash(path)) {
-					continue
-				}
-			}
-
-			m := match{
-				line: lineIdx + 1,
-				text: strings.TrimSpace(fc.lines[lineIdx]),
-			}
-			m.contextBefore = getContext(fc.lines, lineIdx, -3, -1)
-			m.contextAfter = getContext(fc.lines, lineIdx, 1, 3)
-			matches = append(matches, m)
-		}
-	} else {
-		for i, line := range fc.lines {
-			if pat.Type == "contains" && !strings.Contains(line, pat.Pattern) {
-				continue
-			}
-
-			if excludeRe != nil {
-				if excludeRe.MatchString(line) || excludeRe.MatchString(filepath.ToSlash(path)) {
-					continue
-				}
-			}
-
-			matches = append(matches, match{
-				line:          i + 1,
-				text:          strings.TrimSpace(line),
-				contextBefore: getContext(fc.lines, i, -3, -1),
-				contextAfter:  getContext(fc.lines, i, 1, 3),
-			})
-		}
-	}
-
-	return matches
-}
-
-func (s *RulesScanner) scanContentMultiline(fc *fileContent, pat config.PatternDef, re *regexp.Regexp, path string) []match {
+func (s *RulesScanner) checkMultilineContent(rule config.RuleDefinition, pat config.PatternDef, fc *fileContent, fpath, rel string) []models.Finding {
+	re := s.reCache[pat.Pattern]
 	if re == nil {
 		return nil
 	}
 
 	exRe := s.reCache[pat.ExcludePattern]
 	if exRe != nil {
-		if exRe.Match(fc.data) || exRe.MatchString(filepath.ToSlash(path)) {
+		if exRe.Match(fc.data) || exRe.MatchString(filepath.ToSlash(fpath)) {
 			return nil
 		}
 	}
@@ -381,43 +258,83 @@ func (s *RulesScanner) scanContentMultiline(fc *fileContent, pat config.PatternD
 		return nil
 	}
 
-	var matches []match
+	var findings []models.Finding
 	for _, loc := range indexes {
 		start := loc[0]
 		lineNum := 1 + strings.Count(string(fc.data[:start]), "\n")
 
-		m := match{
-			line: lineNum,
-			text: "[MULTI-LINE MATCH]",
-		}
+		text := "[MULTI-LINE MATCH]"
 		if lineNum-1 < len(fc.lines) {
-			m.text = strings.TrimSpace(fc.lines[lineNum-1])
+			text = strings.TrimSpace(fc.lines[lineNum-1])
 		}
-		m.contextBefore = getContext(fc.lines, lineNum-1, -3, -1)
-		m.contextAfter = getContext(fc.lines, lineNum-1, 1, 3)
-		matches = append(matches, m)
+
+		findings = append(findings, s.buildFinding(rule, rel, lineNum, text, fc.lines, lineNum-1))
 	}
 
-	return matches
+	return findings
 }
 
-func getContext(lines []string, center, startRel, endRel int) []string {
-	var ctx []string
-	start := center + startRel
-	end := center + endRel
-	if start < 0 {
-		start = 0
+func (s *RulesScanner) checkEntropy(rule config.RuleDefinition, pat config.PatternDef, fc *fileContent, rel string) []models.Finding {
+	threshold := 4.5
+	if pat.Pattern != "" {
+		fmt.Sscanf(pat.Pattern, "%f", &threshold)
 	}
-	if end >= len(lines) {
-		end = len(lines) - 1
-	}
-	for i := start; i <= end; i++ {
-		if i == center {
-			continue
+
+	var findings []models.Finding
+	for i, line := range fc.lines {
+		words := strings.FieldsFunc(line, func(r rune) bool {
+			return r == '"' || r == '\'' || r == ' ' || r == '=' || r == ':'
+		})
+		for _, word := range words {
+			if len(word) > 16 && calculateEntropy(word) > threshold {
+				findings = append(findings, s.buildFinding(rule, rel, i+1, strings.TrimSpace(line), fc.lines, i))
+				break
+			}
 		}
-		ctx = append(ctx, lines[i])
 	}
-	return ctx
+	return findings
+}
+
+func (s *RulesScanner) resolveCachedFiles(target, root string) []string {
+	s.cacheMu.RLock()
+	if files, ok := s.targetFiles[target]; ok {
+		s.cacheMu.RUnlock()
+		return files
+	}
+	s.cacheMu.RUnlock()
+
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+
+	files := resolveTarget(target, root)
+	s.targetFiles[target] = files
+	return files
+}
+
+func (s *RulesScanner) buildFinding(rule config.RuleDefinition, file string, line int, snippet string, lines []string, lineIdx int) models.Finding {
+	var before, after []string
+	if lines != nil && lineIdx >= 0 {
+		before = getContext(lines, lineIdx, -3, -1)
+		after = getContext(lines, lineIdx, 1, 3)
+	}
+
+	return models.Finding{
+		ID:            rule.ID,
+		Title:         rule.Title,
+		Description:   rule.Description,
+		Severity:      parseRuleSeverity(rule.Severity),
+		Category:      rule.Category,
+		Scanner:       s.Name(),
+		File:          file,
+		Line:          line,
+		CodeSnippet:   truncate(snippet, 200),
+		ContextBefore: before,
+		ContextAfter:  after,
+		Remediation:   rule.Remediation,
+		References:    rule.References,
+		Tags:          rule.Tags,
+		Confidence:    rule.Confidence,
+	}
 }
 
 func resolveTarget(target, root string) []string {
@@ -544,7 +461,6 @@ func targetGlobs(target, root string) []string {
 	case "request-files":
 		return []string{filepath.Join(root, "app", "Http", "Requests", "*.php")}
 	default:
-
 		if strings.ContainsAny(target, "*?[") {
 			return []string{filepath.Join(root, target)}
 		}
@@ -611,55 +527,6 @@ func skipDir(name string) bool {
 	return false
 }
 
-func (s *RulesScanner) checkEntropy(rule config.RuleDefinition, pat config.PatternDef, root string) []models.Finding {
-	files := s.getCachedTargetFiles(pat.Target, root)
-	if len(files) == 0 {
-		return nil
-	}
-
-	threshold := 4.5
-	if pat.Pattern != "" {
-		fmt.Sscanf(pat.Pattern, "%f", &threshold)
-	}
-
-	var findings []models.Finding
-	for _, fpath := range files {
-		fc, err := s.getFileContent(fpath)
-		if err != nil {
-			continue
-		}
-
-		matches := scanContentEntropy(fc, threshold)
-		rel, _ := filepath.Rel(root, fpath)
-		for _, m := range matches {
-			findings = append(findings, s.buildFinding(rule, rel, m.line, m.text, m.contextBefore, m.contextAfter))
-		}
-	}
-	return findings
-}
-
-func scanContentEntropy(fc *fileContent, threshold float64) []match {
-	var matches []match
-
-	for i, line := range fc.lines {
-		words := strings.FieldsFunc(line, func(r rune) bool {
-			return r == '"' || r == '\'' || r == ' ' || r == '=' || r == ':'
-		})
-		for _, word := range words {
-			if len(word) > 16 && calculateEntropy(word) > threshold {
-				matches = append(matches, match{
-					line:          i + 1,
-					text:          strings.TrimSpace(line),
-					contextBefore: getContext(fc.lines, i, -3, -1),
-					contextAfter:  getContext(fc.lines, i, 1, 3),
-				})
-				break
-			}
-		}
-	}
-	return matches
-}
-
 func calculateEntropy(s string) float64 {
 	counts := make(map[rune]int)
 	for _, r := range s {
@@ -673,24 +540,11 @@ func calculateEntropy(s string) float64 {
 	return entropy
 }
 
-func (s *RulesScanner) buildFinding(rule config.RuleDefinition, file string, line int, snippet string, before, after []string) models.Finding {
-	return models.Finding{
-		ID:            rule.ID,
-		Title:         rule.Title,
-		Description:   rule.Description,
-		Severity:      parseRuleSeverity(rule.Severity),
-		Category:      rule.Category,
-		Scanner:       s.Name(),
-		File:          file,
-		Line:          line,
-		CodeSnippet:   truncate(snippet, 200),
-		ContextBefore: before,
-		ContextAfter:  after,
-		Remediation:   rule.Remediation,
-		References:    rule.References,
-		Tags:          rule.Tags,
-		Confidence:    rule.Confidence,
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
 	}
+	return s[:max] + fmt.Sprintf("... (%d chars)", len(s))
 }
 
 func parseRuleSeverity(s string) models.Severity {
@@ -708,9 +562,21 @@ func parseRuleSeverity(s string) models.Severity {
 	}
 }
 
-func truncate(s string, max int) string {
-	if len(s) <= max {
-		return s
+func getContext(lines []string, center int, startRel, endRel int) []string {
+	var ctx []string
+	start := center + startRel
+	end := center + endRel
+	if start < 0 {
+		start = 0
 	}
-	return s[:max] + fmt.Sprintf("... (%d chars)", len(s))
+	if end >= len(lines) {
+		end = len(lines) - 1
+	}
+	for i := start; i <= end; i++ {
+		if i == center {
+			continue
+		}
+		ctx = append(ctx, lines[i])
+	}
+	return ctx
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ const (
 	osvBatchURL = "https://api.osv.dev/v1/querybatch"
 	batchSize   = 100
 	httpTimeout = 30 * time.Second
+	maxRetries  = 3
 )
 
 type Scanner struct {
@@ -27,74 +29,115 @@ type Scanner struct {
 
 func New() *Scanner {
 	return &Scanner{
-		client: &http.Client{Timeout: httpTimeout},
+		client: &http.Client{
+			Timeout: httpTimeout,
+			Transport: &http.Transport{
+				MaxIdleConns:        100,
+				IdleConnTimeout:     90 * time.Second,
+				MaxIdleConnsPerHost: 20,
+			},
+		},
 	}
 }
 
 func (s *Scanner) Name() string        { return "dependency-scanner" }
-func (s *Scanner) Description() string { return "Live CVE checks via OSV.dev (Packagist SBOM)" }
+func (s *Scanner) Description() string { return "Enterprise-grade live CVE checks via OSV.dev" }
 
 func (s *Scanner) Scan(ctx context.Context, project models.ProjectContext, emit func(models.Finding)) ([]models.Finding, error) {
 	if len(project.InstalledPackages) == 0 {
 		return nil, nil
 	}
+
 	vulnPackages, err := s.batchQuery(ctx, project.InstalledPackages)
 	if err != nil {
-		return nil, fmt.Errorf("querying OSV.dev: %w", err)
+		return nil, fmt.Errorf("querying vulnerabilities: %w", err)
 	}
 
 	if len(vulnPackages) == 0 {
 		return nil, nil
 	}
+
 	var findings []models.Finding
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	for _, vp := range vulnPackages {
-		wg.Add(1)
-		go func(vp vulnPackage) {
-			defer wg.Done()
-			vulns, err := s.queryPackage(ctx, vp.name, vp.version, vp.ecosystem)
-			if err != nil {
-				return
-			}
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 10 {
+		numWorkers = 10
+	}
 
-			for _, vuln := range vulns {
-				f := vulnToFinding(s.Name(), vp.name, vp.version, vp.ecosystem, vp.file, vuln)
-				mu.Lock()
-				findings = append(findings, f)
-				emit(f)
-				mu.Unlock()
+	packageChan := make(chan vulnPackage, len(vulnPackages))
+	for _, vp := range vulnPackages {
+		packageChan <- vp
+	}
+	close(packageChan)
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for vp := range packageChan {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				vulns, err := s.queryPackage(ctx, vp.name, vp.version, vp.ecosystem)
+				if err != nil {
+					continue
+				}
+
+				for _, vuln := range vulns {
+					f := vulnToFinding(s.Name(), vp.name, vp.version, vp.ecosystem, vp.file, vuln)
+					mu.Lock()
+					findings = append(findings, f)
+					emit(f)
+					mu.Unlock()
+				}
 			}
-		}(vp)
+		}()
 	}
 
 	wg.Wait()
-
 	return findings, nil
 }
+
 func (s *Scanner) doRequestWithRetries(req *http.Request) (*http.Response, error) {
-	var resp *http.Response
-	var err error
-	maxRetries := 3
+	var lastErr error
 	backoff := 1 * time.Second
 
 	for i := 0; i <= maxRetries; i++ {
-		resp, err = s.client.Do(req)
-		if err == nil && resp.StatusCode < 500 {
-			return resp, nil
+		if i > 0 && req.Body != nil {
+			if seeker, ok := req.Body.(io.ReadSeeker); ok {
+				_, _ = seeker.Seek(0, io.SeekStart)
+			}
 		}
-		if i == maxRetries {
-			break
-		}
-		if resp != nil && resp.Body != nil {
+
+		resp, err := s.client.Do(req)
+		if err == nil {
+			// Successful response or terminal error (e.g., 400 Bad Request)
+			if resp.StatusCode < 500 && resp.StatusCode != 429 {
+				return resp, nil
+			}
+			// Server error or rate limit, retry
+			lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
 			resp.Body.Close()
+		} else {
+			lastErr = err
 		}
-		time.Sleep(backoff)
-		backoff *= 2
+
+		if i < maxRetries {
+			select {
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			case <-time.After(backoff):
+				backoff *= 2
+			}
+		}
 	}
 
-	return resp, err
+	return nil, fmt.Errorf("failed after %d retries: %w", maxRetries, lastErr)
 }
 
 type vulnPackage struct {
@@ -127,6 +170,7 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 		allQueries = append(allQueries, q)
 		packageOrder = append(packageOrder, vulnPackage{name: p.Name, version: version, ecosystem: p.Ecosystem, file: p.File})
 	}
+
 	var affected []vulnPackage
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -141,13 +185,10 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 		batchOrder := packageOrder[i:end]
 
 		wg.Add(1)
-		go func(batch []query, batchOrder []vulnPackage) {
+		go func(b []query, bo []vulnPackage) {
 			defer wg.Done()
 
-			body, err := json.Marshal(map[string]any{"queries": batch})
-			if err != nil {
-				return
-			}
+			body, _ := json.Marshal(map[string]any{"queries": b})
 			req, err := http.NewRequestWithContext(ctx, "POST", osvBatchURL, bytes.NewReader(body))
 			if err != nil {
 				return
@@ -155,12 +196,10 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := s.doRequestWithRetries(req)
-			if err != nil || resp.StatusCode != 200 {
-				if resp != nil && resp.Body != nil {
-					resp.Body.Close()
-				}
+			if err != nil {
 				return
 			}
+			defer resp.Body.Close()
 
 			var result struct {
 				Results []struct {
@@ -170,21 +209,14 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 				} `json:"results"`
 			}
 
-			data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
-			resp.Body.Close()
-
-			if err != nil {
-				return
-			}
-
-			if err := json.Unmarshal(data, &result); err != nil {
+			if err := json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(&result); err != nil {
 				return
 			}
 
 			var batchAffected []vulnPackage
 			for j, r := range result.Results {
-				if len(r.Vulns) > 0 && j < len(batchOrder) {
-					batchAffected = append(batchAffected, batchOrder[j])
+				if len(r.Vulns) > 0 && j < len(bo) {
+					batchAffected = append(batchAffected, bo[j])
 				}
 			}
 
@@ -195,20 +227,17 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 	}
 
 	wg.Wait()
-
 	return affected, nil
 }
+
 func (s *Scanner) queryPackage(ctx context.Context, name, version, ecosystem string) ([]osvVuln, error) {
-	body, err := json.Marshal(map[string]any{
+	body, _ := json.Marshal(map[string]any{
 		"package": map[string]string{
 			"name":      name,
 			"ecosystem": ecosystem,
 		},
 		"version": version,
 	})
-	if err != nil {
-		return nil, fmt.Errorf("encoding query: %w", err)
-	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", osvQueryURL, bytes.NewReader(body))
 	if err != nil {
@@ -222,20 +251,12 @@ func (s *Scanner) queryPackage(ctx context.Context, name, version, ecosystem str
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("OSV.dev returned status %d", resp.StatusCode)
-	}
-
 	var result struct {
 		Vulns []osvVuln `json:"vulns"`
 	}
 
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
-	if err != nil {
-		return nil, fmt.Errorf("reading OSV.dev response: %w", err)
-	}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decoding OSV response: %w", err)
 	}
 
 	return result.Vulns, nil
@@ -295,6 +316,7 @@ func vulnToFinding(scanner, pkgName, pkgVersion, ecosystem, file string, vuln os
 	}
 	severity := parseSeverity(vuln.DatabaseSpecific.Severity)
 	fixedVersion := extractFixedVersion(vuln.Affected, pkgName)
+
 	var refs []string
 	for _, ref := range vuln.References {
 		if ref.Type == "ADVISORY" || ref.Type == "WEB" {
@@ -304,6 +326,7 @@ func vulnToFinding(scanner, pkgName, pkgVersion, ecosystem, file string, vuln os
 	if len(refs) > 3 {
 		refs = refs[:3]
 	}
+
 	description := vuln.Summary
 	if description == "" && len(vuln.Details) > 0 {
 		description = vuln.Details
@@ -311,6 +334,7 @@ func vulnToFinding(scanner, pkgName, pkgVersion, ecosystem, file string, vuln os
 			description = description[:300] + "..."
 		}
 	}
+
 	remediation := fmt.Sprintf("Run: composer update %s", pkgName)
 	if ecosystem == "npm" {
 		remediation = fmt.Sprintf("Run: npm update %s", pkgName)
@@ -326,13 +350,13 @@ func vulnToFinding(scanner, pkgName, pkgVersion, ecosystem, file string, vuln os
 
 	var tags []string
 	var primaryCWE string
-
 	if len(vuln.DatabaseSpecific.CWEIDs) > 0 {
 		primaryCWE = vuln.DatabaseSpecific.CWEIDs[0]
 		for _, cwe := range vuln.DatabaseSpecific.CWEIDs {
 			tags = append(tags, strings.ToLower(cwe))
 		}
 	}
+
 	var cvssScore float64
 	var cvssVector string
 	for _, sev := range vuln.Severity {

@@ -14,6 +14,7 @@ import (
 	"vanguard/internal/provider"
 	"vanguard/internal/reporter"
 	"vanguard/internal/resolver"
+	"vanguard/internal/scanner"
 	depscanner "vanguard/internal/scanner"
 	"vanguard/internal/store"
 )
@@ -35,7 +36,7 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 		depscanner.New(),
 	}
 
-	depscanner.SetExtraSkipDirs(o.cfg.Scanners.IgnoreDirs)
+	scanner.SetExtraSkipDirs(o.cfg.Scanners.IgnoreDirs)
 
 	scanners = o.filterScanners(scanners)
 
@@ -92,12 +93,10 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 		PackageCount:   len(pc.InstalledPackages),
 	}))
 
-	// Load Rules after framework resolution
 	rulesDir := o.getRulesDirectory()
 	if rulesDir != "" {
 		var allRules []config.RuleDefinition
 
-		// 1. Generic PHP Rules (Common)
 		commonDir := filepath.Join(rulesDir, "common")
 		if commonRules, err := config.LoadRulesFromDir(commonDir); err == nil {
 			o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
@@ -106,7 +105,6 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 			allRules = append(allRules, commonRules...)
 		}
 
-		// 2. Framework Specific Rules
 		if pc.FrameworkType != "" && pc.FrameworkType != "php-generic" {
 			frameworkKey := pc.FrameworkType
 			if frameworkKey == "codeigniter2" || frameworkKey == "codeigniter3" {
@@ -124,7 +122,6 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 			}
 		}
 
-		// 3. Custom rules in project root
 		if rootRules, err := config.LoadRulesFromDir(rulesDir); err == nil {
 			allRules = append(allRules, rootRules...)
 		}
