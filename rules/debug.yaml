@@ -1,0 +1,164 @@
+meta:
+  category: Debug & Information Disclosure
+  version: "3.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2025"
+rules:
+  - id: DBG-001
+    title: "dd() debug dump tertinggal dalam kode production"
+    description: >
+      dd() (dump and die) hadir dalam source PHP atau template Blade. Fungsi ini menghentikan eksekusi dan membuang semua konten variabel — termasuk data request, record database, auth state, dan nilai environment — langsung ke body HTTP response, terlihat oleh pengguna manapun yang memicu code path itu.
+
+    severity: high
+    confidence: high
+    category: Debug Exposure
+    tags: [debug, info-disclosure, owasp-a05, cwe-215]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bdd\s*\('
+        exclude_pattern: '(//|#\s|/\*|test|Test|spec)'
+      - type: regex
+        target: blade-files
+        pattern: '@dd\s*\('
+    remediation: |
+      Hapus semua dd() sebelum commit. Gunakan Laravel Telescope atau
+      pernyataan logging untuk output debug yang persisten:
+        Log::debug('Order data', ['order' => $order->toArray()]);
+    references:
+      - "https://cwe.mitre.org/data/definitions/215.html"
+  - id: DBG-002
+    title: "dump() debug call tertinggal dalam kode"
+    description: >
+      dump() mengeluarkan konten variabel ke HTTP response tanpa menghentikan eksekusi. Data terlihat di browser dan di API response, secara diam-diam membocorkan state internal ke semua caller endpoint tersebut.
+
+    severity: medium
+    confidence: high
+    category: Debug Exposure
+    tags: [debug, info-disclosure, owasp-a05, cwe-215]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bdump\s*\('
+        exclude_pattern: '(//|#\s|/\*|test|Test|spec|hexdump|mysqldump|mongodump|pg_dump)'
+      - type: regex
+        target: blade-files
+        pattern: '@dump\s*\('
+    remediation: |
+      Hapus dump() sebelum merge. Gunakan Log::debug() untuk output debug
+      terstruktur yang persisten.
+    references:
+      - "https://cwe.mitre.org/data/definitions/215.html"
+  - id: DBG-003
+    title: "var_dump() / print_r() / var_export() dalam source code"
+    description: >
+      var_dump(), print_r(), atau var_export() mengeluarkan konten variabel PHP mentah langsung ke HTTP response. Dalam konteks API ini mengotori response JSON/XML. Dalam konteks web ini mengekspos struktur data internal dan record database ke pengguna.
+
+    severity: medium
+    confidence: high
+    category: Debug Exposure
+    tags: [debug, info-disclosure, owasp-a05, cwe-215]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\b(var_dump|print_r|var_export)\s*\('
+        exclude_pattern: '(//|#\s|/\*|test|Test|spec)'
+    remediation: |
+      Ganti dengan structured logging:
+        Log::debug('Variable state', ['data' => $variable]);
+    references:
+      - "https://cwe.mitre.org/data/definitions/215.html"
+  - id: DBG-004
+    title: "phpinfo() terekspos dalam kode yang dapat diakses web"
+    description: >
+      phpinfo() mengeluarkan konfigurasi PHP lengkap, extension yang dimuat, semua variabel $_SERVER, dan path yang dikompilasi. Satu pemanggilan fungsi ini mengekspos lebih banyak internal server daripada hampir kerentanan information disclosure lainnya.
+
+    severity: critical
+    confidence: high
+    category: Info Disclosure
+    tags: [debug, info-disclosure, owasp-a05, cwe-200]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bphpinfo\s*\('
+        exclude_pattern: '(//|#\s|/\*|test|Test)'
+    remediation: |
+      Hapus phpinfo() sepenuhnya. Gunakan php -i di command line untuk
+      diagnostik selama provisioning jika diperlukan.
+    references:
+      - "https://cwe.mitre.org/data/definitions/200.html"
+  - id: DBG-005
+    title: "Pesan atau trace exception diekspos dalam HTTP response"
+    description: >
+      getMessage() atau getTraceAsString() exception dikembalikan langsung dalam body HTTP response (response()->json(), abort()). Stack trace mengekspos path file, nama kelas, query SQL, tanda tangan method, dan nilai environment — memberikan penyerang intelijen yang tepat tentang aplikasi.
+
+    severity: high
+    confidence: high
+    category: Stack Trace Exposure
+    tags: [debug, info-disclosure, owasp-a05, cwe-209]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'response\(\)->json\s*\(\s*\[.*\$e->(getMessage|getTraceAsString|getTrace|getPrevious)\(\)'
+      - type: regex
+        target: php-files
+        pattern: 'abort\s*\(\s*\d+\s*,\s*\$e->getMessage\(\)'
+      - type: regex
+        target: php-files
+        pattern: 'return\s+response\(\s*\$e->getMessage\(\)'
+    remediation: |
+      Log exception di server dan kembalikan response error yang generik:
+        try {
+            // ...
+        } catch (\Throwable $e) {
+            Log::error('Operation failed', [
+                'exception' => $e->getMessage(),
+                'trace'     => $e->getTraceAsString(),
+                'user_id'   => auth()->id(),
+            ]);
+            return response()->json(['error' => 'An internal error occurred.'], 500);
+        }
+    references:
+      - "https://cwe.mitre.org/data/definitions/209.html"
+  - id: DBG-006
+    title: "Error reporting PHP diset untuk menampilkan semua error"
+    description: >
+      ini_set('display_errors', '1') dalam kode production mengaktifkan tampilan error PHP. Ini mengekspos path file, query SQL, nama kelas internal, dan stack trace langsung dalam HTTP response.
+
+    severity: high
+    confidence: medium
+    category: Error Display
+    tags: [debug, info-disclosure, owasp-a05, cwe-215]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "ini_set\\s*\\(\\s*[\"']display_errors[\"']\\s*,\\s*[\"']?1[\"']?"
+        exclude_pattern: '(//|#\s|/\*|test|Test|spec|bootstrap/app)'
+    remediation: |
+      Di production, nonaktifkan tampilan error dan log ke file:
+        ini_set('display_errors', '0');
+        ini_set('log_errors', '1');
+      Laravel menangani ini via APP_DEBUG=false di .env. Jangan pernah mengaktifkan
+      display_errors di luar environment development lokal.
+    references:
+      - "https://cwe.mitre.org/data/definitions/215.html"
+  - id: DBG-007
+    title: "File log disimpan dalam direktori yang dapat diakses web"
+    description: >
+      Path log dikonfigurasi di dalam public/, public_html/, atau htdocs/. File log berisi stack trace, query SQL, data pengguna, dan nilai konfigurasi. File di dalam web root dapat diunduh langsung oleh pengguna manapun yang mengetahui atau menebak nama file.
+
+    severity: high
+    confidence: medium
+    category: Log File Exposure
+    tags: [debug, info-disclosure, cwe-532]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(fopen|file_put_contents|error_log)\s*\([^)]*public[/\\\\]'
+        exclude_pattern: '(//|#\s|/\*|test|Test)'
+    remediation: |
+      Simpan semua file log di storage/logs/ yang berada di luar web root:
+        'path' => storage_path('logs/laravel.log'),
+      Pastikan konfigurasi web server tidak menyajikan direktori storage/.
+    references:
+      - "https://cwe.mitre.org/data/definitions/532.html"

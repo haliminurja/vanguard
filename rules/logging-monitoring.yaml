@@ -1,0 +1,106 @@
+meta:
+  category: Logging & Monitoring
+  version: "3.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2025"
+rules:
+  - id: LOG-001
+    title: "Data sensitif diteruskan ke Log facade"
+    description: >
+      Pemanggilan Log::* menyertakan variabel bernama password, secret, token, credit_card, atau serupa. File log sering kurang terlindungi dibandingkan database dan dapat diakses oleh staf support, log aggregator, dan penyerang dengan akses filesystem. Kredensial dalam log bertahan selama periode retensi log penuh.
+
+    severity: high
+    confidence: high
+    category: Sensitive Data in Logs
+    tags: [logging, info-disclosure, owasp-a09, cwe-532]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Log::(info|debug|warning|error|critical|notice|alert)\s*\([^;]*\$(password|passwd|secret|token|credit_card|ssn|cvv|card_number|api_key|private_key|pin|otp)'
+    remediation: |
+      Redact atau hilangkan field sensitif sebelum logging:
+        Log::info('User authenticated', [
+            'email'    => $email,
+            'password' => '[REDACTED]',
+        ]);
+        // Atau gunakan helper redact:
+        Log::info('Payment', Arr::except($data, ['card_number', 'cvv']));
+    references:
+      - "https://cwe.mitre.org/data/definitions/532.html"
+      - "https://owasp.org/www-project-logging-vocabulary/"
+  - id: LOG-002
+    title: "Input pengguna mentah dicatat tanpa sanitasi"
+    description: >
+      Input pengguna dari $request->all() atau $request->getContent() diteruskan langsung ke Log facade. Entri log yang tidak disanitasi mengaktifkan log injection (baris log palsu via CRLF) dan XSS dalam log viewer berbasis web.
+
+    severity: medium
+    confidence: high
+    category: Log Injection
+    tags: [logging, log-injection, owasp-a09, cwe-117]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Log::(info|debug|warning|error)\s*\(\s*[^,]*,\s*\[?[^\]]*\$request->(all|getContent)\(\)'
+    remediation: |
+      Log hanya field yang disanitasi dan dibatasi:
+        Log::info('Request', [
+            'path'  => $request->path(),
+            'query' => Str::limit(strip_tags($request->query('q', '')), 200),
+            'ip'    => $request->ip(),
+        ]);
+    references:
+      - "https://cwe.mitre.org/data/definitions/117.html"
+  - id: LOG-003
+    title: "Kegagalan autentikasi tidak dicatat"
+    description: >
+      Auth::attempt() digunakan tetapi tidak ada Log::warning/info atau event autentikasi gagal dalam file yang sama. Tanpa mencatat login yang gagal, serangan brute force dan credential stuffing tidak terlihat oleh monitoring.
+
+    severity: medium
+    confidence: medium
+    category: Missing Audit Log
+    tags: [logging, monitoring, owasp-a09, cwe-778]
+    condition: all
+    patterns:
+      - type: contains
+        target: php-files
+        pattern: "Auth::attempt("
+      - type: regex
+        target: php-files
+        pattern: '(Log::(warning|error|info)|event\(.*LoginFailed|RateLimiter::hit)'
+        negative: true
+    remediation: |
+      Log percobaan autentikasi yang gagal dengan IP dan timestamp:
+        if (!Auth::attempt($credentials)) {
+            Log::warning('Failed login attempt', [
+                'email'      => $request->input('email'),
+                'ip'         => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'timestamp'  => now()->toIso8601String(),
+            ]);
+            RateLimiter::hit('login:'.$request->ip(), 60);
+        }
+    references:
+      - "https://cwe.mitre.org/data/definitions/778.html"
+  - id: LOG-004
+    title: "Laravel Context facade (Laravel 11+) menyimpan data sensitif"
+    description: >
+      Laravel 11 memperkenalkan Context facade untuk logging context terstruktur. Menyimpan password, token, atau PII dalam Context::add() mempertahankan nilai tersebut di semua pemanggilan log berikutnya dalam lifecycle request yang sama, termasuk error handler dan agen monitoring.
+
+    severity: high
+    confidence: high
+    category: Sensitive Data in Logs
+    tags: [logging, laravel11, context, cwe-532, owasp-a09]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Context::add\s*\(\s*["'']?(password|token|secret|api_key|credit_card|ssn|cvv|private_key)["'']?'
+    remediation: |
+      Jangan pernah menyimpan nilai sensitif dalam logging context:
+        // BURUK
+        Context::add('password', $password);
+        // BAIK — simpan hanya identifier non-sensitif
+        Context::add('user_id', $user->id);
+        Context::add('request_id', $requestId);
+    references:
+      - "https://laravel.com/docs/context"
+      - "https://cwe.mitre.org/data/definitions/532.html"

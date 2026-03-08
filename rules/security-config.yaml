@@ -1,0 +1,183 @@
+meta:
+  category: Security Configuration
+  version: "3.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2025"
+rules:
+  - id: CFG-TLS01
+    title: "SSL/TLS certificate verification dinonaktifkan"
+    description: >
+      Verifikasi peer SSL dinonaktifkan dalam HTTP client (Guzzle, Laravel Http facade, atau cURL). Ini menerima sertifikat apapun — palsu, self-signed, atau kadaluarsa — mengaktifkan serangan man-in-the-middle terhadap semua request keluar.
+
+    severity: critical
+    confidence: high
+    category: TLS Misconfiguration
+    tags: [ssl, tls, owasp-a07, cwe-295]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '["'']verify["'']\s*=>\s*false'
+      - type: regex
+        target: php-files
+        pattern: 'CURLOPT_SSL_VERIFYPEER\s*,\s*(false|0)'
+      - type: regex
+        target: php-files
+        pattern: '->withoutVerifying\s*\(\s*\)'
+      - type: regex
+        target: php-files
+        pattern: 'CURLOPT_SSL_VERIFYHOST\s*,\s*(false|0|1)'
+    remediation: |
+      Selalu verifikasi sertifikat SSL. Batasi pengecualian sertifikat self-signed hanya ke environment lokal:
+        Http::withOptions(['verify' => app()->isProduction()])->get($url);
+      Jangan pernah menonaktifkan verifikasi SSL di production.
+    references:
+      - "https://cwe.mitre.org/data/definitions/295.html"
+      - "https://owasp.org/www-community/vulnerabilities/Improper_Certificate_Validation"
+  - id: CFG-CORS01
+    title: "CORS wildcard HTTP methods"
+    description: >
+      Konfigurasi CORS mengizinkan semua HTTP method ('*'), memungkinkan cross-origin DELETE, PATCH, dan request mutasi lainnya dari origin manapun.
+
+    severity: medium
+    confidence: high
+    category: CORS Misconfiguration
+    tags: [cors, owasp-a05, cwe-942]
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: "'allowed_methods'\\s*=>\\s*\\[?\\s*[\"']?\\*[\"']?\\s*\\]?"
+    remediation: |
+      Daftarkan hanya HTTP method yang diperlukan API Anda:
+        'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE'],
+    references:
+      - "https://cwe.mitre.org/data/definitions/942.html"
+  - id: CFG-CORS02
+    title: "CORS supports_credentials=true — verifikasi origin dibatasi"
+    description: >
+      Konfigurasi CORS memiliki supports_credentials=true. Dikombinasikan dengan allowed_origins yang wildcard atau luas, ini mengizinkan website manapun membuat request API cross-origin yang sepenuhnya terautentikasi.
+
+    severity: critical
+    confidence: high
+    category: CORS Misconfiguration
+    tags: [cors, owasp-a05, cwe-942]
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: "'supports_credentials'\\s*=>\\s*true"
+    remediation: |
+      Ketika kredensial diperlukan, selalu tentukan origin yang diizinkan secara eksplisit:
+        'allowed_origins'      => ['https://myapp.com'],
+        'supports_credentials' => true,
+      Jangan pernah menggabungkan supports_credentials=true dengan allowed_origins=['*'].
+    references:
+      - "https://cwe.mitre.org/data/definitions/942.html"
+      - "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#requests_with_credentials"
+  - id: CFG-CSRF01
+    title: "CSRF exception terlalu luas menggunakan wildcard"
+    description: >
+      Array $except VerifyCsrfToken mengandung pola wildcard (api/*, *), menonaktifkan verifikasi CSRF untuk seluruh grup route dan mengekspos semua route yang cocok ke cross-site request forgery.
+
+    severity: high
+    confidence: high
+    category: CSRF Bypass
+    tags: [csrf, owasp-a05, cwe-352]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$except\s*=\s*\[[^\]]*\*'
+    remediation: |
+      Kecualikan hanya endpoint webhook spesifik, bukan wildcard:
+        protected $except = [
+            'stripe/webhook',
+            'github/webhook',
+        ];
+    references:
+      - "https://cwe.mitre.org/data/definitions/352.html"
+      - "https://laravel.com/docs/csrf#excluding-uris"
+  - id: CFG-CSRF02
+    title: "Blade form tanpa direktif @csrf"
+    description: >
+      Tag <form> dengan method non-GET dalam template Blade tidak menyertakan @csrf. Tanpa validasi CSRF token, form rentan terhadap cross-site request forgery dari origin manapun yang dapat mengelabui pengguna yang login.
+
+    severity: high
+    confidence: high
+    category: CSRF
+    tags: [csrf, blade, owasp-a05, cwe-352, laravel]
+    condition: all
+    patterns:
+      - type: regex
+        target: blade-files
+        pattern: '<form[^>]+method\s*=\s*["'']?(POST|PUT|PATCH|DELETE)[^>]*>'
+      - type: contains
+        target: blade-files
+        pattern: "@csrf"
+        negative: true
+    remediation: |
+      Tambahkan @csrf di dalam setiap Blade form non-GET:
+        <form method="POST" action="{{ route('profile.update') }}">
+            @csrf
+            @method('PUT')
+            <!-- field form -->
+        </form>
+    references:
+      - "https://cwe.mitre.org/data/definitions/352.html"
+      - "https://laravel.com/docs/csrf"
+  - id: CFG-SAN01
+    title: "Sanctum stateful domains mengandung wildcard"
+    description: >
+      SANCTUM_STATEFUL_DOMAINS mengandung wildcard, menyebabkan Sanctum menerbitkan session berbasis cookie ke domain yang cocok manapun — berpotensi termasuk subdomain yang tidak berwenang atau origin eksternal.
+
+    severity: high
+    confidence: high
+    category: Auth Misconfiguration
+    tags: [sanctum, auth, owasp-a05, cwe-942, laravel]
+    patterns:
+      - type: regex
+        target: env-files
+        pattern: 'SANCTUM_STATEFUL_DOMAINS\s*=\s*[^#\n]*\*'
+      - type: regex
+        target: config-files
+        pattern: "'stateful'\\s*=>.*\\*"
+    remediation: |
+      Daftarkan hanya domain yang memerlukan autentikasi berbasis cookie:
+        SANCTUM_STATEFUL_DOMAINS=myapp.com,admin.myapp.com
+    references:
+      - "https://cwe.mitre.org/data/definitions/942.html"
+      - "https://laravel.com/docs/sanctum#spa-authentication"
+  - id: CFG-DDL01
+    title: "Schema::drop() dipanggil di luar file migration"
+    description: >
+      Schema::drop() atau Schema::dropIfExists() dipanggil di luar migration. Operasi DDL DROP dalam controller, service, atau command adalah risiko destruktif — satu miskonfigurasi atau injection dapat menghapus tabel production.
+
+    severity: critical
+    confidence: high
+    category: Destructive Operation
+    tags: [destructive, data-integrity, cwe-912, laravel]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Schema::(drop|dropIfExists)\s*\('
+        exclude_pattern: '(migration|Migration|database/migrations|test|Test|seed|Seed)'
+    remediation: |
+      Batasi Schema::drop() ke file migration di bawah database/migrations/.
+      Gunakan soft deletes untuk penghapusan data yang reversible.
+    references:
+      - "https://cwe.mitre.org/data/definitions/912.html"
+  - id: CFG-RT01
+    title: "Route::any() — binding HTTP method yang terlalu permisif"
+    description: >
+      Route::any() menerima semua HTTP method (GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD), mengekspos route ke panggilan method yang mungkin memicu perilaku tak terduga atau melewati kontrol akses berbasis method.
+
+    severity: medium
+    confidence: high
+    category: Routing Misconfiguration
+    tags: [routing, owasp-a04, cwe-749, laravel]
+    patterns:
+      - type: regex
+        target: routes-files
+        pattern: 'Route::any\s*\('
+    remediation: |
+      Gunakan HTTP verb spesifik atau Route::match() untuk subset yang dikontrol:
+        Route::match(['get', 'post'], '/resource', [ResourceController::class, 'handle']);
+    references:
+      - "https://cwe.mitre.org/data/definitions/749.html"

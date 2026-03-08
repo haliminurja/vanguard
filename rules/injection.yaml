@@ -1,0 +1,658 @@
+meta:
+  category: Injection
+  version: "3.0.0"
+  updated: "2025"
+  maintainer: "Security Engineering Team"
+  scope: "Laravel 10–12, PHP 8.0–8.4"
+rules:
+  - id: INJ-S01
+    title: "SQL Injection — DB::raw() dengan interpolasi variabel PHP"
+    description: >
+      DB::raw() meneruskan string mentah langsung ke database tanpa escaping atau parameterisasi. Menggabungkan variabel PHP ke dalam string DB::raw() adalah jalur SQL injection langsung yang melewati seluruh proteksi query builder Eloquent. Penyerang dapat membaca data sensitif, memodifikasi record, atau mengeksekusi prosedur tersimpan berbahaya.
+
+    severity: critical
+    confidence: high
+    category: SQL Injection
+    tags: [sqli, owasp-a03, cwe-89, laravel]
+    cwe: "CWE-89"
+    owasp: "A03:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'DB::raw\(\s*["''].*\$'
+      - type: regex
+        target: php-files
+        pattern: 'DB::raw\(\s*\$'
+        exclude_pattern: '(config\(|env\()'
+      - type: regex
+        target: php-files
+        pattern: 'DB::raw\(\s*.*\.\s*\$\w+'
+    remediation: |
+      Gunakan parameter binding — DB::raw() hanya untuk ekspresi kolom statis:
+
+        // ✅ BENAR — gunakan binding array
+        ->selectRaw('price * ? as discounted', [$discountRate])
+        ->whereRaw('created_at > ?', [now()->subDays(30)])
+        DB::select('SELECT * FROM users WHERE email = ?', [$email]);
+
+        // ✅ Lebih baik — gunakan query builder
+        User::where('email', $email)->first();
+
+        // ❌ SALAH
+        // DB::raw("price * $discount as discounted")
+        // DB::raw('WHERE email = ' . $email)
+    references:
+      - "https://owasp.org/Top10/A03_2021-Injection/"
+      - "https://cwe.mitre.org/data/definitions/89.html"
+      - "https://laravel.com/docs/queries#raw-expressions"
+  - id: INJ-S02
+    title: "SQL Injection — Raw query builder method dengan string interpolasi"
+    description: >
+      whereRaw(), selectRaw(), havingRaw(), orderByRaw(), atau groupByRaw() dipanggil dengan fragment SQL yang menyisipkan variabel PHP secara langsung tanpa parameterisasi. Ini melewati binding otomatis Eloquent dan membuka vektor SQL injection langsung.
+
+    severity: critical
+    confidence: high
+    category: SQL Injection
+    tags: [sqli, owasp-a03, cwe-89, laravel, eloquent]
+    cwe: "CWE-89"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->(whereRaw|selectRaw|havingRaw|orderByRaw|groupByRaw)\s*\(\s*["''].*\$'
+      - type: regex
+        target: php-files
+        pattern: '->(whereRaw|selectRaw|havingRaw|orderByRaw|groupByRaw)\s*\(\s*\$\w+\s*[,)]'
+        exclude_pattern: '(config\(|env\(|\[)'
+    remediation: |
+      Selalu gunakan array binding untuk nilai dinamis:
+
+        // ✅ BENAR
+        ->whereRaw('price > ?', [$minPrice])
+        ->whereRaw('LOWER(name) LIKE ?', ['%' . strtolower($query) . '%'])
+        ->orderByRaw('FIELD(status, ?, ?, ?)', ['active', 'pending', 'closed'])
+
+        // ❌ SALAH
+        // ->whereRaw("price > $minPrice")
+        // ->whereRaw('name LIKE "%' . $search . '%"')
+    references:
+      - "https://cwe.mitre.org/data/definitions/89.html"
+      - "https://laravel.com/docs/queries#raw-expressions"
+  - id: INJ-S03
+    title: "SQL Injection — DB::statement() / DB::select() dengan konkatenasi string"
+    description: >
+      DB::statement(), DB::select(), DB::insert(), DB::update(), atau DB::delete() menerima SQL yang dibangun dengan konkatenasi string variabel, sepenuhnya melewati proteksi prepared statement. Ini adalah pola SQL injection klasik yang memberikan akses penuh ke database.
+
+    severity: critical
+    confidence: high
+    category: SQL Injection
+    tags: [sqli, owasp-a03, cwe-89, laravel]
+    cwe: "CWE-89"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'DB::(statement|select|insert|update|delete)\s*\(\s*["''].*\.\s*\$'
+      - type: regex
+        target: php-files
+        pattern: 'DB::(statement|select|insert|update|delete)\s*\(\s*["''].*\$\{'
+    remediation: |
+      Gunakan array binding pada semua nilai dinamis:
+
+        // ✅ BENAR
+        DB::select('SELECT * FROM users WHERE email = ? AND active = ?', [$email, true]);
+        DB::statement('UPDATE settings SET value = ? WHERE key = ?', [$value, $key]);
+        DB::insert('INSERT INTO logs (user_id, action) VALUES (?, ?)', [$userId, $action]);
+    references:
+      - "https://cwe.mitre.org/data/definitions/89.html"
+  - id: INJ-S04
+    title: "SQL Injection — DB::unprepared() dengan variabel SQL"
+    description: >
+      DB::unprepared() mengeksekusi SQL mentah tanpa dukungan parameter binding apapun. Berbeda dengan DB::statement(), tidak ada proteksi sama sekali. Hanya boleh digunakan untuk DDL statis; penggunaan dengan variabel adalah SQL injection langsung dengan dampak penuh (data exfiltration, data corruption, atau DoS tergantung privilege database user).
+
+    severity: critical
+    confidence: high
+    category: SQL Injection
+    tags: [sqli, owasp-a03, cwe-89, laravel, raw-sql]
+    cwe: "CWE-89"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'DB::unprepared\s*\(\s*["''].*\$'
+      - type: regex
+        target: php-files
+        pattern: 'DB::unprepared\s*\(\s*\$'
+        exclude_pattern: '(config\(|env\()'
+    remediation: |
+      Gunakan DB::statement() dengan binding untuk SQL dinamis:
+
+        // ✅ BENAR
+        DB::statement('ALTER TABLE users ADD COLUMN IF NOT EXISTS metadata JSON');  // DDL statis
+        DB::statement('UPDATE users SET name = ? WHERE id = ?', [$name, $id]);      // DML dengan binding
+
+        // ❌ SALAH
+        // DB::unprepared("UPDATE users SET role = '$role' WHERE id = $id");
+    references:
+      - "https://cwe.mitre.org/data/definitions/89.html"
+  - id: INJ-S05
+    title: "SQL Injection — kolom ORDER BY dari input pengguna tanpa whitelist"
+    description: >
+      Kolom ORDER BY diambil langsung dari input pengguna tanpa validasi whitelist. Karena kolom tidak dapat di-bind sebagai parameter, teknik bypass umum adalah memasukkan nama kolom berbahaya atau ekspresi yang mengekspos data sensitif (ORDER BY (SELECT password FROM users LIMIT 1)).
+
+    severity: high
+    confidence: high
+    category: SQL Injection
+    tags: [sqli, owasp-a03, cwe-89, laravel, orderby]
+    cwe: "CWE-89"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->orderBy\s*\(\s*\$request->'
+        exclude_pattern: '(in_array|allowedColumns|whitelist|sanitize)'
+      - type: regex
+        target: php-files
+        pattern: '->orderBy\s*\(\s*request\(\)->'
+        exclude_pattern: '(in_array|allowedColumns|whitelist|sanitize)'
+    remediation: |
+      Whitelist kolom ORDER BY yang diizinkan:
+
+        $allowedColumns = ['name', 'email', 'created_at', 'updated_at'];
+        $column = $request->input('sort', 'created_at');
+
+        abort_unless(in_array($column, $allowedColumns, true), 422, 'Kolom tidak valid');
+        $users = User::orderBy($column, 'asc')->paginate(25);
+    references:
+      - "https://cwe.mitre.org/data/definitions/89.html"
+  - id: INJ-C01
+    title: "Command Injection — fungsi shell dengan input pengguna"
+    description: >
+      exec(), system(), shell_exec(), passthru(), popen(), atau proc_open() menerima argumen yang mengandung input pengguna tanpa escapeshellarg(). Ini mengaktifkan OS command injection dan remote code execution. Penyerang menyisipkan metacharacter shell (;, |, &&, $(), ``) untuk mengeksekusi perintah arbitrer.
+
+    severity: critical
+    confidence: high
+    category: Command Injection
+    tags: [cmd-injection, rce, owasp-a03, cwe-78]
+    cwe: "CWE-78"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\b(exec|system|shell_exec|passthru|popen|proc_open)\s*\([^;]*(\$request->|\$_GET|\$_POST|\$_REQUEST)'
+        exclude_pattern: '(escapeshellarg|escapeshellcmd)'
+      - type: regex
+        target: php-files
+        pattern: '(new Process|Process::fromShellCommandline)\(\s*["''].*\$'
+    remediation: |
+      Gunakan Symfony Process dengan array argumen (tidak ada shell interpolation).
+      Array argument tidak pernah dieksekusi melalui shell:
+
+        use Symfony\Component\Process\Process;
+
+        // ✅ BENAR — array argument, tidak ada shell
+        $process = new Process(['ffmpeg', '-i', $inputPath, '-o', $outputPath]);
+        $process->setTimeout(60)->mustRun();
+
+        // ✅ Jika harus menggunakan string shell, WAJIB escape semua argumen
+        exec('convert ' . escapeshellarg($input) . ' ' . escapeshellarg($output));
+
+        // ❌ SALAH
+        // exec("convert {$request->input('file')} output.jpg");
+    references:
+      - "https://owasp.org/Top10/A03_2021-Injection/"
+      - "https://cwe.mitre.org/data/definitions/78.html"
+  - id: INJ-C02
+    title: "Command Injection — Artisan::call() dengan input pengguna"
+    description: >
+      Artisan::call() dipanggil dengan nama command dari input pengguna. Penyerang dapat memicu command destruktif: migrate:fresh (hapus semua data), db:wipe, storage:clear, queue:flush, key:generate (invalidasi semua session dan data terenkripsi), atau command custom yang terdaftar.
+
+    severity: critical
+    confidence: high
+    category: Command Injection
+    tags: [cmd-injection, owasp-a03, cwe-78, laravel, artisan]
+    cwe: "CWE-78"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Artisan::call\s*\(\s*\$(_GET|_POST|_REQUEST|request)'
+    remediation: |
+      Whitelist command yang diizinkan sebelum memanggil Artisan:
+
+        $allowedCommands = ['cache:clear', 'queue:restart', 'view:clear'];
+        $command = $request->input('command');
+
+        abort_unless(in_array($command, $allowedCommands, true), 400, 'Command tidak diizinkan');
+        Artisan::call($command);
+    references:
+      - "https://cwe.mitre.org/data/definitions/78.html"
+  - id: INJ-E01
+    title: "Code Injection — eval() digunakan dalam kode"
+    description: >
+      eval() mengeksekusi string PHP sebagai kode. Jalur apapun yang memungkinkan input pengguna mencapai eval() berarti remote code execution. Bahkan tanpa input pengguna langsung, eval() membuat kode sulit untuk diaudit, dapat memuat payload dari database yang terkompromikan, dan melanggar kebijakan CSP. Fungsi ini hampir tidak pernah diperlukan dalam PHP modern.
+
+    severity: critical
+    confidence: high
+    category: Code Injection
+    tags: [code-injection, rce, owasp-a03, cwe-95]
+    cwe: "CWE-95"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\beval\s*\('
+        exclude_pattern: '(//|#\s|/\*|test|Test|spec)'
+    remediation: |
+      Hapus eval() sepenuhnya dan gunakan alternatif yang aman:
+
+        // Matematika dinamis → gunakan library: mossadal/math-executor
+        // Dispatch dinamis   → gunakan class map atau strategy pattern
+        // Template dinamis   → gunakan Blade, Twig, atau Mustache
+        // Config dinamis     → simpan di database, load dengan config()
+
+        // ✅ Strategy pattern sebagai pengganti eval dinamis
+        $handlers = [
+            'discount' => new DiscountCalculator(),
+            'tax'      => new TaxCalculator(),
+        ];
+        $result = ($handlers[$type] ?? abort(400))->calculate($value);
+    references:
+      - "https://cwe.mitre.org/data/definitions/95.html"
+  - id: INJ-E02
+    title: "Code Injection — preg_replace() dengan modifier /e (dihapus PHP 7.0+)"
+    description: >
+      preg_replace() menggunakan modifier /e yang mengevaluasi penggantian sebagai kode PHP. Modifier ini dihapus sejak PHP 7.0 — penggunaan yang tersisa menyebabkan fatal error di PHP 7.0+ dan selalu merupakan vektor RCE pada versi PHP yang lebih lama.
+
+    severity: critical
+    confidence: high
+    category: Code Injection
+    tags: [code-injection, rce, owasp-a03, cwe-95, legacy]
+    cwe: "CWE-95"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'preg_replace\s*\(\s*["''][^"'']*\/[a-z]*e[a-z]*["'']'
+    remediation: |
+      Ganti dengan preg_replace_callback():
+
+        // ❌ SALAH (PHP 7.0 ke bawah — vektor RCE)
+        // $result = preg_replace('/(\w+)/e', 'strtoupper("$1")', $subject);
+
+        // ✅ BENAR
+        $result = preg_replace_callback('/(\w+)/', function ($matches) {
+            return strtoupper($matches[0]);
+        }, $subject);
+    references:
+      - "https://cwe.mitre.org/data/definitions/95.html"
+  - id: INJ-E03
+    title: "Code Injection — create_function() dihapus di PHP 8.0 (vektor RCE)"
+    description: >
+      create_function() dihapus di PHP 8.0. Secara internal menggunakan eval() untuk membuat closure dinamis, menjadikannya vektor remote code execution. Penggunaan yang tersisa menyebabkan fatal error di PHP 8.0+ dan berpotensi mengekspos RCE di PHP < 8.0 jika argumen berasal dari pengguna.
+
+    severity: critical
+    confidence: high
+    category: Code Injection
+    tags: [code-injection, rce, php80, cwe-95, removed-function]
+    cwe: "CWE-95"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bcreate_function\s*\('
+    remediation: |
+      Ganti dengan arrow function atau anonymous function:
+
+        // ❌ SALAH (dihapus di PHP 8.0)
+        // $fn = create_function('$a, $b', 'return $a + $b;');
+
+        // ✅ BENAR — arrow function (PHP 7.4+)
+        $fn = fn($a, $b) => $a + $b;
+
+        // ✅ BENAR — anonymous function
+        $fn = function ($a, $b) { return $a + $b; };
+    references:
+      - "https://cwe.mitre.org/data/definitions/95.html"
+      - "https://www.php.net/manual/en/migration80.incompatible.php"
+  - id: INJ-E04
+    title: "Code Injection — assert() dengan string atau input pengguna"
+    description: >
+      assert() dengan argumen string mengevaluasinya sebagai kode PHP di PHP < 8.0 (vektor RCE langsung jika string berasal dari pengguna). Di PHP 8.0+ string diterima diam-diam tapi tidak dieksekusi, membuat security assertion berbasis string menjadi dead code yang lolos pemeriksaan tanpa error apapun — bypassing silently.
+
+    severity: critical
+    confidence: high
+    category: Code Injection
+    tags: [code-injection, rce, owasp-a03, cwe-95, php80]
+    cwe: "CWE-95"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bassert\s*\(\s*\$(_GET|_POST|_REQUEST|request)'
+      - type: regex
+        target: php-files
+        pattern: '\bassert\s*\(\s*["''][a-zA-Z$]'
+    remediation: |
+      Jangan pernah gunakan assert() untuk validasi input runtime.
+      Gunakan kondisional dan abort_unless() untuk pemeriksaan keamanan:
+
+        // ❌ SALAH
+        // assert($request->input('expr'));
+        // assert('$value > 0');
+
+        // ✅ BENAR
+        if ($value <= 0) { abort(422, 'Nilai harus positif'); }
+        abort_unless($user->isAdmin(), 403, 'Akses ditolak');
+    references:
+      - "https://cwe.mitre.org/data/definitions/95.html"
+  - id: INJ-T01
+    title: "SSTI — Blade::compileString() dengan konten dari pengguna"
+    description: >
+      Blade::compileString() mengkompilasi string arbitrer sebagai template Blade. Jika konten dari pengguna mencapainya, penyerang menyisipkan blok @php untuk mengeksekusi PHP arbitrer di server. Ini adalah equivalent SSTI untuk Jinja2/Twig injection di framework Python/Ruby.
+
+    severity: critical
+    confidence: high
+    category: SSTI
+    tags: [ssti, owasp-a03, cwe-94, blade]
+    cwe: "CWE-94"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Blade::compileString\s*\(\s*\$(_GET|_POST|_REQUEST|request)'
+      - type: regex
+        target: php-files
+        pattern: 'Blade::render\s*\(\s*\$(_GET|_POST|_REQUEST|request)'
+    remediation: |
+      Jangan pernah mengkompilasi atau me-render konten pengguna sebagai
+      template Blade. Tampilkan hanya menggunakan output yang di-escape:
+
+        // ✅ BENAR — konten pengguna SELALU di-escape
+        return view('template', ['content' => $userContent]);
+        // Di template: {{ $content }} (bukan {!! $content !!})
+
+        // ❌ SALAH
+        // return Blade::render($request->input('template'), $data);
+    references:
+      - "https://cwe.mitre.org/data/definitions/94.html"
+  - id: INJ-T02
+    title: "SSTI — view() / View::make() dengan nama template dari input pengguna"
+    description: >
+      view() atau View::make() me-resolve template menggunakan nama dari input pengguna tanpa whitelist. Penyerang dapat menavigasi ke template admin (admin.users.index), mengekspos konfigurasi sensitif yang di-share ke view, atau mengeksekusi kode via direktif Blade di template tersebut.
+
+    severity: critical
+    confidence: high
+    category: SSTI
+    tags: [ssti, owasp-a03, cwe-94, blade]
+    cwe: "CWE-94"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(View::make|view)\(\s*(\$request->|request\(|\$_GET|\$_POST)'
+    remediation: |
+      Gunakan whitelist map yang ketat:
+
+        $viewMap = [
+            'home'    => 'pages.home',
+            'about'   => 'pages.about',
+            'contact' => 'pages.contact',
+        ];
+
+        $viewName = $viewMap[$request->input('page')] ?? null;
+        abort_unless($viewName, 404);
+        return view($viewName);
+    references:
+      - "https://cwe.mitre.org/data/definitions/94.html"
+  - id: INJ-D01
+    title: "Unsafe Deserialization — unserialize() pada data tidak tepercaya"
+    description: >
+      unserialize() dipanggil dengan data yang mungkin dikontrol pengguna. Mendeserialkan payload yang dimanipulasi penyerang memicu magic methods (__wakeup, __destruct, __toString) via rantai POP (Property-Oriented Programming), yang dapat menyebabkan RCE, arbitrary file deletion, SSRF, atau privilege escalation tergantung kelas yang tersedia di autoloader.
+
+    severity: critical
+    confidence: high
+    category: Deserialization
+    tags: [deserialization, rce, owasp-a08, cwe-502]
+    cwe: "CWE-502"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bunserialize\s*\(\s*\$'
+        exclude_pattern: '(config\(|env\(|test|Test|allowed_classes\s*=>)'
+    remediation: |
+      Gunakan JSON untuk pertukaran data — tidak ada magic method yang dipanggil:
+
+        // ✅ BENAR — JSON aman dari deserialization attack
+        $data = json_decode($input, true, 512, JSON_THROW_ON_ERROR);
+
+        // ✅ Jika unserialize() mutlak diperlukan (cache legacy),
+        //    batasi kelas yang diizinkan:
+        $obj = unserialize($data, ['allowed_classes' => [SafeValueObject::class]]);
+
+        // ❌ SALAH
+        // $obj = unserialize($_POST['data']);
+        // $obj = unserialize(base64_decode($request->input('payload')));
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/502.html"
+      - "https://www.php.net/manual/en/function.unserialize.php"
+  - id: INJ-O01
+    title: "Object Injection — app() / resolve() dengan nama kelas dari pengguna"
+    description: >
+      app() atau resolve() dipanggil dengan nama kelas dari input pengguna, memungkinkan instantiasi kelas service container arbitrer. Penyerang dapat menginstansiasi kelas dengan konstruktor yang memiliki efek samping berbahaya (file deletion, network request, database modification).
+
+    severity: high
+    confidence: high
+    category: Object Injection
+    tags: [object-injection, owasp-a08, cwe-470]
+    cwe: "CWE-470"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\b(app|resolve)\s*\(\s*\$(_GET|_POST|_REQUEST|request)'
+    remediation: |
+      Map kunci pengguna ke nama kelas yang diizinkan:
+
+        $classMap = [
+            'pdf'  => PdfExportService::class,
+            'csv'  => CsvExportService::class,
+            'xlsx' => ExcelExportService::class,
+        ];
+
+        $format  = $request->input('format');
+        $service = $classMap[$format] ?? null;
+        abort_unless($service, 400, 'Format tidak didukung');
+
+        return app($service)->export($data);
+    references:
+      - "https://cwe.mitre.org/data/definitions/470.html"
+  - id: INJ-O02
+    title: "RCE — Dynamic method call dengan nama dari input pengguna"
+    description: >
+      Sebuah method dipanggil menggunakan nama dari input pengguna ($obj->{$input}) atau via call_user_func(). Penyerang dapat memanggil method publik arbitrer termasuk yang destruktif (delete, truncate, flush) atau yang mengekspos data sensitif.
+
+    severity: critical
+    confidence: high
+    category: Object Injection
+    tags: [rce, dynamic-dispatch, owasp-a03, cwe-470]
+    cwe: "CWE-470"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$\w+->\{?\$(_GET|_POST|_REQUEST|request)'
+      - type: regex
+        target: php-files
+        pattern: 'call_user_func(_array)?\s*\(\s*\$(_GET|_POST|_REQUEST|request)'
+    remediation: |
+      Map input pengguna ke nama method yang diizinkan secara fixed:
+
+        $methodMap = [
+            'view'   => 'handleView',
+            'edit'   => 'handleEdit',
+            'export' => 'handleExport',
+        ];
+
+        $action = $request->input('action');
+        $method = $methodMap[$action] ?? null;
+        abort_unless($method && method_exists($this, $method), 400, 'Aksi tidak valid');
+        return $this->$method($request);
+    references:
+      - "https://cwe.mitre.org/data/definitions/470.html"
+  - id: INJ-O03
+    title: "RCE — Dynamic class instantiation dari input pengguna"
+    description: >
+      Kelas diinstansiasi menggunakan nama dari input pengguna (new $class). Penyerang dapat menginstansiasi kelas terdaftar arbitrer yang ada di autoloader, memicu konstruktor berbahaya atau magic methods.
+
+    severity: critical
+    confidence: high
+    category: Object Injection
+    tags: [rce, owasp-a08, cwe-470, dynamic-instantiation]
+    cwe: "CWE-470"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bnew\s+\$(_GET|_POST|_REQUEST|request)'
+    remediation: |
+      Map kunci pengguna ke set nama kelas yang diizinkan secara fixed:
+
+        $classMap = [
+            'pdf'  => PdfExporter::class,
+            'csv'  => CsvExporter::class,
+        ];
+
+        $className = $classMap[$request->input('format')] ?? null;
+        abort_unless($className, 400, 'Format tidak valid');
+        $exporter  = new $className();
+    references:
+      - "https://cwe.mitre.org/data/definitions/470.html"
+  - id: INJ-V01
+    title: "Variable Injection — extract() dengan input pengguna"
+    description: >
+      extract() mengimpor kunci array sebagai variabel PHP ke scope saat ini. Ketika dipanggil dengan $_GET, $_POST, atau $request->all(), penyerang dapat menimpa variabel apapun dalam scope: $isAdmin, $user, $authenticated, $config, bahkan variabel yang digunakan untuk kontrol flow keamanan.
+
+    severity: high
+    confidence: high
+    category: Variable Injection
+    tags: [variable-injection, owasp-a03, cwe-621]
+    cwe: "CWE-621"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bextract\s*\(\s*(\$_GET|\$_POST|\$_REQUEST|\$request->all)'
+    remediation: |
+      Jangan pernah gunakan extract() pada input pengguna.
+      Akses nilai secara eksplisit dan validasi satu per satu:
+
+        // ✅ BENAR
+        $name  = $request->string('name')->trim()->limit(100)->value();
+        $email = $request->string('email')->lower()->value();
+
+        // ❌ SALAH
+        // extract($request->all());  // $isAdmin sekarang bisa diset dari luar!
+    references:
+      - "https://cwe.mitre.org/data/definitions/621.html"
+  - id: INJ-V02
+    title: "Variable Injection — parse_str() tanpa output array"
+    description: >
+      parse_str() tanpa parameter kedua mengimpor kunci yang diparse langsung ke scope PHP saat ini — setara dengan register_globals yang sudah lama dihapus. Penyerang dapat menimpa variabel apapun dalam scope saat ini dengan memanipulasi query string atau request body.
+
+    severity: critical
+    confidence: high
+    category: Variable Injection
+    tags: [variable-injection, owasp-a03, cwe-621, register-globals]
+    cwe: "CWE-621"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bparse_str\s*\(\s*\$\w+\s*\)\s*;'
+    remediation: |
+      Selalu sediakan output array sebagai parameter kedua:
+
+        // ✅ BENAR
+        parse_str($queryString, $params);
+        $name = filter_var($params['name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS);
+
+        // ❌ SALAH
+        // parse_str($queryString);  // Mengimpor ke scope saat ini!
+    references:
+      - "https://cwe.mitre.org/data/definitions/621.html"
+  - id: INJ-M01
+    title: "Email Header Injection via PHP mail()"
+    description: >
+      Fungsi mail() PHP menerima input pengguna di argumen To, subject, atau additional headers. Injeksi \r\n memungkinkan penambahan header Cc/Bcc, pengiriman spam dari domain Anda, atau pembuatan email phishing yang tampak berasal dari infrastruktur tepercaya Anda.
+
+    severity: high
+    confidence: high
+    category: Email Injection
+    tags: [email-injection, owasp-a03, cwe-93, spam]
+    cwe: "CWE-93"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bmail\s*\(\s*\$(_GET|_POST|_REQUEST|request)'
+      - type: regex
+        target: php-files
+        pattern: '\bmail\s*\([^,]+,[^,]+,[^,]+,\s*[^)]*\$(_GET|_POST|_REQUEST|request)'
+    remediation: |
+      Gunakan Mail facade Laravel yang menangani encoding header secara otomatis
+      dan tidak rentan terhadap header injection:
+
+        // ✅ BENAR
+        Mail::to($validatedEmail)->send(new ContactFormMail($validatedData));
+
+        // Jika harus menggunakan mail(), validasi dan sanitasi email:
+        $email = filter_var($request->input('email'), FILTER_VALIDATE_EMAIL);
+        abort_unless($email, 422, 'Email tidak valid');
+        // Hapus karakter newline dari subject
+        $subject = str_replace(["\r", "\n"], '', $request->input('subject'));
+    references:
+      - "https://cwe.mitre.org/data/definitions/93.html"
+  - id: INJ-M02
+    title: "CSV Formula Injection dalam data yang diekspor"
+    description: >
+      Data dari pengguna ditulis ke CSV atau XLSX tanpa sanitasi karakter formula (=, +, -, @, TAB, CR). Sel yang dimulai karakter ini dieksekusi sebagai formula oleh Excel/LibreOffice/Google Sheets. Penyerang dapat mengeksfiltrasi data via DDE, membuat link ke resource eksternal, atau mengeksekusi makro saat file dibuka oleh penerima.
+
+    severity: medium
+    confidence: medium
+    category: CSV Injection
+    tags: [csv-injection, owasp-a03, cwe-1236, spreadsheet]
+    cwe: "CWE-1236"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bfputcsv\s*\('
+        exclude_pattern: '(sanitize|escapeFormula|preg_replace|ltrim.*[=+\-@])'
+    remediation: |
+      Prefix karakter pemicu formula dengan tanda kutip tunggal sebelum
+      menulis ke CSV. Lakukan ini pada SEMUA field dari pengguna:
+
+        function sanitizeCsvCell(mixed $value): string
+        {
+            $str = (string) $value;
+            // Prefix jika dimulai dengan karakter formula
+            if (preg_match('/^[=+\-@\t\r\|%]/', $str)) {
+                return "'" . $str;  // Excel/LibreOffice memperlakukan ini sebagai text
+            }
+            return $str;
+        }
+
+        $row = array_map('sanitizeCsvCell', $rowData);
+        fputcsv($handle, $row);
+    references:
+      - "https://cwe.mitre.org/data/definitions/1236.html"
+      - "https://owasp.org/www-community/attacks/CSV_Injection"
+  - id: INJ-F01
+    title: "RFI — PHP protocol wrapper dalam include/require atau file functions"
+    description: >
+      include, require, file_get_contents, atau fopen menggunakan PHP stream wrapper (php://input, php://filter, data://, phar://, expect://). PHP filter chains memungkinkan eksekusi kode via base64-decode + phar bahkan ketika allow_url_include dinonaktifkan. Phar wrapper mengaktifkan deserialization gadget chain.
+
+    severity: critical
+    confidence: high
+    category: RFI
+    tags: [rfi, lfi, owasp-a03, cwe-98, php-wrappers]
+    cwe: "CWE-98"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(include|require|include_once|require_once|file_get_contents|fopen)\s*\(?[^;]*(php://|data://|phar://|expect://|zip://|glob://)'
+    remediation: |
+      Nonaktifkan stream wrapper berbahaya di php.ini:
+
+        ; php.ini — production
+        allow_url_include = Off
+        allow_url_fopen   = Off   ; jika tidak dibutuhkan untuk download eksternal
+
+      Jangan pernah membuat path include dari input pengguna atau sumber eksternal.
+      Validasi path dengan realpath() dan pastikan berada dalam direktori yang diizinkan.
+    references:
+      - "https://cwe.mitre.org/data/definitions/98.html"
+      - "https://www.php.net/manual/en/wrappers.php"

@@ -1,0 +1,225 @@
+meta:
+  category: API Security
+  version: "3.0.0"
+  updated: "2025"
+  maintainer: "Security Engineering Team"
+  scope: "Laravel 10–12, PHP 8.0–8.4"
+rules:
+  - id: API-001
+    title: "Unbounded query — API mengembalikan semua record tanpa pagination"
+    description: >
+      API controller memanggil ::all() atau query chain yang berakhir dengan ->get() tanpa pagination atau batas baris. Ini memungkinkan penyerang mengekstrak seluruh tabel dalam satu request (data exfiltration) dan menyebabkan out-of-memory denial of service pada tabel besar.
+
+    severity: high
+    confidence: medium
+    category: Unbounded Result Set
+    tags: [api, dos, data-exfiltration, owasp-a04, cwe-770]
+    cwe: "CWE-770"
+    owasp: "A04:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\breturn\s+\w+::all\s*\(\s*\)'
+        exclude_pattern: '(paginate|limit|take|simplePaginate|cursorPaginate|first|find|count)'
+      - type: regex
+        target: php-files
+        pattern: 'return\s+\$\w+->get\s*\(\s*\)\s*;'
+        exclude_pattern: '(paginate|limit|take|where|find|first|count|->chunk|->each)'
+    remediation: |
+      Selalu paginate atau batasi response API:
+        return User::latest()->cursorPaginate(25);
+        return User::paginate(min($request->integer('per_page', 25), 100));
+    references:
+      - "https://cwe.mitre.org/data/definitions/770.html"
+      - "https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/"
+  - id: API-002
+    title: "Mass data exposure — model dikembalikan tanpa field filtering"
+    description: >
+      Model Eloquent atau collection dikembalikan langsung dalam JSON response tanpa memilih field spesifik atau menggunakan API Resource. Kolom internal (hash password, token, flag admin, data billing) secara diam-diam disertakan dalam payload response.
+
+    severity: high
+    confidence: medium
+    category: Mass Data Exposure
+    tags: [api, info-disclosure, owasp-a03, cwe-200]
+    cwe: "CWE-200"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'return\s+.*->(toArray|toJson)\s*\(\s*\)'
+        exclude_pattern: '(Resource|resource|only\(|select\(|makeHidden|pluck|except\()'
+      - type: regex
+        target: php-files
+        pattern: 'response\(\)->json\s*\(\s*\$\w+\s*\)'
+        exclude_pattern: '(paginate|resource|result|data|response|Resource|only\(|select\(|makeHidden|pluck|collect\()'
+    remediation: |
+      Gunakan API Resources untuk mengontrol field yang diekspos:
+        return new UserResource($user);
+        return UserResource::collection($users->paginate(25));
+        return response()->json($user->only(['id', 'name', 'email']));
+    references:
+      - "https://cwe.mitre.org/data/definitions/200.html"
+      - "https://laravel.com/docs/eloquent-resources"
+  - id: API-003
+    title: "Route API resource tanpa rate limiting middleware"
+    description: >
+      Controller didaftarkan menggunakan Route::apiResource() tanpa middleware throttle. Tanpa rate limiting, penyerang dapat melakukan brute force, credential stuffing, atau data scraping tanpa hambatan.
+
+    severity: high
+    confidence: medium
+    category: Missing Rate Limiting
+    tags: [api, rate-limit, dos, owasp-a04, cwe-770, laravel12]
+    cwe: "CWE-770"
+    patterns:
+      - type: regex
+        target: routes-files
+        pattern: 'Route::(apiResource|resource)\s*\('
+        exclude_pattern: '(throttle|RateLimiter|->middleware)'
+    remediation: |
+      Bungkus route API dalam grup middleware throttled:
+        Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
+            Route::apiResource('orders', OrderController::class);
+        });
+    references:
+      - "https://cwe.mitre.org/data/definitions/770.html"
+      - "https://laravel.com/docs/routing#rate-limiting"
+  - id: API-003b
+    title: "Endpoint autentikasi tanpa rate limiting (brute force risk)"
+    description: >
+      Route login, password reset, atau OTP verification tidak memiliki throttle middleware. Tanpa rate limiting, penyerang dapat melakukan brute force password, credential stuffing, atau OTP enumeration tanpa hambatan.
+
+    severity: critical
+    confidence: medium
+    category: Missing Rate Limiting
+    tags: [api, rate-limit, brute-force, owasp-a07, cwe-307]
+    cwe: "CWE-307"
+    patterns:
+      - type: regex
+        target: routes-files
+        pattern: "Route::(post|any)\\s*\\([^)]*[\"'](login|signin|password|forgot|reset|otp|verify|2fa|mfa)[\"']"
+        exclude_pattern: '(throttle|RateLimiter|->middleware)'
+    remediation: |
+      Terapkan rate limiting ketat pada semua endpoint autentikasi:
+        Route::middleware(['throttle:5,1'])->group(function () {
+            Route::post('/login', [AuthController::class, 'login']);
+            Route::post('/password/reset', [PasswordController::class, 'reset']);
+        });
+    references:
+      - "https://cwe.mitre.org/data/definitions/307.html"
+  - id: API-004
+    title: "GraphQL introspection diaktifkan di production"
+    description: >
+      GraphQL introspection tidak dinonaktifkan di production. Ini mengekspos API schema lengkap — semua type, query, mutation, dan argumen — kepada siapa saja tanpa memerlukan kredensial.
+
+    severity: medium
+    confidence: high
+    category: GraphQL Misconfiguration
+    tags: [api, graphql, info-disclosure, cwe-200, schema-exposure]
+    cwe: "CWE-200"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: "'introspection'\\s*=>\\s*(true|env\\([^)]*,\\s*true\\))"
+    remediation: |
+      Nonaktifkan introspection di production:
+        'introspection' => env('GRAPHQL_INTROSPECTION', false),
+      Set GRAPHQL_INTROSPECTION=false di semua file .env production.
+    references:
+      - "https://cwe.mitre.org/data/definitions/200.html"
+      - "https://www.apollographql.com/blog/graphql/security/why-you-should-disable-graphql-introspection-in-production/"
+  - id: API-004b
+    title: "GraphQL — tidak ada batasan query depth atau complexity"
+    description: >
+      Endpoint GraphQL tidak membatasi query depth atau complexity. Penyerang dapat membuat nested query yang sangat dalam yang mengeksponensialkan database query, menyebabkan denial of service (GraphQL query abuse).
+
+    severity: high
+    confidence: medium
+    category: GraphQL DoS
+    tags: [api, graphql, dos, owasp-a04, cwe-770]
+    cwe: "CWE-770"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: "'max_query_depth'\\s*=>\\s*(null|0)"
+    remediation: |
+      Batasi query depth dan complexity:
+        // config/lighthouse.php
+        'security' => [
+            'max_query_depth'      => 7,
+            'max_query_complexity' => 200,
+        ],
+    references:
+      - "https://cwe.mitre.org/data/definitions/770.html"
+  - id: API-005
+    title: "API response berisi stack trace atau debug info"
+    description: >
+      API response menyertakan informasi debug, stack trace, atau pesan error internal. Stack trace mengekspos path file, nama kelas, query SQL, dan tanda tangan method — memberikan penyerang peta detail arsitektur internal.
+
+    severity: high
+    confidence: medium
+    category: Information Disclosure
+    tags: [api, info-disclosure, owasp-a05, cwe-209]
+    cwe: "CWE-209"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "response\\(\\)->json\\s*\\(\\s*\\[\\s*[\"']?(debug|trace|error_detail|stack_trace|exception)"
+        exclude_pattern: '(APP_DEBUG|app\.debug|isLocal|test|Test)'
+      - type: regex
+        target: php-files
+        pattern: '\$e->getTraceAsString\s*\(\s*\)'
+        exclude_pattern: '(Log::|logger\(|isLocal|test|Test)'
+    remediation: |
+      Log detail di server, kembalikan error message generik ke klien:
+        catch (\Throwable $e) {
+            Log::error('API error', ['exception' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json(['message' => 'Terjadi kesalahan internal.'], 500);
+        }
+    references:
+      - "https://cwe.mitre.org/data/definitions/209.html"
+  - id: API-006
+    title: "Queued job dikirim dengan data request tidak tervalidasi"
+    description: >
+      Job yang di-queue dikirim dengan $request->all() atau $request->input() mentah. Data tidak tervalidasi diserialisasi ke payload queue, melewati validasi dan berpotensi menyertakan field berbahaya atau terlalu besar.
+
+    severity: medium
+    confidence: medium
+    category: Unvalidated Data in Queue
+    tags: [queue, input-validation, cwe-20, laravel]
+    cwe: "CWE-20"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(dispatch|::dispatch)\s*\(\s*new\s+\w+\s*\(\s*\$request->(all|input)\s*\('
+    remediation: |
+      Teruskan hanya data yang divalidasi atau ID ke queued job:
+        // Terbaik: teruskan ID saja
+        ProcessOrder::dispatch($order->id);
+
+        // Atau teruskan data yang divalidasi
+        ProcessOrder::dispatch($request->validated()['order_id']);
+    references:
+      - "https://cwe.mitre.org/data/definitions/20.html"
+      - "https://laravel.com/docs/queues"
+  - id: API-007
+    title: "Sensitive data dalam URL parameter API"
+    description: >
+      Token, API key, atau kredensial sensitif dikirim via URL query parameter. Parameter URL muncul di server access log, proxy log, browser history, dan header Referer — mengekspos kredensial secara pasif.
+
+    severity: high
+    confidence: high
+    category: Token Exposure in URL
+    tags: [api, token-exposure, owasp-a02, cwe-598]
+    cwe: "CWE-598"
+    patterns:
+      - type: regex
+        target: routes-files
+        pattern: 'Route::(get|any)\s*\([^)]*\{(token|api_key|apiKey|secret_key|access_token|auth_token)\}'
+      - type: regex
+        target: php-files
+        pattern: '\$request->query\s*\(\s*["'']?(token|api_key|apiKey|secret_key|access_token)["'']?\s*\)'
+    remediation: |
+      Kirimkan semua token eksklusif di header Authorization:
+        Authorization: Bearer <token>
+        $token = $request->bearerToken();
+    references:
+      - "https://cwe.mitre.org/data/definitions/598.html"

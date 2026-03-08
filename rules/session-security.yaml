@@ -1,0 +1,77 @@
+meta:
+  category: Session Security
+  version: "3.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2025"
+rules:
+  - id: SES-001
+    title: "Session tidak di-regenerate setelah autentikasi"
+    description: >
+      Auth::attempt() atau Auth::login() dipanggil tanpa memanggil $request->session()->regenerate() setelahnya. Tanpa regenerasi session, aplikasi rentan terhadap session fixation — penyerang yang mengetahui session ID dapat membajak session setelah pengguna mengautentikasi.
+
+    severity: high
+    confidence: medium
+    category: Session Fixation
+    tags: [session, owasp-a07, cwe-384]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Auth::(attempt|login)\s*\('
+        exclude_pattern: '(regenerate|invalidate|Fortify|Breeze|Jetstream|LoginResponse|test|Test)'
+    remediation: |
+      Selalu regenerasi session segera setelah autentikasi berhasil:
+        if (Auth::attempt($credentials)) {
+            $request->session()->regenerate();
+            return redirect()->intended('dashboard');
+        }
+    references:
+      - "https://cwe.mitre.org/data/definitions/384.html"
+      - "https://owasp.org/www-community/attacks/Session_fixation"
+  - id: SES-002
+    title: "Data sensitif disimpan langsung dalam session"
+    description: >
+      Password mentah, token, atau data kartu pembayaran disimpan langsung dalam session via session()->put(). Bahkan dengan session terenkripsi, menyimpan secret mentah memperluas attack surface dan mungkin melanggar PCI-DSS, GDPR, atau HIPAA.
+
+    severity: high
+    confidence: high
+    category: Sensitive Data in Session
+    tags: [session, info-disclosure, owasp-a02, cwe-312]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'session\(\)->put\s*\(\s*["'']?(password|passwd|secret|credit_card|cvv|card_number|ssn|social_security|private_key)'
+      - type: regex
+        target: php-files
+        pattern: '\$request->session\(\)->put\s*\(\s*["'']?(password|passwd|credit_card|cvv|card_number|ssn)'
+    remediation: |
+      Jangan menyimpan secret mentah dalam session. Untuk nilai temporary
+      jangka pendek gunakan cache terenkripsi dengan TTL singkat:
+        Cache::put("payment:{$userId}", encrypt($token), now()->addMinutes(5));
+    references:
+      - "https://cwe.mitre.org/data/definitions/312.html"
+  - id: SES-003
+    title: "Cookie dibuat tanpa flag Secure dan HttpOnly"
+    description: >
+      Cookie dibuat dengan Secure atau HttpOnly secara eksplisit disetel ke false. Tanpa Secure, cookie dikirim melalui HTTP. Tanpa HttpOnly, JavaScript dapat mencurinya — mengaktifkan pencurian via XSS bahkan ketika HTTPS diterapkan.
+
+    severity: high
+    confidence: high
+    category: Insecure Cookie
+    tags: [cookies, owasp-a05, cwe-614]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'setcookie\s*\([^)]*,\s*(false|0)\s*,\s*(false|0)'
+      - type: regex
+        target: php-files
+        pattern: 'Cookie::(make|queue)\s*\([^,]+,[^,]+,[^,]+,[^,]+,[^,]+,\s*(false|null)'
+    remediation: |
+      Set kedua flag pada semua cookie sensitif:
+        cookie('name', 'value', $minutes, '/', null, true, true, false, 'Strict');
+      Konfigurasi global di config/session.php:
+        'secure'    => env('SESSION_SECURE_COOKIE', true),
+        'http_only' => true,
+        'same_site' => 'lax',
+    references:
+      - "https://cwe.mitre.org/data/definitions/614.html"
+      - "https://owasp.org/www-community/controls/SecureCookieAttribute"

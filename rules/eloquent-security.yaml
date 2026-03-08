@@ -1,0 +1,124 @@
+meta:
+  category: Eloquent & Model Security
+  version: "3.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2025"
+rules:
+  - id: MDL-001
+    title: "Model memiliki kolom password tetapi tanpa properti $hidden"
+    description: >
+      Model Eloquent mereferensikan kolom password tetapi tidak mendeklarasikan $hidden. Tanpa $hidden, hash password diserialisasi dalam setiap pemanggilan toArray() / toJson() — termasuk API response, payload event, dan cache entry.
+
+    severity: high
+    confidence: high
+    category: Data Exposure
+    tags: [eloquent, info-disclosure, owasp-a01, cwe-200]
+    condition: all
+    patterns:
+      - type: contains
+        target: model-files
+        pattern: "password"
+      - type: contains
+        target: model-files
+        pattern: "$hidden"
+        negative: true
+    remediation: |
+      Deklarasikan $hidden untuk mengecualikan kolom sensitif dari semua serialisasi:
+        protected $hidden = ['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'];
+    references:
+      - "https://cwe.mitre.org/data/definitions/200.html"
+      - "https://laravel.com/docs/eloquent-serialization#hiding-attributes-from-json"
+  - id: MDL-002
+    title: "Model dengan $guarded = [] — mass assignment sepenuhnya dinonaktifkan"
+    description: >
+      Model mendefinisikan $guarded = [] yang mengizinkan setiap atribut diset via Model::create() atau Model::update(). Input yang dikendalikan penyerang dapat mengeset is_admin, role, email_verified_at, dan field terproteksi lainnya.
+
+    severity: critical
+    confidence: high
+    category: Mass Assignment
+    tags: [eloquent, mass-assignment, owasp-a04, cwe-915]
+    patterns:
+      - type: regex
+        target: model-files
+        pattern: 'protected\s+\$guarded\s*=\s*\[\s*\]'
+        exclude_pattern: '(seed|Seed|test|Test|factory|Factory|DatabaseSeeder)'
+    remediation: |
+      Gunakan whitelist $fillable eksplisit sebagai gantinya:
+        protected $fillable = ['name', 'email', 'bio', 'avatar'];
+      Atau proteksi field sensitif secara spesifik:
+        protected $guarded = ['id', 'is_admin', 'role', 'email_verified_at', 'password'];
+    references:
+      - "https://cwe.mitre.org/data/definitions/915.html"
+      - "https://laravel.com/docs/eloquent#mass-assignment"
+  - id: MDL-003
+    title: "Model accessor mengembalikan HTML mentah"
+    description: >
+      Accessor model mengembalikan nilai yang mengandung tag HTML. Ketika accessor ini dirender dengan {!! !!} di Blade atau dimasukkan ke JSON response, HTML tanpa escaping menciptakan vektor stored XSS yang dapat dicapai via setiap view atau consumer yang menggunakan accessor tersebut.
+
+    severity: medium
+    confidence: medium
+    category: Stored XSS
+    tags: [eloquent, xss, owasp-a03, cwe-79]
+    patterns:
+      - type: regex
+        target: model-files
+        pattern: 'function\s+get\w+Attribute\s*\([^)]*\)[^{]*\{[^}]*(<[a-z]+[\s>]|<\/[a-z]+>)'
+    remediation: |
+      Kembalikan nilai yang di-escape dari semua accessor:
+        public function getDisplayNameAttribute(): string
+        {
+            return e($this->first_name . ' ' . $this->last_name);
+        }
+      Jika HTML mentah disengaja, dokumentasikan secara eksplisit dan pastikan
+      setiap caller menggunakan sanitasi sebelum rendering.
+    references:
+      - "https://cwe.mitre.org/data/definitions/79.html"
+  - id: MDL-004
+    title: "Livewire 3 — public property mass assignment tanpa validasi"
+    description: >
+      Komponen Livewire 3 mengekspos public property yang diset dari wire:model tanpa aturan validasi atau atribut #[Locked]. Pengguna terautentikasi atau tamu dapat POST nilai arbitrer langsung ke public property manapun via endpoint update Livewire.
+
+    severity: high
+    confidence: medium
+    category: Mass Assignment
+    tags: [livewire3, laravel10, owasp-a04, cwe-915]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'class\s+\w+\s+extends\s+(Component|LivewireComponent)'
+        exclude_pattern: '(#\[Locked\]|#\[Validate\]|\$rules\s*=\s*\[|->validate\(|Locked|validate)'
+    remediation: |
+      Kunci property yang tidak boleh ditulis pengguna dengan #[Locked]:
+        #[Locked]
+        public int $userId;
+
+      Validasi semua writable property:
+        #[Validate('required|string|max:255')]
+        public string $name = '';
+    references:
+      - "https://livewire.laravel.com/docs/locked"
+      - "https://cwe.mitre.org/data/definitions/915.html"
+  - id: MDL-005
+    title: "Inertia.js — user model lengkap di-share ke frontend"
+    description: >
+      Middleware HandleInertiaRequests men-share variabel secara global (auth user termasuk semua atribut, token, atau objek besar). Data yang di-share Inertia tertanam dalam setiap page response sebagai payload JSON yang terlihat di browser DevTools dan oleh JavaScript yang berjalan di halaman.
+
+    severity: high
+    confidence: medium
+    category: Data Exposure
+    tags: [inertia, laravel10, info-disclosure, owasp-a02, cwe-200]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Inertia::share\s*\([^)]*\$user->|auth\(\)->user\(\)\s*[,)]'
+        exclude_pattern: '(->only\(|->makeHidden\(|->select\(|pick\(|\[["'']id["''])'
+    remediation: |
+      Share hanya field user minimum yang diperlukan:
+        Inertia::share([
+            'auth' => fn () => [
+                'user' => auth()->user()?->only(['id', 'name', 'email', 'avatar']),
+            ],
+        ]);
+    references:
+      - "https://inertiajs.com/shared-data"
+      - "https://cwe.mitre.org/data/definitions/200.html"

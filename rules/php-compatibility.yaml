@@ -1,0 +1,256 @@
+meta:
+  category: PHP Compatibility & Version-Specific Risks
+  version: "3.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2025"
+rules:
+  - id: PHP-080-01
+    title: "create_function() dihapus di PHP 8.0 — vektor RCE"
+    description: >
+      create_function() dihapus di PHP 8.0. Secara internal menggunakan eval(), menjadikannya vektor remote code execution. Penggunaan yang tersisa menyebabkan fatal error di PHP 8.0+.
+
+    severity: critical
+    confidence: high
+    category: Removed Function
+    tags: [php80, removed, rce, cwe-95]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bcreate_function\s*\('
+    remediation: |
+      Ganti dengan anonymous function:
+        $fn = fn($a) => $a * 2;
+        $fn = function ($a) { return $a * 2; };
+    references:
+      - "https://cwe.mitre.org/data/definitions/95.html"
+      - "https://www.php.net/manual/en/migration80.incompatible.php"
+  - id: PHP-080-02
+    title: "assert() dengan string — perilaku berubah di PHP 8.0"
+    description: >
+      assert() dengan argumen string mengevaluasinya sebagai kode PHP di PHP < 8.0. Di PHP 8.0+ string diterima diam-diam tapi tidak lagi dievaluasi (selalu pass), membuat security assertion menggunakan string-based assert() menjadi bypass yang tidak terlihat.
+
+    severity: high
+    confidence: high
+    category: Behavior Change
+    tags: [php80, behavior-change, cwe-670]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bassert\s*\(\s*["''][a-zA-Z$]'
+    remediation: |
+      Ganti string assertion dengan expression assertion:
+        assert($user->isAdmin());   // kompatibel PHP 8+
+      Jangan pernah gunakan assert() untuk pemeriksaan keamanan runtime — gunakan kondisional:
+        if (!$user->isAdmin()) { abort(403); }
+    references:
+      - "https://wiki.php.net/rfc/assert-string-eval-cleanup"
+      - "https://cwe.mitre.org/data/definitions/670.html"
+  - id: PHP-081-01
+    title: "FILTER_SANITIZE_STRING deprecated di PHP 8.1 — silent XSS risk"
+    description: >
+      FILTER_SANITIZE_STRING dideprecasi di PHP 8.1. Kode yang mengandalkannya untuk mitigasi XSS secara diam-diam tidak mendapat sanitasi apapun di PHP 8.1+ tanpa error runtime, membuka kembali vektor XSS.
+
+    severity: high
+    confidence: high
+    category: Deprecated Function
+    tags: [php81, deprecated, xss, cwe-79]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bFILTER_SANITIZE_(STRING|STRIPPED)\b'
+    remediation: |
+      Ganti dengan escaping yang sesuai konteks:
+        $clean = e($input);                                          // Blade/HTML
+        $clean = strip_tags($input);                                 // hapus semua tag HTML
+        $clean = htmlspecialchars($input ?? '', ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8');
+    references:
+      - "https://wiki.php.net/rfc/deprecations_php_8_1"
+      - "https://cwe.mitre.org/data/definitions/79.html"
+  - id: PHP-081-02
+    title: "htmlspecialchars() tanpa null coalescing (PHP 8.1+)"
+    description: >
+      htmlspecialchars() atau htmlentities() menerima variabel tanpa null coalescing. Sejak PHP 8.1 input null memancarkan deprecation notice; di PHP 9.0 akan throw TypeError. Jika warning dipromosikan ke exception, encoding HTML gagal di tengah render.
+
+    severity: medium
+    confidence: medium
+    category: Null Safety
+    tags: [php81, deprecated, xss, cwe-79]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'htmlspecialchars\s*\(\s*\$\w+\s*[,)]'
+        exclude_pattern: '(\?\?|\(string\)|strval|is_string|is_null|e\()'
+      - type: regex
+        target: php-files
+        pattern: 'htmlentities\s*\(\s*\$\w+\s*[,)]'
+        exclude_pattern: '(\?\?|\(string\)|strval|is_string|is_null)'
+    remediation: |
+      Guard terhadap null dengan null coalescing atau cast eksplisit:
+        htmlspecialchars($value ?? '', ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8');
+        htmlspecialchars((string) $value, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8');
+      Lebih baik gunakan helper e() Laravel yang menangani null dengan aman.
+    references:
+      - "https://wiki.php.net/rfc/deprecate_null_to_scalar_internal_arg"
+  - id: PHP-082-01
+    title: "utf8_encode() / utf8_decode() deprecated di PHP 8.2"
+    description: >
+      utf8_encode() dan utf8_decode() dideprecasi di PHP 8.2 dan dihapus di PHP 9.0. Konversi encoding yang salah dapat menyebabkan kerentanan filter-bypass dimana payload dalam satu encoding lolos dari sanitizer yang mengharapkan UTF-8.
+
+    severity: medium
+    confidence: high
+    category: Deprecated Function
+    tags: [php82, deprecated, encoding, cwe-838]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\b(utf8_encode|utf8_decode)\s*\('
+    remediation: |
+      Gunakan mb_convert_encoding() dengan charset sumber dan target yang eksplisit:
+        $utf8  = mb_convert_encoding($str, 'UTF-8', 'ISO-8859-1');
+        $latin = mb_convert_encoding($str, 'ISO-8859-1', 'UTF-8');
+    references:
+      - "https://wiki.php.net/rfc/remove_utf8_decode_and_utf8_encode"
+      - "https://cwe.mitre.org/data/definitions/838.html"
+  - id: PHP-082-02
+    title: "Tidak ada #[SensitiveParameter] pada parameter fungsi yang berisi secret"
+    description: >
+      PHP 8.2 memperkenalkan #[\\SensitiveParameter] untuk meredact nilai dalam stack trace. Fungsi yang menerima password, token, atau API key tanpa atribut ini mengekspos secret ini dalam error log, exception handler, dan alat APM setiap kali exception dilempar.
+
+    severity: medium
+    confidence: medium
+    category: Information Disclosure
+    tags: [php82, info-disclosure, cwe-532]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'function\s+\w+\s*\([^)]*\$(password|passwd|secret|token|api_key|apiKey|private_key|pin)\b[^)]*\)'
+        exclude_pattern: '(SensitiveParameter|#\[|\btest\b|\bTest\b)'
+    remediation: |
+      Tambahkan #[\\SensitiveParameter] ke setiap parameter fungsi yang sensitif:
+        function authenticate(
+            string $email,
+            #[\SensitiveParameter] string $password
+        ): bool { ... }
+    references:
+      - "https://wiki.php.net/rfc/redact_parameters_in_back_traces"
+      - "https://cwe.mitre.org/data/definitions/532.html"
+  - id: PHP-082-03
+    title: "Dynamic property pada non-stdClass object (PHP 8.2 deprecated)"
+    description: >
+      PHP 8.2 mendeprecasi pembuatan dynamic property pada objek non-stdClass. Di PHP 9.0 ini menjadi fatal error. Kode keamanan yang mendeteksi atau menyetel property secara dinamis akan gagal diam-diam di PHP 8.2 dan break sepenuhnya di PHP 9.0.
+
+    severity: medium
+    confidence: medium
+    category: Deprecated Behavior
+    tags: [php82, dynamic-properties, cwe-670]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$\w+->\$\w+\s*='
+        exclude_pattern: '(stdClass|AllowDynamicProperties|test|Test|//|#\s)'
+    remediation: |
+      Deklarasikan semua property secara eksplisit atau tambahkan #[AllowDynamicProperties]:
+        class UserContext {
+            public string $role = '';    // deklarasi eksplisit
+        }
+      Atau untuk value-object legacy yang memerlukan dynamic property:
+        #[AllowDynamicProperties]
+        class LegacyData {}
+    references:
+      - "https://wiki.php.net/rfc/deprecate_dynamic_properties"
+      - "https://cwe.mitre.org/data/definitions/670.html"
+  - id: PHP-083-01
+    title: "json_validate() tanpa batasan depth/size (PHP 8.3)"
+    description: >
+      json_validate() (PHP 8.3) digunakan sebagai satu-satunya pemeriksaan sebelum memproses JSON tidak tepercaya. json_validate() hanya memeriksa validitas struktural — tidak memvalidasi schema, batas ukuran, kedalaman nesting, atau konten. Penyerang dapat meneruskan JSON yang sangat nested atau besar yang lolos validasi tetapi menyebabkan memory exhaustion.
+
+    severity: medium
+    confidence: medium
+    category: Input Validation
+    tags: [php83, json, dos, owasp-a04, cwe-20]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bjson_validate\s*\('
+        exclude_pattern: '(depth\s*:|strlen|mb_strlen|JSON_THROW|json_decode.*depth)'
+    remediation: |
+      Terapkan batas ukuran dan kedalaman sebelum dan sesudah json_validate():
+        abort_if(strlen($raw) > 65536, 413, 'Payload terlalu besar');
+        abort_unless(json_validate($raw, depth: 10), 422, 'JSON tidak valid');
+        $data = json_decode($raw, true, 10, JSON_THROW_ON_ERROR);
+    references:
+      - "https://www.php.net/manual/en/function.json-validate.php"
+      - "https://cwe.mitre.org/data/definitions/20.html"
+  - id: PHP-083-02
+    title: "Tidak ada #[Override] pada method keamanan kritis"
+    description: >
+      PHP 8.3 memperkenalkan atribut #[Override]. Method keamanan kritis (authenticate, authorize, validate, handle) dalam middleware atau controller yang meng-override parent tetapi kurang atribut #[Override] dapat menjadi dead code jika parent class berganti nama, tanpa error kompilasi apapun.
+
+    severity: high
+    confidence: low
+    category: Missing Override Attribute
+    tags: [php83, override-attribute, owasp-a07, cwe-284]
+    patterns:
+      - type: regex
+        target: middleware-files
+        pattern: 'public\s+function\s+(handle|authenticate|authorize)\s*\(.*Request'
+        exclude_pattern: '(#\[Override\]|implements\s+|interface\s+)'
+    remediation: |
+      Tambahkan #[Override] ke setiap method yang meng-override parent class:
+        #[Override]
+        public function handle(Request $request, Closure $next): Response
+        {
+            // ...
+        }
+    references:
+      - "https://wiki.php.net/rfc/override_attribute"
+      - "https://cwe.mitre.org/data/definitions/284.html"
+  - id: PHP-084-01
+    title: "Property hooks PHP 8.4 mengekspos data sensitif via get hook"
+    description: >
+      PHP 8.4 property hooks (get/set) digunakan pada model atau DTO property yang mengandung logika bisnis yang dapat membocorkan state internal atau melewati validasi. Get hook yang menurunkan nilai dari property lain atau melakukan type coercion implisit dapat mengekspos data sensitif dalam konteks serialisasi.
+
+    severity: medium
+    confidence: low
+    category: Data Exposure
+    tags: [php84, property-hooks, owasp-a02, cwe-200]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'public\s+\w+\s+\$\w+\s*\{[^}]*get\s*\{'
+        exclude_pattern: '(e\(|htmlspecialchars|htmlentities|encrypt\(|hash\(|mask\()'
+    remediation: |
+      Pastikan get hook tidak mengekspos data sensitif mentah. Terapkan
+      escaping atau masking di dalam hook:
+        public string $email {
+            get => strtolower($this->email);
+        }
+        public string $cardNumber {
+            get => '****' . substr($this->rawCardNumber, -4);
+        }
+    references:
+      - "https://wiki.php.net/rfc/property-hooks"
+      - "https://cwe.mitre.org/data/definitions/200.html"
+  - id: PHP-084-02
+    title: "Asymmetric visibility PHP 8.4 pada property sensitif (tetap readable)"
+    description: >
+      PHP 8.4 asymmetric visibility (public private(set)) mengizinkan pembacaan publik tetapi membatasi penulisan — TIDAK mencegah pembacaan property sensitif. Property yang ditandai public private(set) $secret masih dapat dibaca secara publik oleh kode manapun yang memegang referensi ke objek.
+
+    severity: medium
+    confidence: low
+    category: Data Exposure
+    tags: [php84, asymmetric-visibility, owasp-a02, cwe-200]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'public\s+private\s*\(\s*set\s*\)\s+\w+\s+\$(password|secret|token|api_key|private_key|hash|pin)'
+    remediation: |
+      Untuk property sensitif, gunakan private visibility dengan accessor yang dikontrol:
+        private string $hashedPassword;
+        public function verifyPassword(string $plain): bool
+        {
+            return Hash::check($plain, $this->hashedPassword);
+        }
+    references:
+      - "https://wiki.php.net/rfc/asymmetric-visibility-v2"
+      - "https://cwe.mitre.org/data/definitions/200.html"

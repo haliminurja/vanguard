@@ -1,0 +1,205 @@
+meta:
+  category: File Upload Security
+  version: "3.0.0"
+  updated: "2025"
+rules:
+  - id: UPL-001
+    title: "File disimpan di direktori public tanpa validasi"
+    description: >
+      File yang diupload disimpan langsung di direktori public tanpa validasi yang terlihat. File di public/ dapat diakses langsung via web server, yang dapat menyebabkan penyajian konten berbahaya atau script yang dapat dieksekusi.
+
+    severity: high
+    confidence: medium
+    category: Unrestricted Upload
+    tags: [file-upload, owasp-a04, cwe-434]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(storeAs|move|store)\s*\(\s*["'']?public'
+        exclude_pattern: '(validate|mimes|mime_type|extension|image|max:)'
+    remediation: |
+      Simpan file upload di luar public/ dan sajikan melalui controller:
+        $path = $request->file('document')->store('uploads', 'private');
+      Jika file harus public, validasi secara menyeluruh terlebih dahulu:
+        $request->validate(['file' => 'required|mimes:jpg,png,gif,webp|max:2048']);
+    references:
+      - "https://cwe.mitre.org/data/definitions/434.html"
+      - "https://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload"
+  - id: UPL-002
+    title: "Nama file original digunakan untuk penyimpanan"
+    description: >
+      getClientOriginalName() atau getClientOriginalExtension() digunakan untuk menentukan nama file yang disimpan. Penyerang dapat memanipulasi nama file original untuk menyertakan sekuens path traversal (../../), null byte, atau ekstensi berbahaya.
+
+    severity: high
+    confidence: high
+    category: Path Traversal via Filename
+    tags: [file-upload, path-traversal, owasp-a04, cwe-73]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'getClientOriginalName\s*\(\s*\)'
+      - type: regex
+        target: php-files
+        pattern: 'getClientOriginalExtension\s*\(\s*\)'
+    remediation: |
+      Buat nama file yang aman daripada menggunakan nama original:
+        $filename = Str::uuid() . '.' . $file->extension();   // ekstensi dari MIME type
+        $file->storeAs('uploads', $filename);
+        // Atau gunakan hashName() yang menghasilkan nama unik:
+        $file->storeAs('uploads', $file->hashName());
+    references:
+      - "https://cwe.mitre.org/data/definitions/73.html"
+  - id: UPL-003
+    title: "Tidak ada validasi MIME type pada file upload"
+    description: >
+      Upload file diproses menggunakan store(), storeAs(), atau move() tanpa validasi MIME type yang terlihat. Tanpa pemeriksaan tipe file, pengguna dapat mengupload file executable (PHP, HTML dengan script) yang mungkin dieksekusi atau disajikan sebagai konten aktif oleh server.
+
+    severity: high
+    confidence: medium
+    category: Unrestricted Upload
+    tags: [file-upload, owasp-a04, cwe-434]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$request->file\([^)]+\)->(store|storeAs|move)\s*\('
+        exclude_pattern: '(validate|mimes|mimetypes|extensions|image|FormRequest)'
+    remediation: |
+      Selalu validasi MIME type sebelum menyimpan:
+        $request->validate([
+            'file' => 'required|file|mimes:jpg,jpeg,png,gif,pdf|max:10240',
+        ]);
+        $path = $request->file('file')->store('uploads', 'private');
+    references:
+      - "https://cwe.mitre.org/data/definitions/434.html"
+  - id: UPL-004
+    title: "File yang diupload di-include atau di-require (RCE)"
+    description: >
+      Path file yang diupload diteruskan ke include, require, include_once, atau require_once. Ini adalah pola yang sangat berbahaya yang mengizinkan remote code execution melalui file upload.
+
+    severity: critical
+    confidence: high
+    category: RCE via Upload
+    tags: [file-upload, rce, owasp-a03, cwe-98]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(include|require|include_once|require_once)\s*\(?\s*\$.*\b(upload|file|tmp|temp|storage)\b'
+    remediation: |
+      Jangan pernah meng-include file yang diupload. Proses terpisah:
+        $content = Storage::get($uploadedFilePath);
+        // Parse dan validasi konten sebelum digunakan
+    references:
+      - "https://cwe.mitre.org/data/definitions/98.html"
+  - id: UPL-005
+    title: "Ekstensi file executable diizinkan dalam validasi upload"
+    description: >
+      Validasi upload memasukkan ekstensi executable (php, phtml, phar, sh, exe, bat) dalam whitelist. File dengan ekstensi ini yang mencapai path yang disajikan web dapat mencapai remote code execution.
+
+    severity: critical
+    confidence: high
+    category: Dangerous Extension
+    tags: [file-upload, owasp-a04, cwe-434]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'mimes\s*:\s*[^"''`,\]]*\b(php[0-9]?|phtml|phar|sh|bash|exe|bat|cmd|cgi|pl|py|rb)\b'
+    remediation: |
+      Izinkan hanya MIME type yang aman secara eksplisit dan simpan di luar web root:
+        'file' => 'required|mimes:jpg,jpeg,png,gif,webp,pdf,docx,xlsx|max:10240',
+    references:
+      - "https://cwe.mitre.org/data/definitions/434.html"
+  - id: UPL-006
+    title: "Upload file SVG diizinkan (risiko XSS)"
+    description: >
+      File SVG diizinkan dalam validasi upload. SVG adalah format XML yang dapat mengandung JavaScript inline, event handler, dan bahkan HTML tertanam. Ketika disajikan dari domain Anda, ini menciptakan kerentanan stored XSS.
+
+    severity: high
+    confidence: high
+    category: SVG XSS
+    tags: [file-upload, xss, owasp-a07, cwe-79]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'mimes\s*:[^"'']*\bsvg\b'
+    remediation: |
+      Jangan izinkan upload SVG, atau sanitasi secara ketat:
+        - Hapus SVG dari MIME type yang diizinkan
+        - Jika SVG diperlukan, gunakan library SVG Sanitizer
+        - Sajikan SVG dengan header Content-Disposition: attachment
+        - Gunakan Content-Security-Policy untuk mencegah eksekusi script inline
+    references:
+      - "https://cwe.mitre.org/data/definitions/79.html"
+      - "https://github.com/darylldoyle/svg-sanitizer"
+  - id: UPL-007
+    title: "Tidak ada batasan ukuran file pada upload"
+    description: >
+      Aturan validasi file upload tidak menyertakan batasan ukuran maksimum. Tanpa batas ukuran, penyerang dapat menghabiskan ruang disk atau memori dengan upload yang sangat besar, menyebabkan denial of service.
+
+    severity: medium
+    confidence: medium
+    category: DoS via Upload
+    tags: [file-upload, dos, cwe-770]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "'(file|image|document)'\\s*=>\\s*'required\\|(file|image)(\\|mimes:[^']*)?'"
+        exclude_pattern: 'max:'
+    remediation: |
+      Selalu set ukuran file maksimum dalam validasi:
+        'avatar'   => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',    // 2MB
+        'document' => 'required|file|mimes:pdf,docx,xlsx|max:10240',        // 10MB
+    references:
+      - "https://cwe.mitre.org/data/definitions/770.html"
+  - id: UPL-008
+    title: "Upload file di controller tanpa FormRequest validation"
+    description: >
+      Aksi controller menangani upload file menggunakan $request->file() tetapi parameter method diketik sebagai Request generik bukan FormRequest. Tanpa class FormRequest khusus, aturan validasi file mungkin hilang atau diterapkan secara tidak konsisten.
+
+    severity: medium
+    confidence: medium
+    category: Missing Validation
+    tags: [file-upload, input-validation, owasp-a04, cwe-434]
+    patterns:
+      - type: regex
+        target: controller-files
+        pattern: '\$request->file\s*\('
+        exclude_pattern: '(FormRequest|validate\s*\(|Validator::make|validateWith)'
+    remediation: |
+      Buat FormRequest dengan validasi file:
+        class UploadPhotoRequest extends FormRequest {
+            public function rules(): array {
+                return [
+                    'photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
+                ];
+            }
+        }
+      Lalu type-hint di controller:
+        public function store(UploadPhotoRequest $request): RedirectResponse { ... }
+    references:
+      - "https://cwe.mitre.org/data/definitions/434.html"
+      - "https://laravel.com/docs/validation#form-request-validation"
+  - id: UPL-009
+    title: "Konfigurasi visibilitas disk hilang untuk file yang diupload"
+    description: >
+      File diupload menggunakan store() atau storeAs() tanpa menentukan disk atau visibility secara eksplisit. Jika disk default dikonfigurasi ke 'public', file yang diupload menjadi dapat diakses langsung via web.
+
+    severity: medium
+    confidence: low
+    category: Misconfigured Storage
+    tags: [file-upload, configuration, cwe-732]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->store\s*\(\s*["''][^"'')]+["'']\s*\)$'
+        exclude_pattern: '(public|private|s3|local|minio|gcs)'
+    remediation: |
+      Tentukan disk dan visibility secara eksplisit:
+        $path = $file->store('uploads', 'private');
+      Atau konfigurasi di config/filesystems.php:
+        'uploads' => [
+            'driver'     => 'local',
+            'root'       => storage_path('app/uploads'),
+            'visibility' => 'private',
+        ],
+    references:
+      - "https://cwe.mitre.org/data/definitions/732.html"
