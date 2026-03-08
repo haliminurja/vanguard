@@ -9,7 +9,7 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: HDR-I01
-    title: "HTTP Response Splitting — input pengguna dalam nilai header()"
+    title: "HTTP Response Splitting - input pengguna dalam nilai header()"
     description: >
       header() dipanggil dengan nilai yang mengandung input pengguna tanpa menghapus karakter newline (\r\n). Penyerang menyisipkan sekuens CRLF untuk menambahkan header HTTP arbitrer, memisahkan response menjadi dua response terpisah, menyetel cookie atas nama server, atau melakukan cache poisoning.
 
@@ -53,7 +53,7 @@ rules:
   - id: HDR-S02
     title: "Tidak ada header Strict-Transport-Security (HSTS) dalam middleware"
     description: >
-      Tidak ada middleware yang menyetel header HTTP Strict-Transport-Security. Tanpa HSTS, browser tidak menerapkan koneksi HTTPS — pengguna yang menavigasi ke http:// tidak di-upgrade secara otomatis, dan serangan SSL-stripping berhasil secara diam-diam.
+      Tidak ada middleware yang menyetel header HTTP Strict-Transport-Security. Tanpa HSTS, browser tidak menerapkan koneksi HTTPS - pengguna yang menavigasi ke http:// tidak di-upgrade secara otomatis, dan serangan SSL-stripping berhasil secara diam-diam.
 
     severity: high
     confidence: medium
@@ -98,7 +98,7 @@ rules:
   - id: HDR-S04
     title: "Tidak ada header Referrer-Policy dalam middleware"
     description: >
-      Tidak ada middleware yang menyetel header Referrer-Policy. Tanpa ini, browser mengirimkan URL lengkap (termasuk query parameter) sebagai header Referer pada semua cross-origin request — membocorkan token session, kata kunci pencarian, struktur route internal, dan parameter URL yang mengidentifikasi pengguna ke pihak ketiga.
+      Tidak ada middleware yang menyetel header Referrer-Policy. Tanpa ini, browser mengirimkan URL lengkap (termasuk query parameter) sebagai header Referer pada semua cross-origin request - membocorkan token session, kata kunci pencarian, struktur route internal, dan parameter URL yang mengidentifikasi pengguna ke pihak ketiga.
 
     severity: medium
     confidence: medium

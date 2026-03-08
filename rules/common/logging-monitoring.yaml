@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10–12, PHP 8.0–8.4"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -109,7 +109,7 @@ rules:
       Jangan pernah menyimpan nilai sensitif dalam logging context:
         // BURUK
         Context::add('password', $password);
-        // BAIK — simpan hanya identifier non-sensitif
+        // BAIK - simpan hanya identifier non-sensitif
         Context::add('user_id', $user->id);
         Context::add('request_id', $requestId);
     references:

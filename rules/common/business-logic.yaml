@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   updated: "2026"
   maintainer: "Security Engineering Team"
-  scope: "Laravel 10–12, PHP 8.0–8.4"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -33,7 +33,7 @@ rules:
       - "https://laravel.com/docs/routing#rate-limiting"
 
   - id: BIZ-002
-    title: "Insecure Password Reset — Token reset dikirim sebagai parameter GET HTTP"
+    title: "Insecure Password Reset - Token reset dikirim sebagai parameter GET HTTP"
     description: >
       Aplikasi mengirimkan password reset token menggunakan HTTP GET request murni via redirect atau output Blade ke dalam tag `<a>` atau `<form>` yang di-submit menggunakan metode GET.
       Parameter GET rentan terekam di server logs, proxy logs, dan browser history.
@@ -79,9 +79,9 @@ rules:
       - "https://cwe.mitre.org/data/definitions/204.html"
 
   - id: BIZ-004
-    title: "Race Condition — Operasi saldo/inventaris tanpa database locking"
+    title: "Race Condition - Operasi saldo/inventaris tanpa database locking"
     description: >
-      Operasi yang melibatkan pengurangan saldo, stok, kuota, atau kredit dilakukan tanpa database locking (lockForUpdate, sharedLock) atau atomic operation. Penyerang mengirim request paralel untuk mengeksploitasi race condition — misalnya melakukan withdrawal dua kali dari saldo yang sama sebelum update pertama selesai, menyebabkan double-spending atau negative balance.
+      Operasi yang melibatkan pengurangan saldo, stok, kuota, atau kredit dilakukan tanpa database locking (lockForUpdate, sharedLock) atau atomic operation. Penyerang mengirim request paralel untuk mengeksploitasi race condition - misalnya melakukan withdrawal dua kali dari saldo yang sama sebelum update pertama selesai, menyebabkan double-spending atau negative balance.
     severity: critical
     confidence: medium
     category: Race Condition
@@ -110,9 +110,9 @@ rules:
       - "https://laravel.com/docs/queries#pessimistic-locking"
 
   - id: BIZ-005
-    title: "Race Condition — Coupon/voucher redemption tanpa uniqueness check"
+    title: "Race Condition - Coupon/voucher redemption tanpa uniqueness check"
     description: >
-      Logika redeem coupon, voucher, atau promo code memeriksa ketersediaan dan mengurangi usage tanpa atomic constraint. Penyerang mengirim request paralel dengan coupon yang sama untuk mendapatkan diskon berulang kali sebelum counter usage di-update — menyebabkan kerugian finansial langsung.
+      Logika redeem coupon, voucher, atau promo code memeriksa ketersediaan dan mengurangi usage tanpa atomic constraint. Penyerang mengirim request paralel dengan coupon yang sama untuk mendapatkan diskon berulang kali sebelum counter usage di-update - menyebabkan kerugian finansial langsung.
     severity: high
     confidence: medium
     category: Race Condition
@@ -122,7 +122,7 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: '(coupon|voucher|promo|discount|redem)\w*->(usage|used_count|times_used)\s*(\+\+|--|\+=|-=)'
+        pattern: '(coupon|voucher|promo|discount|redem)\w*->(usage|used_count|times_used)\s*(\+\+|-|\+=|-=)'
         exclude_pattern: "(lockForUpdate|DB::transaction|unique|atomic)"
       - type: regex
         target: php-files
@@ -142,7 +142,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/362.html"
 
   - id: BIZ-006
-    title: "Price/Amount Manipulation — harga dari client-side input"
+    title: "Price/Amount Manipulation - harga dari client-side input"
     description: >
       Harga, jumlah pembayaran, atau diskon diambil langsung dari input request ($request->input('price'), $request->input('amount')) dan digunakan dalam kalkulasi order atau pembayaran tanpa verifikasi server-side terhadap sumber harga yang otoritatif (database/config). Penyerang memodifikasi hidden field atau API payload untuk menyetel harga arbitrer.
     severity: critical
@@ -190,7 +190,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/20.html"
 
   - id: BIZ-008
-    title: "Privilege Escalation — role/permission diset dari input pengguna"
+    title: "Privilege Escalation - role/permission diset dari input pengguna"
     description: >
       Field role, permission, is_admin, atau level akses diset langsung dari input pengguna melalui $request->input(), $request->all(), atau mass assignment. Penyerang menambahkan field tersembunyi untuk menaikkan privilege mereka sendiri ke admin atau role yang lebih tinggi.
     severity: critical
@@ -210,18 +210,18 @@ rules:
         exclude_pattern: '(only\(|validated\(|safe\()'
     remediation: |
       JANGAN izinkan user mengeset role/permission via input. Tetapkan di server:
-        // ✅ BENAR — role diset secara eksplisit oleh admin yang terotorisasi
+        // - BENAR - role diset secara eksplisit oleh admin yang terotorisasi
         $this->authorize('assignRole', $user);
         $user->update(['role' => $validatedRole]);
 
-        // ✅ Gunakan $fillable yang ketat di Model
+        // - Gunakan $fillable yang ketat di Model
         protected $fillable = ['name', 'email', 'bio'];
         // role, is_admin TIDAK boleh ada di $fillable
     references:
       - "https://cwe.mitre.org/data/definitions/269.html"
 
   - id: BIZ-009
-    title: "Business Logic Bypass — status/state transition tanpa validasi"
+    title: "Business Logic Bypass - status/state transition tanpa validasi"
     description: >
       Status order, pembayaran, atau workflow di-update langsung dari input pengguna tanpa memvalidasi transisi state yang valid. Penyerang dapat melompati langkah workflow (misalnya langsung set status ke 'completed' atau 'paid' tanpa proses pembayaran), menyebabkan kerugian finansial atau bypass bisnis proses.
     severity: high
@@ -258,7 +258,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/840.html"
 
   - id: BIZ-010
-    title: "Insufficient Anti-Automation — endpoint sensitif tanpa CAPTCHA atau challenge"
+    title: "Insufficient Anti-Automation - endpoint sensitif tanpa CAPTCHA atau challenge"
     description: >
       Endpoint registrasi, contact form, atau verifikasi tidak memiliki mekanisme anti-automation (CAPTCHA, honeypot, proof-of-work). Bot dapat mendaftarkan ribuan akun fake, mengirim spam massal, atau menghabiskan resource OTP/email secara otomatis.
     severity: medium
@@ -280,12 +280,12 @@ rules:
         ]);
 
         // Alternatif: honeypot field
-        abort_if($request->filled('website'), 422);   // hidden field — bot akan mengisinya
+        abort_if($request->filled('website'), 422);   // hidden field - bot akan mengisinya
     references:
       - "https://cwe.mitre.org/data/definitions/799.html"
 
   - id: BIZ-011
-    title: "Insecure Direct Object Reference — akses resource tanpa ownership check"
+    title: "Insecure Direct Object Reference - akses resource tanpa ownership check"
     description: >
       Controller mengakses resource berdasarkan ID dari URL atau input tanpa memverifikasi bahwa resource tersebut milik pengguna yang terautentikasi. Penyerang menebak atau melakukan brute force ID untuk mengakses data pengguna lain (invoice, pesanan, dokumen, profil).
     severity: high
@@ -301,14 +301,14 @@ rules:
         exclude_pattern: '(authorize|policy|can\(|Gate::|abort_unless|where\s*\(\s*["\x27]user_id|belongsTo|->user\(\))'
     remediation: |
       Selalu scope query berdasarkan pengguna terautentikasi atau gunakan Policy:
-        // ✅ BENAR — scope via relationship
+        // - BENAR - scope via relationship
         $order = auth()->user()->orders()->findOrFail($id);
 
-        // ✅ BENAR — scope via Policy
+        // - BENAR - scope via Policy
         $order = Order::findOrFail($id);
         $this->authorize('view', $order);
 
-        // ❌ SALAH
+        // - SALAH
         // $order = Order::findOrFail($request->input('order_id'));
     references:
       - "https://cwe.mitre.org/data/definitions/639.html"

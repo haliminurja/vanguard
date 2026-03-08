@@ -9,7 +9,7 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: INJ-S01
-    title: "SQL Injection — DB::raw() dengan interpolasi variabel PHP"
+    title: "SQL Injection - DB::raw() dengan interpolasi variabel PHP"
     description: >
       DB::raw() meneruskan string mentah langsung ke database tanpa escaping atau parameterisasi. Menggabungkan variabel PHP ke dalam string DB::raw() adalah jalur SQL injection langsung yang melewati seluruh proteksi query builder Eloquent. Penyerang dapat membaca data sensitif, memodifikasi record, atau mengeksekusi prosedur tersimpan berbahaya.
 
@@ -31,17 +31,17 @@ rules:
         target: php-files
         pattern: 'DB::raw\(\s*.*\.\s*\$\w+'
     remediation: |
-      Gunakan parameter binding — DB::raw() hanya untuk ekspresi kolom statis:
+      Gunakan parameter binding - DB::raw() hanya untuk ekspresi kolom statis:
 
-        // ✅ BENAR — gunakan binding array
+        // - BENAR - gunakan binding array
         ->selectRaw('price * ? as discounted', [$discountRate])
         ->whereRaw('created_at > ?', [now()->subDays(30)])
         DB::select('SELECT * FROM users WHERE email = ?', [$email]);
 
-        // ✅ Lebih baik — gunakan query builder
+        // - Lebih baik - gunakan query builder
         User::where('email', $email)->first();
 
-        // ❌ SALAH
+        // - SALAH
         // DB::raw("price * $discount as discounted")
         // DB::raw('WHERE email = ' . $email)
     references:
@@ -49,7 +49,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/89.html"
       - "https://laravel.com/docs/queries#raw-expressions"
   - id: INJ-S02
-    title: "SQL Injection — Raw query builder method dengan string interpolasi"
+    title: "SQL Injection - Raw query builder method dengan string interpolasi"
     description: >
       whereRaw(), selectRaw(), havingRaw(), orderByRaw(), atau groupByRaw() dipanggil dengan fragment SQL yang menyisipkan variabel PHP secara langsung tanpa parameterisasi. Ini melewati binding otomatis Eloquent dan membuka vektor SQL injection langsung.
 
@@ -69,19 +69,19 @@ rules:
     remediation: |
       Selalu gunakan array binding untuk nilai dinamis:
 
-        // ✅ BENAR
+        // - BENAR
         ->whereRaw('price > ?', [$minPrice])
         ->whereRaw('LOWER(name) LIKE ?', ['%' . strtolower($query) . '%'])
         ->orderByRaw('FIELD(status, ?, ?, ?)', ['active', 'pending', 'closed'])
 
-        // ❌ SALAH
+        // - SALAH
         // ->whereRaw("price > $minPrice")
         // ->whereRaw('name LIKE "%' . $search . '%"')
     references:
       - "https://cwe.mitre.org/data/definitions/89.html"
       - "https://laravel.com/docs/queries#raw-expressions"
   - id: INJ-S03
-    title: "SQL Injection — DB::statement() / DB::select() dengan konkatenasi string"
+    title: "SQL Injection - DB::statement() / DB::select() dengan konkatenasi string"
     description: >
       DB::statement(), DB::select(), DB::insert(), DB::update(), atau DB::delete() menerima SQL yang dibangun dengan konkatenasi string variabel, sepenuhnya melewati proteksi prepared statement. Ini adalah pola SQL injection klasik yang memberikan akses penuh ke database.
 
@@ -100,14 +100,14 @@ rules:
     remediation: |
       Gunakan array binding pada semua nilai dinamis:
 
-        // ✅ BENAR
+        // - BENAR
         DB::select('SELECT * FROM users WHERE email = ? AND active = ?', [$email, true]);
         DB::statement('UPDATE settings SET value = ? WHERE key = ?', [$value, $key]);
         DB::insert('INSERT INTO logs (user_id, action) VALUES (?, ?)', [$userId, $action]);
     references:
       - "https://cwe.mitre.org/data/definitions/89.html"
   - id: INJ-S04
-    title: "SQL Injection — DB::unprepared() dengan variabel SQL"
+    title: "SQL Injection - DB::unprepared() dengan variabel SQL"
     description: >
       DB::unprepared() mengeksekusi SQL mentah tanpa dukungan parameter binding apapun. Berbeda dengan DB::statement(), tidak ada proteksi sama sekali. Hanya boleh digunakan untuk DDL statis; penggunaan dengan variabel adalah SQL injection langsung dengan dampak penuh (data exfiltration, data corruption, atau DoS tergantung privilege database user).
 
@@ -127,16 +127,16 @@ rules:
     remediation: |
       Gunakan DB::statement() dengan binding untuk SQL dinamis:
 
-        // ✅ BENAR
+        // - BENAR
         DB::statement('ALTER TABLE users ADD COLUMN IF NOT EXISTS metadata JSON');  // DDL statis
         DB::statement('UPDATE users SET name = ? WHERE id = ?', [$name, $id]);      // DML dengan binding
 
-        // ❌ SALAH
+        // - SALAH
         // DB::unprepared("UPDATE users SET role = '$role' WHERE id = $id");
     references:
       - "https://cwe.mitre.org/data/definitions/89.html"
   - id: INJ-S05
-    title: "SQL Injection — kolom ORDER BY dari input pengguna tanpa whitelist"
+    title: "SQL Injection - kolom ORDER BY dari input pengguna tanpa whitelist"
     description: >
       Kolom ORDER BY diambil langsung dari input pengguna tanpa validasi whitelist. Karena kolom tidak dapat di-bind sebagai parameter, teknik bypass umum adalah memasukkan nama kolom berbahaya atau ekspresi yang mengekspos data sensitif (ORDER BY (SELECT password FROM users LIMIT 1)).
 
@@ -165,7 +165,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/89.html"
   - id: INJ-C01
-    title: "Command Injection — fungsi shell dengan input pengguna"
+    title: "Command Injection - fungsi shell dengan input pengguna"
     description: >
       exec(), system(), shell_exec(), passthru(), popen(), atau proc_open() menerima argumen yang mengandung input pengguna tanpa escapeshellarg(). Ini mengaktifkan OS command injection dan remote code execution. Penyerang menyisipkan metacharacter shell (;, |, &&, $(), ``) untuk mengeksekusi perintah arbitrer.
 
@@ -188,20 +188,20 @@ rules:
 
         use Symfony\Component\Process\Process;
 
-        // ✅ BENAR — array argument, tidak ada shell
+        // - BENAR - array argument, tidak ada shell
         $process = new Process(['ffmpeg', '-i', $inputPath, '-o', $outputPath]);
         $process->setTimeout(60)->mustRun();
 
-        // ✅ Jika harus menggunakan string shell, WAJIB escape semua argumen
+        // - Jika harus menggunakan string shell, WAJIB escape semua argumen
         exec('convert ' . escapeshellarg($input) . ' ' . escapeshellarg($output));
 
-        // ❌ SALAH
+        // - SALAH
         // exec("convert {$request->input('file')} output.jpg");
     references:
       - "https://owasp.org/Top10/A03_2021-Injection/"
       - "https://cwe.mitre.org/data/definitions/78.html"
   - id: INJ-C02
-    title: "Command Injection — Artisan::call() dengan input pengguna"
+    title: "Command Injection - Artisan::call() dengan input pengguna"
     description: >
       Artisan::call() dipanggil dengan nama command dari input pengguna. Penyerang dapat memicu command destruktif: migrate:fresh (hapus semua data), db:wipe, storage:clear, queue:flush, key:generate (invalidasi semua session dan data terenkripsi), atau command custom yang terdaftar.
 
@@ -225,7 +225,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/78.html"
   - id: INJ-E01
-    title: "Code Injection — eval() digunakan dalam kode"
+    title: "Code Injection - eval() digunakan dalam kode"
     description: >
       eval() mengeksekusi string PHP sebagai kode. Jalur apapun yang memungkinkan input pengguna mencapai eval() berarti remote code execution. Bahkan tanpa input pengguna langsung, eval() membuat kode sulit untuk diaudit, dapat memuat payload dari database yang terkompromikan, dan melanggar kebijakan CSP. Fungsi ini hampir tidak pernah diperlukan dalam PHP modern.
 
@@ -242,12 +242,12 @@ rules:
     remediation: |
       Hapus eval() sepenuhnya dan gunakan alternatif yang aman:
 
-        // Matematika dinamis → gunakan library: mossadal/math-executor
-        // Dispatch dinamis   → gunakan class map atau strategy pattern
-        // Template dinamis   → gunakan Blade, Twig, atau Mustache
-        // Config dinamis     → simpan di database, load dengan config()
+        // Matematika dinamis - gunakan library: mossadal/math-executor
+        // Dispatch dinamis   - gunakan class map atau strategy pattern
+        // Template dinamis   - gunakan Blade, Twig, atau Mustache
+        // Config dinamis     - simpan di database, load dengan config()
 
-        // ✅ Strategy pattern sebagai pengganti eval dinamis
+        // - Strategy pattern sebagai pengganti eval dinamis
         $handlers = [
             'discount' => new DiscountCalculator(),
             'tax'      => new TaxCalculator(),
@@ -256,9 +256,9 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/95.html"
   - id: INJ-E02
-    title: "Code Injection — preg_replace() dengan modifier /e (dihapus PHP 7.0+)"
+    title: "Code Injection - preg_replace() dengan modifier /e (dihapus PHP 7.0+)"
     description: >
-      preg_replace() menggunakan modifier /e yang mengevaluasi penggantian sebagai kode PHP. Modifier ini dihapus sejak PHP 7.0 — penggunaan yang tersisa menyebabkan fatal error di PHP 7.0+ dan selalu merupakan vektor RCE pada versi PHP yang lebih lama.
+      preg_replace() menggunakan modifier /e yang mengevaluasi penggantian sebagai kode PHP. Modifier ini dihapus sejak PHP 7.0 - penggunaan yang tersisa menyebabkan fatal error di PHP 7.0+ dan selalu merupakan vektor RCE pada versi PHP yang lebih lama.
 
     severity: critical
     confidence: high
@@ -272,17 +272,17 @@ rules:
     remediation: |
       Ganti dengan preg_replace_callback():
 
-        // ❌ SALAH (PHP 7.0 ke bawah — vektor RCE)
+        // - SALAH (PHP 7.0 ke bawah - vektor RCE)
         // $result = preg_replace('/(\w+)/e', 'strtoupper("$1")', $subject);
 
-        // ✅ BENAR
+        // - BENAR
         $result = preg_replace_callback('/(\w+)/', function ($matches) {
             return strtoupper($matches[0]);
         }, $subject);
     references:
       - "https://cwe.mitre.org/data/definitions/95.html"
   - id: INJ-E03
-    title: "Code Injection — create_function() dihapus di PHP 8.0 (vektor RCE)"
+    title: "Code Injection - create_function() dihapus di PHP 8.0 (vektor RCE)"
     description: >
       create_function() dihapus di PHP 8.0. Secara internal menggunakan eval() untuk membuat closure dinamis, menjadikannya vektor remote code execution. Penggunaan yang tersisa menyebabkan fatal error di PHP 8.0+ dan berpotensi mengekspos RCE di PHP < 8.0 jika argumen berasal dari pengguna.
 
@@ -298,21 +298,21 @@ rules:
     remediation: |
       Ganti dengan arrow function atau anonymous function:
 
-        // ❌ SALAH (dihapus di PHP 8.0)
+        // - SALAH (dihapus di PHP 8.0)
         // $fn = create_function('$a, $b', 'return $a + $b;');
 
-        // ✅ BENAR — arrow function (PHP 7.4+)
+        // - BENAR - arrow function (PHP 7.4+)
         $fn = fn($a, $b) => $a + $b;
 
-        // ✅ BENAR — anonymous function
+        // - BENAR - anonymous function
         $fn = function ($a, $b) { return $a + $b; };
     references:
       - "https://cwe.mitre.org/data/definitions/95.html"
       - "https://www.php.net/manual/en/migration80.incompatible.php"
   - id: INJ-E04
-    title: "Code Injection — assert() dengan string atau input pengguna"
+    title: "Code Injection - assert() dengan string atau input pengguna"
     description: >
-      assert() dengan argumen string mengevaluasinya sebagai kode PHP di PHP < 8.0 (vektor RCE langsung jika string berasal dari pengguna). Di PHP 8.0+ string diterima diam-diam tapi tidak dieksekusi, membuat security assertion berbasis string menjadi dead code yang lolos pemeriksaan tanpa error apapun — bypassing silently.
+      assert() dengan argumen string mengevaluasinya sebagai kode PHP di PHP < 8.0 (vektor RCE langsung jika string berasal dari pengguna). Di PHP 8.0+ string diterima diam-diam tapi tidak dieksekusi, membuat security assertion berbasis string menjadi dead code yang lolos pemeriksaan tanpa error apapun - bypassing silently.
 
     severity: critical
     confidence: high
@@ -330,17 +330,17 @@ rules:
       Jangan pernah gunakan assert() untuk validasi input runtime.
       Gunakan kondisional dan abort_unless() untuk pemeriksaan keamanan:
 
-        // ❌ SALAH
+        // - SALAH
         // assert($request->input('expr'));
         // assert('$value > 0');
 
-        // ✅ BENAR
+        // - BENAR
         if ($value <= 0) { abort(422, 'Nilai harus positif'); }
         abort_unless($user->isAdmin(), 403, 'Akses ditolak');
     references:
       - "https://cwe.mitre.org/data/definitions/95.html"
   - id: INJ-T01
-    title: "SSTI — Blade::compileString() dengan konten dari pengguna"
+    title: "SSTI - Blade::compileString() dengan konten dari pengguna"
     description: >
       Blade::compileString() mengkompilasi string arbitrer sebagai template Blade. Jika konten dari pengguna mencapainya, penyerang menyisipkan blok @php untuk mengeksekusi PHP arbitrer di server. Ini adalah equivalent SSTI untuk Jinja2/Twig injection di framework Python/Ruby.
 
@@ -360,16 +360,16 @@ rules:
       Jangan pernah mengkompilasi atau me-render konten pengguna sebagai
       template Blade. Tampilkan hanya menggunakan output yang di-escape:
 
-        // ✅ BENAR — konten pengguna SELALU di-escape
+        // - BENAR - konten pengguna SELALU di-escape
         return view('template', ['content' => $userContent]);
         // Di template: {{ $content }} (bukan {!! $content !!})
 
-        // ❌ SALAH
+        // - SALAH
         // return Blade::render($request->input('template'), $data);
     references:
       - "https://cwe.mitre.org/data/definitions/94.html"
   - id: INJ-T02
-    title: "SSTI — view() / View::make() dengan nama template dari input pengguna"
+    title: "SSTI - view() / View::make() dengan nama template dari input pengguna"
     description: >
       view() atau View::make() me-resolve template menggunakan nama dari input pengguna tanpa whitelist. Penyerang dapat menavigasi ke template admin (admin.users.index), mengekspos konfigurasi sensitif yang di-share ke view, atau mengeksekusi kode via direktif Blade di template tersebut.
 
@@ -397,7 +397,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/94.html"
   - id: INJ-D01
-    title: "Unsafe Deserialization — unserialize() pada data tidak tepercaya"
+    title: "Unsafe Deserialization - unserialize() pada data tidak tepercaya"
     description: >
       unserialize() dipanggil dengan data yang mungkin dikontrol pengguna. Mendeserialkan payload yang dimanipulasi penyerang memicu magic methods (__wakeup, __destruct, __toString) via rantai POP (Property-Oriented Programming), yang dapat menyebabkan RCE, arbitrary file deletion, SSRF, atau privilege escalation tergantung kelas yang tersedia di autoloader.
 
@@ -412,16 +412,16 @@ rules:
         pattern: '\bunserialize\s*\(\s*\$'
         exclude_pattern: '(config\(|env\(|test|Test|allowed_classes\s*=>)'
     remediation: |
-      Gunakan JSON untuk pertukaran data — tidak ada magic method yang dipanggil:
+      Gunakan JSON untuk pertukaran data - tidak ada magic method yang dipanggil:
 
-        // ✅ BENAR — JSON aman dari deserialization attack
+        // - BENAR - JSON aman dari deserialization attack
         $data = json_decode($input, true, 512, JSON_THROW_ON_ERROR);
 
-        // ✅ Jika unserialize() mutlak diperlukan (cache legacy),
+        // - Jika unserialize() mutlak diperlukan (cache legacy),
         //    batasi kelas yang diizinkan:
         $obj = unserialize($data, ['allowed_classes' => [SafeValueObject::class]]);
 
-        // ❌ SALAH
+        // - SALAH
         // $obj = unserialize($_POST['data']);
         // $obj = unserialize(base64_decode($request->input('payload')));
     references:
@@ -429,7 +429,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/502.html"
       - "https://www.php.net/manual/en/function.unserialize.php"
   - id: INJ-O01
-    title: "Object Injection — app() / resolve() dengan nama kelas dari pengguna"
+    title: "Object Injection - app() / resolve() dengan nama kelas dari pengguna"
     description: >
       app() atau resolve() dipanggil dengan nama kelas dari input pengguna, memungkinkan instantiasi kelas service container arbitrer. Penyerang dapat menginstansiasi kelas dengan konstruktor yang memiliki efek samping berbahaya (file deletion, network request, database modification).
 
@@ -459,7 +459,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/470.html"
   - id: INJ-O02
-    title: "RCE — Dynamic method call dengan nama dari input pengguna"
+    title: "RCE - Dynamic method call dengan nama dari input pengguna"
     description: >
       Sebuah method dipanggil menggunakan nama dari input pengguna ($obj->{$input}) atau via call_user_func(). Penyerang dapat memanggil method publik arbitrer termasuk yang destruktif (delete, truncate, flush) atau yang mengekspos data sensitif.
 
@@ -491,7 +491,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/470.html"
   - id: INJ-O03
-    title: "RCE — Dynamic class instantiation dari input pengguna"
+    title: "RCE - Dynamic class instantiation dari input pengguna"
     description: >
       Kelas diinstansiasi menggunakan nama dari input pengguna (new $class). Penyerang dapat menginstansiasi kelas terdaftar arbitrer yang ada di autoloader, memicu konstruktor berbahaya atau magic methods.
 
@@ -518,7 +518,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/470.html"
   - id: INJ-V01
-    title: "Variable Injection — extract() dengan input pengguna"
+    title: "Variable Injection - extract() dengan input pengguna"
     description: >
       extract() mengimpor kunci array sebagai variabel PHP ke scope saat ini. Ketika dipanggil dengan $_GET, $_POST, atau $request->all(), penyerang dapat menimpa variabel apapun dalam scope: $isAdmin, $user, $authenticated, $config, bahkan variabel yang digunakan untuk kontrol flow keamanan.
 
@@ -535,18 +535,18 @@ rules:
       Jangan pernah gunakan extract() pada input pengguna.
       Akses nilai secara eksplisit dan validasi satu per satu:
 
-        // ✅ BENAR
+        // - BENAR
         $name  = $request->string('name')->trim()->limit(100)->value();
         $email = $request->string('email')->lower()->value();
 
-        // ❌ SALAH
+        // - SALAH
         // extract($request->all());  // $isAdmin sekarang bisa diset dari luar!
     references:
       - "https://cwe.mitre.org/data/definitions/621.html"
   - id: INJ-V02
-    title: "Variable Injection — parse_str() tanpa output array"
+    title: "Variable Injection - parse_str() tanpa output array"
     description: >
-      parse_str() tanpa parameter kedua mengimpor kunci yang diparse langsung ke scope PHP saat ini — setara dengan register_globals yang sudah lama dihapus. Penyerang dapat menimpa variabel apapun dalam scope saat ini dengan memanipulasi query string atau request body.
+      parse_str() tanpa parameter kedua mengimpor kunci yang diparse langsung ke scope PHP saat ini - setara dengan register_globals yang sudah lama dihapus. Penyerang dapat menimpa variabel apapun dalam scope saat ini dengan memanipulasi query string atau request body.
 
     severity: critical
     confidence: high
@@ -560,11 +560,11 @@ rules:
     remediation: |
       Selalu sediakan output array sebagai parameter kedua:
 
-        // ✅ BENAR
+        // - BENAR
         parse_str($queryString, $params);
         $name = filter_var($params['name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS);
 
-        // ❌ SALAH
+        // - SALAH
         // parse_str($queryString);  // Mengimpor ke scope saat ini!
     references:
       - "https://cwe.mitre.org/data/definitions/621.html"
@@ -589,7 +589,7 @@ rules:
       Gunakan Mail facade Laravel yang menangani encoding header secara otomatis
       dan tidak rentan terhadap header injection:
 
-        // ✅ BENAR
+        // - BENAR
         Mail::to($validatedEmail)->send(new ContactFormMail($validatedData));
 
         // Jika harus menggunakan mail(), validasi dan sanitasi email:
@@ -634,7 +634,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/1236.html"
       - "https://owasp.org/www-community/attacks/CSV_Injection"
   - id: INJ-F01
-    title: "RFI — PHP protocol wrapper dalam include/require atau file functions"
+    title: "RFI - PHP protocol wrapper dalam include/require atau file functions"
     description: >
       include, require, file_get_contents, atau fopen menggunakan PHP stream wrapper (php://input, php://filter, data://, phar://, expect://). PHP filter chains memungkinkan eksekusi kode via base64-decode + phar bahkan ketika allow_url_include dinonaktifkan. Phar wrapper mengaktifkan deserialization gadget chain.
 
@@ -650,7 +650,7 @@ rules:
     remediation: |
       Nonaktifkan stream wrapper berbahaya di php.ini:
 
-        ; php.ini — production
+        ; php.ini - production
         allow_url_include = Off
         allow_url_fopen   = Off   ; jika tidak dibutuhkan untuk download eksternal
 
@@ -661,7 +661,7 @@ rules:
       - "https://www.php.net/manual/en/wrappers.php"
 
   - id: INJ-L01
-    title: "LDAP Injection — unescaped parameters in LDAP search/modify"
+    title: "LDAP Injection - unescaped parameters in LDAP search/modify"
     description: >
       LDAP queries (ldap_search, ldap_add, ldap_modify) are constructed using raw user input without escaping LDAP control characters. Attackers can alter the logical structure of the LDAP filter (e.g., using `)(|(uid=*))`) to bypass authentication, elevate privileges, or extract directory information.
     severity: critical
@@ -681,7 +681,7 @@ rules:
       - "https://cheatsheetseries.owasp.org/cheatsheets/LDAP_Injection_Prevention_Cheat_Sheet.html"
 
   - id: INJ-N01
-    title: "NoSQL Injection — uncast array payloads passed to MongoDB queries"
+    title: "NoSQL Injection - uncast array payloads passed to MongoDB queries"
     description: >
       MongoDB queries receive raw user input via arrays (like `$_GET` or `$request->all()`). If PHP associative arrays are passed directly into MongoDB query builders without type-casting to strings, attackers can inject operator objects (e.g., `?username[$ne]=null`) to bypass authentication or extract sensitive data.
     severity: critical

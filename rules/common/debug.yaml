@@ -11,7 +11,7 @@ rules:
   - id: DBG-001
     title: "dd() debug dump tertinggal dalam kode production"
     description: >
-      dd() (dump and die) hadir dalam source PHP atau template Blade. Fungsi ini menghentikan eksekusi dan membuang semua konten variabel — termasuk data request, record database, auth state, dan nilai environment — langsung ke body HTTP response, terlihat oleh pengguna manapun yang memicu code path itu.
+      dd() (dump and die) hadir dalam source PHP atau template Blade. Fungsi ini menghentikan eksekusi dan membuang semua konten variabel - termasuk data request, record database, auth state, dan nilai environment - langsung ke body HTTP response, terlihat oleh pengguna manapun yang memicu code path itu.
 
     severity: high
     confidence: high
@@ -94,7 +94,7 @@ rules:
   - id: DBG-005
     title: "Pesan atau trace exception diekspos dalam HTTP response"
     description: >
-      getMessage() atau getTraceAsString() exception dikembalikan langsung dalam body HTTP response (response()->json(), abort()). Stack trace mengekspos path file, nama kelas, query SQL, tanda tangan method, dan nilai environment — memberikan penyerang intelijen yang tepat tentang aplikasi.
+      getMessage() atau getTraceAsString() exception dikembalikan langsung dalam body HTTP response (response()->json(), abort()). Stack trace mengekspos path file, nama kelas, query SQL, tanda tangan method, dan nilai environment - memberikan penyerang intelijen yang tepat tentang aplikasi.
 
     severity: high
     confidence: high

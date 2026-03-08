@@ -3,13 +3,13 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10–12, PHP 8.0–8.4"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
 rules:
   - id: SSRF-001
-    title: "SSRF — HTTP client request dengan URL dari input pengguna"
+    title: "SSRF - HTTP client request dengan URL dari input pengguna"
     description: >
       Laravel Http facade, Guzzle, atau cURL membuat request keluar menggunakan URL yang
       diambil langsung dari input pengguna tanpa validasi allowlist. Penyerang dapat mencapai
@@ -53,7 +53,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/918.html"
 
   - id: SSRF-002
-    title: "SSRF — file_get_contents() dengan URL eksternal dari pengguna"
+    title: "SSRF - file_get_contents() dengan URL eksternal dari pengguna"
     description: >
       file_get_contents() dipanggil dengan URL yang dikontrol pengguna. Jika allow_url_fopen
       aktif, ini memungkinkan SSRF via HTTP/HTTPS wrapper dan eksposure resource internal.
@@ -78,12 +78,12 @@ rules:
       - "https://cwe.mitre.org/data/definitions/918.html"
 
   - id: SSRF-003
-    title: "SSRF via DNS Rebinding — resolusi DNS tanpa validasi post-resolution"
+    title: "SSRF via DNS Rebinding - resolusi DNS tanpa validasi post-resolution"
     description: >
       URL divalidasi tetapi DNS resolution dilakukan dua kali (sekali untuk validasi, sekali untuk
       request). Penyerang mengonfigurasi DNS record dengan TTL sangat pendek yang pertama kali
       me-resolve ke IP public (melewati validasi) kemudian berubah ke IP internal (saat request
-      sebenarnya dibuat) — ini disebut DNS Rebinding Attack.
+      sebenarnya dibuat) - ini disebut DNS Rebinding Attack.
     severity: high
     confidence: medium
     category: SSRF
@@ -108,11 +108,11 @@ rules:
       - "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html"
 
   - id: SSRF-004
-    title: "SSRF — redirect following pada HTTP client tanpa pembatasan"
+    title: "SSRF - redirect following pada HTTP client tanpa pembatasan"
     description: >
       HTTP client (Guzzle, Http facade) mengikuti redirect tanpa pembatasan. Penyerang mengirim
       URL yang awalnya mengarah ke host yang diizinkan, tetapi URL tersebut melakukan redirect
-      ke host internal atau cloud metadata endpoint — membypass validasi allowlist.
+      ke host internal atau cloud metadata endpoint - membypass validasi allowlist.
     severity: high
     confidence: medium
     category: SSRF
@@ -135,11 +135,11 @@ rules:
       - "https://cwe.mitre.org/data/definitions/918.html"
 
   - id: SSRF-005
-    title: "SSRF — webhook URL disimpan tanpa validasi dan digunakan untuk callback"
+    title: "SSRF - webhook URL disimpan tanpa validasi dan digunakan untuk callback"
     description: >
       Aplikasi menyimpan URL webhook dari pengguna ke database dan kemudian menggunakannya
       untuk mengirim HTTP callback. URL tidak divalidasi saat disimpan maupun saat digunakan.
-      Ini adalah SSRF yang tertunda (stored SSRF) — penyerang menyimpan URL internal dan
+      Ini adalah SSRF yang tertunda (stored SSRF) - penyerang menyimpan URL internal dan
       menunggu sistem mengirim request ke URL tersebut.
     severity: critical
     confidence: medium

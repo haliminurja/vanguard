@@ -1,10 +1,10 @@
-﻿
-metadata:
-  framework: yii2
-  version_range: ">=2.0.14"
-  language: php
-  ruleset_version: "2.0.0"
-  last_updated: "2026-03-09"
+
+meta:
+  category: Yii2 Security
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Yii2 2.0.x, PHP 8.0-8.4"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -29,19 +29,13 @@ rules:
     enabled: true
     tags: [gii, rce, debug-exposure, cwe-284, owasp-a05-2021, yii2]
     patterns:
-      - id: YII-ENT-001-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Gii module config block outside dev environment guard"
         pattern: '\$config\[(?:''|")modules(?:''|")\]\[(?:''|")gii(?:''|")\]\s*=\s*\['
         exclude_pattern: '(if\s*\(\s*YII_ENV_DEV\s*\)|YII_ENV\s*===\s*[''"]dev[''"])'
-        confidence: high
-      - id: YII-ENT-001-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "Gii allowedIPs set to wildcard (0.0.0.0/all)"
         pattern: '[''"]allowedIPs[''"]\s*=>\s*\[\s*[''"](\*|0\.0\.0\.0)[''"]'
-        confidence: critical
     remediation: |
       Wrap Gii configuration inside an environment check `if (YII_ENV_DEV)`.
 
@@ -59,24 +53,18 @@ rules:
     enabled: true
     tags: [cache, deserialization, yii2, cwe-502, owasp-a08-2021]
     patterns:
-      - id: YII-ENT-002-P1
-        type: regex
+      - type: regex
         target: config-files
-        description: "Cache component configured without authentication credentials"
         pattern: '\$config\[(?:''|")components(?:''|")\]\[(?:''|")cache(?:''|")\]\s*=\s*\['
         exclude_pattern: '(password|password_hash|auth_pass|username|authPassword)'
-        confidence: medium
-      - id: YII-ENT-002-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "Cache key built from raw request data"
         pattern: 'Yii::\$app->cache->(get|set|add)\s*\(\s*(\$request->|\$_GET|\$_POST|request\()'
-        confidence: high
     remediation: |
       Authenticate Redis/Memcached connections and avoid building cache keys from raw user input.
 
   - id: YII-ENT-003
-    title: "Cookie Validation Disabled â€” Session Hijacking and CSRF Bypass"
+    title: "Cookie Validation Disabled � Session Hijacking and CSRF Bypass"
     description: >
       When `enableCookieValidation` is set to false, session cookies can be forged
       without the HMAC signature, leading to session hijacking.
@@ -88,18 +76,12 @@ rules:
     enabled: true
     tags: [crypto, session-hijacking, csrf-bypass, yii2, cwe-565, owasp-a02-2021]
     patterns:
-      - id: YII-ENT-003-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "enableCookieValidation explicitly disabled"
         pattern: '[''"]enableCookieValidation[''"]\s*=>\s*(false|0|FALSE)'
-        confidence: critical
-      - id: YII-ENT-003-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "cookieValidationKey set to empty string or default placeholder"
         pattern: '[''"]cookieValidationKey[''"]\s*=>\s*[''"](\s*|your_key_here|changeme|secret)[''"]'
-        confidence: critical
     remediation: |
       Never disable `enableCookieValidation` and provide a strong random key.
 
@@ -116,18 +98,12 @@ rules:
     enabled: true
     tags: [sqli, yii2, cwe-89, owasp-a03-2021]
     patterns:
-      - id: YII-ENT-004-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "findBySql with concatenated request variable"
         pattern: '::findBySql\s*\(\s*["''].*\.\s*\$(?:_GET|_POST|_REQUEST|request)'
-        confidence: critical
-      - id: YII-ENT-004-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "createCommand with raw string concatenation"
         pattern: '->createCommand\s*\(\s*["''].*\.\s*\$(?:_GET|_POST|_REQUEST)'
-        confidence: critical
     remediation: |
       Use parameterized queries exclusively.
 
@@ -145,12 +121,42 @@ rules:
     enabled: true
     tags: [ssti, rce, yii2, cwe-1336, owasp-a03-2021]
     patterns:
-      - id: YII-ENT-005-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Rendering template string constructed from user input"
         pattern: '->render(?:Ajax|Partial)?\s*\(\s*["''][^"''\)]*\.\s*\$(?:_GET|_POST|_REQUEST|request)'
         exclude_pattern: '(->render|\$this->render)\s*\(\s*["''][a-zA-Z0-9_\-\/]+(\.twig|\.tpl)?["'']'
-        confidence: high
     remediation: |
       Never construct template paths or inline template strings from untrusted input. Use predefined template files and pass data via the context array.
+
+  - id: YII-ENT-006
+    title: "Bypass Kontrol Akses (Missing checkAccess di Controller)"
+    description: >
+      Controller Yii2 menggunakan RBAC tetapi tidak memanggil `Yii::$app->user->can()` atau `checkAccess()` untuk tindakan CRUD sensitif. Ini memungkinkan IDOR di mana pengguna dapat memanipulasi data yang bukan milik mereka.
+    severity: high
+    category: Broken Access Control
+    tags: [auth, rbac, yii2, cwe-284]
+    cwe: "CWE-284"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'public\s+function\s+action(Update|Delete|Edit)\s*\(.*\)\s*\{[^}]*(findModel|findOne)'
+        exclude_pattern: '(can\(|checkAccess)'
+    remediation: |
+      Selalu periksa izin pengguna sebelum melakukan tindakan pada model:
+      `if (!Yii::$app->user->can('updatePost', ['post' => $model])) { throw new ForbiddenHttpException(); }`
+
+  - id: YII-ENT-007
+    title: "YII_DEBUG Aktif di Lingkungan Production"
+    description: >
+      `defined('YII_DEBUG') or define('YII_DEBUG', true);` di `index.php` mengekspos detail internal sistem, stack trace, dan query SQL pada halaman error. Ini memberikan informasi berharga bagi penyerang untuk merancang serangan lebih lanjut.
+    severity: high
+    category: Information Disclosure
+    tags: [debug, disclosure, yii2, cwe-489]
+    cwe: "CWE-489"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "define\\(\\s*['\"]YII_DEBUG['\"]\\s*,\\s*true\\s*\\)"
+    remediation: |
+      Pastikan `YII_DEBUG` diset ke false di file `web/index.php` prod:
+      `defined('YII_DEBUG') or define('YII_DEBUG', false);`

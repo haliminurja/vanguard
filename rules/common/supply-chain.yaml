@@ -3,14 +3,14 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "PHP 8.0–8.4, Composer"
+  scope: "PHP 8.0-8.4, Composer"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
     - NIST-SP-800-53
 rules:
   - id: SUPPLY-001
-    title: "Composer — dependensi dengan versi wildcard (*) tanpa lock file"
+    title: "Composer - dependensi dengan versi wildcard (*) tanpa lock file"
     description: >
       composer.json mendefinisikan dependensi dengan constraint versi wildcard (*) atau terlalu luas.
       Tanpa composer.lock yang di-commit, setiap install atau update dapat menarik versi yang berbeda,
@@ -39,7 +39,7 @@ rules:
       - "https://getcomposer.org/doc/01-basic-usage.md#commit-your-composer-lock-file-to-version-control"
 
   - id: SUPPLY-002
-    title: "Composer — minimum-stability disetel ke 'dev'"
+    title: "Composer - minimum-stability disetel ke 'dev'"
     description: >
       composer.json menyetel minimum-stability ke 'dev', mengizinkan instalasi package yang
       belum di-review atau di-tag secara resmi. Package dev sering kali kurang teruji dan
@@ -69,7 +69,7 @@ rules:
     description: >
       Kode PHP melakukan file_get_contents() atau cURL request ke URL eksternal dan kemudian
       men-evaluate hasilnya via eval(), include, atau preg_replace() dengan flag /e.
-      Ini adalah pattern command & control (C2) — kode dari server eksternal dieksekusi
+      Ini adalah pattern command & control (C2) - kode dari server eksternal dieksekusi
       langsung di server aplikasi tanpa review atau validasi.
     severity: critical
     confidence: high
@@ -114,7 +114,7 @@ rules:
                 "@php artisan package:discover"
             ],
             "post-update-cmd": [
-                "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
+                "@php artisan vendor:publish -tag=laravel-assets -ansi -force"
             ]
         }
     references:

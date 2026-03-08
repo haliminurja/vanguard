@@ -50,7 +50,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/79.html"
   - id: XSS-B03
-    title: "Blade @php echo — output variabel tanpa escaping"
+    title: "Blade @php echo - output variabel tanpa escaping"
     description: >
       Blok @php/@endphp menggunakan echo/print untuk output variabel tanpa melewatinya melalui htmlspecialchars() atau e(). Output @php tidak diproses oleh pipeline auto-escaping Blade.
 
@@ -87,7 +87,7 @@ rules:
         pattern: '@include\s*\(\s*\$'
         exclude_pattern: '\$errors'
     remediation: |
-      Whitelist nama view yang diizinkan — jangan pernah teruskan input pengguna langsung:
+      Whitelist nama view yang diizinkan - jangan pernah teruskan input pengguna langsung:
         @php
             $allowed = ['header' => 'partials.header', 'footer' => 'partials.footer'];
             $view    = $allowed[$type] ?? 'partials.default';
@@ -214,7 +214,7 @@ rules:
       - "https://wiki.php.net/rfc/deprecate_null_to_scalar_internal_arg"
       - "https://cwe.mitre.org/data/definitions/79.html"
   - id: XSS-P03
-    title: "FILTER_SANITIZE_STRING deprecated di PHP 8.1 — silent XSS risk"
+    title: "FILTER_SANITIZE_STRING deprecated di PHP 8.1 - silent XSS risk"
     description: >
       FILTER_SANITIZE_STRING dideprecasi di PHP 8.1. Kode yang mengandalkannya untuk mitigasi XSS secara diam-diam tidak mendapat sanitasi apapun di PHP 8.1+ tanpa error runtime, membuka kembali vektor reflected dan stored XSS.
 

@@ -9,7 +9,7 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: MID-001
-    title: "Auth middleware dengan silent failure — tanpa abort atau redirect"
+    title: "Auth middleware dengan silent failure - tanpa abort atau redirect"
     description: >
       Pemeriksaan autentikasi dalam middleware dilakukan tetapi tidak ada abort(), throw, atau redirect yang dikeluarkan saat gagal. Request secara diam-diam meneruskan ke middleware atau controller berikutnya, melewati autentikasi sepenuhnya.
 

@@ -1,10 +1,9 @@
-﻿
-metadata:
-  framework: laravel
-  version_range: ">=10.0 <=12.x"
-  language: php
-  ruleset_version: "4.0.0"
-  last_updated: "2026-03-09"
+meta:
+  category: Laravel Security
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -15,7 +14,7 @@ metadata:
 rules:
 
   - id: LAR-ENT-001
-    title: "Eloquent Mass Assignment â€” $guarded = [] mengizinkan semua field"
+    title: "Eloquent Mass Assignment — $guarded = [] mengizinkan semua field"
     description: >
       Model Eloquent mendefinisikan $guarded = [] yang mengizinkan SETIAP atribut diset via create() atau update().
       Penyerang dapat menyetel is_admin, role, email_verified_at, password, atau field sensitif lainnya
@@ -43,7 +42,7 @@ rules:
       - "https://laravel.com/docs/eloquent#mass-assignment"
 
   - id: LAR-ENT-002
-    title: "SQL Injection â€” DB::raw() / whereRaw() dengan interpolasi variabel"
+    title: "SQL Injection — DB::raw() / whereRaw() dengan interpolasi variabel"
     description: >
       Query builder menggunakan DB::raw(), whereRaw(), selectRaw(), orderByRaw(), havingRaw(),
       atau DB::statement() dengan interpolasi variabel langsung dari request. Query parameterized
@@ -63,18 +62,18 @@ rules:
         exclude_pattern: '(\?\s*,|bindings|->addBinding|escapeString|intval|->integer)'
     remediation: |
       Gunakan query binding untuk semua input:
-        // BENAR â€” parameter binding
+        // BENAR — parameter binding
         $users = DB::table('users')
             ->whereRaw('email = ?', [$request->input('email')])
             ->get();
-        // SALAH â€” interpolasi langsung
+        // SALAH — interpolasi langsung
         // DB::raw("SELECT * FROM users WHERE email = '{$email}'");
     references:
       - "https://cwe.mitre.org/data/definitions/89.html"
       - "https://laravel.com/docs/queries#raw-expressions"
 
   - id: LAR-ENT-003
-    title: "Auth Bypass â€” Auth::loginUsingId() dengan user ID dari request"
+    title: "Auth Bypass — Auth::loginUsingId() dengan user ID dari request"
     description: >
       Auth::loginUsingId() dipanggil dengan ID yang berasal dari request input tanpa verifikasi kepemilikan.
       Penyerang mengganti ID untuk login sebagai user lain, termasuk admin.
@@ -92,7 +91,7 @@ rules:
         pattern: 'Auth::(loginUsingId|onceUsingId)\s*\(\s*(\$request->|request\(|$_GET|$_POST)'
     remediation: |
       loginUsingId() hanya boleh digunakan dalam konteks terkontrol (seeder, testing, admin impersonation dengan audit):
-        // âœ… Admin impersonation dengan audit trail
+        // ✅ Admin impersonation dengan audit trail
         $this->authorize('impersonate', $targetUser);
         Log::warning('Admin impersonation', ['admin_id' => auth()->id(), 'target_id' => $targetUser->id]);
         Auth::loginUsingId($targetUser->id);
@@ -100,7 +99,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/287.html"
 
   - id: LAR-ENT-004
-    title: "File Upload â€” tanpa validasi MIME type dan ekstensi"
+    title: "File Upload — tanpa validasi MIME type dan ekstensi"
     description: >
       File upload menggunakan storeAs() atau putFile() tanpa validasi mime type, ukuran, dan ekstensi
       di dalam request validation rules. Penyerang dapat mengupload shell PHP, web backdoor,
@@ -131,11 +130,11 @@ rules:
       - "https://laravel.com/docs/validation#rule-mimes"
 
   - id: LAR-ENT-005
-    title: "XSS â€” Blade raw output {!! !!} dengan data tidak tepercaya"
+    title: "XSS — Blade raw output {!! !!} dengan data tidak tepercaya"
     description: >
       Blade meng-output variabel mentah via {!! !!} tanpa escaping. Jika variabel berasal dari
       input pengguna, database tanpa sanitasi, atau API eksternal, penyerang menyisipkan JavaScript
-      yang dijalankan di browser korban â€” memungkinkan session hijacking, keylogging, dan data theft.
+      yang dijalankan di browser korban — memungkinkan session hijacking, keylogging, dan data theft.
     severity: high
     cvss_v3:
       score: 7.2
@@ -151,19 +150,19 @@ rules:
         exclude_pattern: '(Purifier|clean|strip_tags|htmlspecialchars|e\(|sanitize|markdown|trusted_html)'
     remediation: |
       Gunakan {{ }} (auto-escaped) daripada {!! !!}:
-        <!-- âœ… BENAR â€” auto-escaped -->
+        <!- ✅ BENAR — auto-escaped ->
         <p>{{ $user->bio }}</p>
-        <!-- Jika HTML diperlukan, gunakan HTMLPurifier -->
+        <!- Jika HTML diperlukan, gunakan HTMLPurifier ->
         {!! clean($user->bio) !!}
     references:
       - "https://cwe.mitre.org/data/definitions/79.html"
       - "https://laravel.com/docs/blade#displaying-data"
 
   - id: LAR-ENT-006
-    title: "API Token â€” Sanctum/Passport token tanpa expiration"
+    title: "API Token — Sanctum/Passport token tanpa expiration"
     description: >
       Token Sanctum atau Passport dibuat tanpa menyetel masa kedaluwarsa. Token tanpa expiration
-      berlaku selamanya â€” jika dicuri, penyerang memiliki akses API permanen ke akun pengguna.
+      berlaku selamanya — jika dicuri, penyerang memiliki akses API permanen ke akun pengguna.
     severity: high
     cvss_v3:
       score: 7.5
@@ -182,10 +181,10 @@ rules:
         pattern: "'expiration'\\s*=>\\s*(null|0)"
     remediation: |
       Selalu setel expiration pada API tokens:
-        // Sanctum â€” global config
+        // Sanctum — global config
         'expiration' => 60 * 24,  // 24 jam dalam menit
 
-        // Sanctum â€” per-token (Laravel 11+)
+        // Sanctum — per-token (Laravel 11+)
         $token = $user->createToken('api', ['*'], now()->addHours(24));
 
         // Passport
@@ -229,7 +228,7 @@ rules:
       - "https://laravel.com/docs/middleware"
 
   - id: LAR-ENT-008
-    title: "Artisan Command Injection â€” argumen dari user input"
+    title: "Artisan Command Injection — argumen dari user input"
     description: >
       Artisan::call() atau Artisan::queue() dipanggil dengan argumen yang berasal dari request.
       Beberapa Artisan commands dapat membaca file, menghapus data, atau mengeksekusi kode arbitrer.
@@ -285,7 +284,7 @@ rules:
       - "https://laravel.com/docs/encryption"
 
   - id: LAR-ENT-010
-    title: "Queue Job â€” user input langsung di-dispatch tanpa validasi"
+    title: "Queue Job — user input langsung di-dispatch tanpa validasi"
     description: >
       Job yang di-dispatch ke queue menerima $request->all() atau data mentah dari request
       tanpa validasi. Data job diserialisasi dan tersimpan di queue backend (Redis/database).
@@ -315,7 +314,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/502.html"
 
   - id: LAR-ENT-011
-    title: "Signed URL â€” route menerima signed URL tanpa middleware verifikasi"
+    title: "Signed URL — route menerima signed URL tanpa middleware verifikasi"
     description: >
       URL::signedRoute() atau URL::temporarySignedRoute() digunakan untuk membuat URL yang
       ditandatangani, tetapi route target tidak menggunakan middleware 'signed' untuk memverifikasi
@@ -393,7 +392,7 @@ rules:
         exclude_pattern: '(env\(|config\(|getenv)'
     remediation: |
       Gunakan environment variables untuk semua secrets:
-        $schedule->command('sync:data --api-key=' . config('services.api.key'))->daily();
+        $schedule->command('sync:data -api-key=' . config('services.api.key'))->daily();
     references:
       - "https://cwe.mitre.org/data/definitions/798.html"
 
@@ -431,7 +430,7 @@ rules:
     title: "Laravel Telescope/Horizon tidak dilindungi autentikasi di production"
     description: >
       Laravel Telescope atau Horizon dashboard diakses tanpa gate authorization yang memadai.
-      Dashboard ini mengekspos query database, request payload, queue job, exception, dan log â€”
+      Dashboard ini mengekspos query database, request payload, queue job, exception, dan log —
       informasi yang sangat berharga bagi penyerang untuk merencanakan serangan targeted.
     severity: critical
     cvss_v3:

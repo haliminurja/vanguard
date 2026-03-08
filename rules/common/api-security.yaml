@@ -9,7 +9,7 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: API-001
-    title: "Unbounded query — API mengembalikan semua record tanpa pagination"
+    title: "Unbounded query - API mengembalikan semua record tanpa pagination"
     description: >
       API controller memanggil ::all() atau query chain yang berakhir dengan ->get() tanpa pagination atau batas baris. Ini memungkinkan penyerang mengekstrak seluruh tabel dalam satu request (data exfiltration) dan menyebabkan out-of-memory denial of service pada tabel besar.
 
@@ -36,7 +36,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/770.html"
       - "https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/"
   - id: API-002
-    title: "Mass data exposure — model dikembalikan tanpa field filtering"
+    title: "Mass data exposure - model dikembalikan tanpa field filtering"
     description: >
       Model Eloquent atau collection dikembalikan langsung dalam JSON response tanpa memilih field spesifik atau menggunakan API Resource. Kolom internal (hash password, token, flag admin, data billing) secara diam-diam disertakan dalam payload response.
 
@@ -111,7 +111,7 @@ rules:
   - id: API-004
     title: "GraphQL introspection diaktifkan di production"
     description: >
-      GraphQL introspection tidak dinonaktifkan di production. Ini mengekspos API schema lengkap — semua type, query, mutation, dan argumen — kepada siapa saja tanpa memerlukan kredensial.
+      GraphQL introspection tidak dinonaktifkan di production. Ini mengekspos API schema lengkap - semua type, query, mutation, dan argumen - kepada siapa saja tanpa memerlukan kredensial.
 
     severity: medium
     confidence: high
@@ -130,7 +130,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/200.html"
       - "https://www.apollographql.com/blog/graphql/security/why-you-should-disable-graphql-introspection-in-production/"
   - id: API-004b
-    title: "GraphQL — tidak ada batasan query depth atau complexity"
+    title: "GraphQL - tidak ada batasan query depth atau complexity"
     description: >
       Endpoint GraphQL tidak membatasi query depth atau complexity. Penyerang dapat membuat nested query yang sangat dalam yang mengeksponensialkan database query, menyebabkan denial of service (GraphQL query abuse).
 
@@ -155,7 +155,7 @@ rules:
   - id: API-005
     title: "API response berisi stack trace atau debug info"
     description: >
-      API response menyertakan informasi debug, stack trace, atau pesan error internal. Stack trace mengekspos path file, nama kelas, query SQL, dan tanda tangan method — memberikan penyerang peta detail arsitektur internal.
+      API response menyertakan informasi debug, stack trace, atau pesan error internal. Stack trace mengekspos path file, nama kelas, query SQL, dan tanda tangan method - memberikan penyerang peta detail arsitektur internal.
 
     severity: high
     confidence: medium
@@ -206,7 +206,7 @@ rules:
   - id: API-007
     title: "Sensitive data dalam URL parameter API"
     description: >
-      Token, API key, atau kredensial sensitif dikirim via URL query parameter. Parameter URL muncul di server access log, proxy log, browser history, dan header Referer — mengekspos kredensial secara pasif.
+      Token, API key, atau kredensial sensitif dikirim via URL query parameter. Parameter URL muncul di server access log, proxy log, browser history, dan header Referer - mengekspos kredensial secara pasif.
 
     severity: high
     confidence: high

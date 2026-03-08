@@ -31,7 +31,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/287.html"
 
   - id: AUTH-A03
-    title: "Weak password validation — tanpa aturan kompleksitas"
+    title: "Weak password validation - tanpa aturan kompleksitas"
     description: >
       Field password hanya divalidasi dengan 'required' atau panjang minimum di bawah 8, tanpa persyaratan kompleksitas. Kebijakan lemah meninggalkan akun rentan terhadap serangan brute force dan dictionary.
 
@@ -54,7 +54,7 @@ rules:
   - id: AUTH-A04
     title: "Token autentikasi dikirimkan via URL query parameter"
     description: >
-      Token autentikasi atau API key dibaca dari URL query parameter. Parameter URL muncul di server access log, browser history, proxy cache, dan header Referer — mengekspos kredensial secara pasif.
+      Token autentikasi atau API key dibaca dari URL query parameter. Parameter URL muncul di server access log, browser history, proxy cache, dan header Referer - mengekspos kredensial secara pasif.
 
     severity: high
     confidence: high

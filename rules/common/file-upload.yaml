@@ -209,7 +209,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/732.html"
   - id: UPL-010
-    title: "Zip Slip — Ekstraksi arsip ZIP tanpa sanitasi path (RCE/File Overwrite)"
+    title: "Zip Slip - Ekstraksi arsip ZIP tanpa sanitasi path (RCE/File Overwrite)"
     description: >
       Aplikasi mengekstrak file ZIP menggunakan `ZipArchive::extractTo()` secara langsung. Jika file ZIP berbahaya berisi path traversal (seperti `../../../../var/www/html/shell.php`), ini dapat menimpa file sistem atau kode aplikasi web, menyebabkan eksekusi kode jarak jauh (RCE).
     severity: critical

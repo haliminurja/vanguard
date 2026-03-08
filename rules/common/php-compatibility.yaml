@@ -1,4 +1,4 @@
-﻿meta:
+meta:
   category: PHP Compatibility & Version-Specific Risks
   version: "4.0.0"
   maintainer: "Security Engineering Team"
@@ -9,7 +9,7 @@
     - CWE-SANS-Top25
 rules:
   - id: PHP-080-01
-    title: "create_function() dihapus di PHP 8.0 â€” vektor RCE"
+    title: "create_function() dihapus di PHP 8.0 - vektor RCE"
     description: >
       create_function() dihapus di PHP 8.0. Secara internal menggunakan eval(), menjadikannya vektor remote code execution. Penggunaan yang tersisa menyebabkan fatal error di PHP 8.0+.
 
@@ -29,7 +29,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/95.html"
       - "https://www.php.net/manual/en/migration80.incompatible.php"
   - id: PHP-080-02
-    title: "assert() dengan string â€” perilaku berubah di PHP 8.0"
+    title: "assert() dengan string - perilaku berubah di PHP 8.0"
     description: >
       assert() dengan argumen string mengevaluasinya sebagai kode PHP di PHP < 8.0. Di PHP 8.0+ string diterima diam-diam tapi tidak lagi dievaluasi (selalu pass), membuat security assertion menggunakan string-based assert() menjadi bypass yang tidak terlihat.
 
@@ -44,13 +44,13 @@ rules:
     remediation: |
       Ganti string assertion dengan expression assertion:
         assert($user->isAdmin());   // kompatibel PHP 8+
-      Jangan pernah gunakan assert() untuk pemeriksaan keamanan runtime â€” gunakan kondisional:
+      Jangan pernah gunakan assert() untuk pemeriksaan keamanan runtime - gunakan kondisional:
         if (!$user->isAdmin()) { abort(403); }
     references:
       - "https://wiki.php.net/rfc/assert-string-eval-cleanup"
       - "https://cwe.mitre.org/data/definitions/670.html"
   - id: PHP-081-01
-    title: "FILTER_SANITIZE_STRING deprecated di PHP 8.1 â€” silent XSS risk"
+    title: "FILTER_SANITIZE_STRING deprecated di PHP 8.1 - silent XSS risk"
     description: >
       FILTER_SANITIZE_STRING dideprecasi di PHP 8.1. Kode yang mengandalkannya untuk mitigasi XSS secara diam-diam tidak mendapat sanitasi apapun di PHP 8.1+ tanpa error runtime, membuka kembali vektor XSS.
 
@@ -116,9 +116,9 @@ rules:
       - "https://wiki.php.net/rfc/remove_utf8_decode_and_utf8_encode"
       - "https://cwe.mitre.org/data/definitions/838.html"
   - id: PHP-082-02
-    title: "Tidak ada #[SensitiveParameter] pada parameter fungsi yang berisi secret"
+    title: "Tidak ada
     description: >
-      PHP 8.2 memperkenalkan #[\\SensitiveParameter] untuk meredact nilai dalam stack trace. Fungsi yang menerima password, token, atau API key tanpa atribut ini mengekspos secret ini dalam error log, exception handler, dan alat APM setiap kali exception dilempar.
+      PHP 8.2 memperkenalkan
 
     severity: medium
     confidence: medium
@@ -130,7 +130,7 @@ rules:
         pattern: 'function\s+\w+\s*\([^)]*\$(password|passwd|secret|token|api_key|apiKey|private_key|pin)\b[^)]*\)'
         exclude_pattern: '(SensitiveParameter|#\[|\btest\b|\bTest\b)'
     remediation: |
-      Tambahkan #[\\SensitiveParameter] ke setiap parameter fungsi yang sensitif:
+      Tambahkan
         function authenticate(
             string $email,
         ): bool { ... }
@@ -152,7 +152,7 @@ rules:
         pattern: '\$\w+->\$\w+\s*='
         exclude_pattern: '(stdClass|AllowDynamicProperties|test|Test|//|#\s)'
     remediation: |
-      Deklarasikan semua property secara eksplisit atau tambahkan #[AllowDynamicProperties]:
+      Deklarasikan semua property secara eksplisit atau tambahkan
         class UserContext {
             public string $role = '';    // deklarasi eksplisit
         }
@@ -164,7 +164,7 @@ rules:
   - id: PHP-083-01
     title: "json_validate() tanpa batasan depth/size (PHP 8.3)"
     description: >
-      json_validate() (PHP 8.3) digunakan sebagai satu-satunya pemeriksaan sebelum memproses JSON tidak tepercaya. json_validate() hanya memeriksa validitas struktural â€” tidak memvalidasi schema, batas ukuran, kedalaman nesting, atau konten. Penyerang dapat meneruskan JSON yang sangat nested atau besar yang lolos validasi tetapi menyebabkan memory exhaustion.
+      json_validate() (PHP 8.3) digunakan sebagai satu-satunya pemeriksaan sebelum memproses JSON tidak tepercaya. json_validate() hanya memeriksa validitas struktural - tidak memvalidasi schema, batas ukuran, kedalaman nesting, atau konten. Penyerang dapat meneruskan JSON yang sangat nested atau besar yang lolos validasi tetapi menyebabkan memory exhaustion.
 
     severity: medium
     confidence: medium
@@ -184,9 +184,9 @@ rules:
       - "https://www.php.net/manual/en/function.json-validate.php"
       - "https://cwe.mitre.org/data/definitions/20.html"
   - id: PHP-083-02
-    title: "Tidak ada #[Override] pada method keamanan kritis"
+    title: "Tidak ada
     description: >
-      PHP 8.3 memperkenalkan atribut #[Override]. Method keamanan kritis (authenticate, authorize, validate, handle) dalam middleware atau controller yang meng-override parent tetapi kurang atribut #[Override] dapat menjadi dead code jika parent class berganti nama, tanpa error kompilasi apapun.
+      PHP 8.3 memperkenalkan atribut
 
     severity: high
     confidence: low
@@ -198,7 +198,7 @@ rules:
         pattern: 'public\s+function\s+(handle|authenticate|authorize)\s*\(.*Request'
         exclude_pattern: '(#\[Override\]|implements\s+|interface\s+)'
     remediation: |
-      Tambahkan #[Override] ke setiap method yang meng-override parent class:
+      Tambahkan
         public function handle(Request $request, Closure $next): Response
         {
             // ...
@@ -235,7 +235,7 @@ rules:
   - id: PHP-084-02
     title: "Asymmetric visibility PHP 8.4 pada property sensitif (tetap readable)"
     description: >
-      PHP 8.4 asymmetric visibility (public private(set)) mengizinkan pembacaan publik tetapi membatasi penulisan â€” TIDAK mencegah pembacaan property sensitif. Property yang ditandai public private(set) $secret masih dapat dibaca secara publik oleh kode manapun yang memegang referensi ke objek.
+      PHP 8.4 asymmetric visibility (public private(set)) mengizinkan pembacaan publik tetapi membatasi penulisan - TIDAK mencegah pembacaan property sensitif. Property yang ditandai public private(set) $secret masih dapat dibaca secara publik oleh kode manapun yang memegang referensi ke objek.
 
     severity: medium
     confidence: low

@@ -1,10 +1,10 @@
-﻿
-metadata:
-  framework: cakephp
-  version_range: ">=3.0 <=5.x"
-  language: php
-  ruleset_version: "2.0.0"
-  last_updated: "2026-03-09"
+
+meta:
+  category: CakePHP Security
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "CakePHP 3.0-5.x, PHP 8.0-8.4"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -26,12 +26,9 @@ rules:
     enabled: true
     tags: [cakephp, csrf, form-tampering, cwe-352, owasp-a05-2021]
     patterns:
-      - id: CAKE-ENT-001-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Disabling validatePost globally on SecurityComponent"
         pattern: '\$this->Security->(unlockedActions|setConfig\(\s*\[[^\]]*[''"]validatePost[''"]\s*=>\s*false)'
-        confidence: high
     remediation: |
       Do not disable `validatePost` globally. Refactor actions that require non-standard tokens to specifically bypass only the required fields using `unlockedFields`.
 
@@ -47,13 +44,10 @@ rules:
     enabled: true
     tags: [mass-assignment, cakephp, cwe-915, owasp-a04-2021]
     patterns:
-      - id: CAKE-ENT-002-P1
-        type: regex
+      - type: regex
         target: model-files
-        description: "Accessible array defines wildcard true without explicit false denies for admin fields"
         pattern: '\$_accessible\s*=\s*\[[^\]]*[''"]\*[''"]\s*=>\s*true'
         exclude_pattern: '([''"](role|admin|is_admin|superuser)[''"]\s*=>\s*false)'
-        confidence: high
     remediation: |
       If assigning `* => true`, explicitly set security-critical entity properties to false:
       `protected $_accessible = ['*' => true, 'is_admin' => false, 'role' => false];`
@@ -70,12 +64,9 @@ rules:
     enabled: true
     tags: [auth-bypass, idor, cakephp, cwe-285, owasp-a01-2021]
     patterns:
-      - id: CAKE-ENT-003-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Auth->allow() called with no arguments or wildcard array"
         pattern: '\$this->Auth->allow\s*\(\s*(?:\[\s*\])?\s*\)'
-        confidence: high
     remediation: |
       Pass only the explicit action boundaries that demand open entry:
       `$this->Auth->allow(['login', 'register', 'forgotPassword']);`
@@ -95,12 +86,39 @@ rules:
     enabled: true
     tags: [rce, deserialization, cakephp, owasp-a08-2021, cwe-502]
     patterns:
-      - id: CAKE-ENT-004-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Cache::read() with user-controlled cache key"
         pattern: 'Cache::(?:read|write|delete)\s*\(\s*(\$this->request->(?:getData|getQuery)|_POST|_GET)'
-        confidence: high
     remediation: |
       Never build Cache keys systematically utilizing unvalidated user input.
       Authenticate all cache backends like Redis or Memcached.
+
+  - id: CAKE-ENT-005
+    title: "Security.salt Lemah atau Default"
+    description: >
+      `'salt' => env('SECURITY_SALT', '...')` di `app.php`. Jika salt dibiarkan default atau diset ke string pendek/lemah, penyerang dapat memalsukan token CSRF, cookie sesi (jika dienkripsi), dan hashing data internal lainnya.
+    severity: critical
+    category: Cryptographic Failure
+    tags: [crypto, salt, cakephp, cwe-326]
+    cwe: "CWE-326"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: "['\"]salt['\"]\\s*=>\\s*env\\(\\s*['\"]SECURITY_SALT['\"]\\s*,\\s*['\"]([^'\"]{1,31}|__SALT__)['\"]\\s*\\)"
+    remediation: |
+      Ganti salt dengan string acak panjang (minimal 64 karakter) di file `.env`.
+
+  - id: CAKE-ENT-006
+    title: "Debug Mode Aktif di Production (CakePHP)"
+    description: >
+      `'debug' => filter_var(env('DEBUG', true), FILTER_VALIDATE_BOOLEAN)` di `app.php`. Jika debug aktif di production, CakePHP akan menampilkan detail error yang sangat teknis termasuk query SQL dan variabel lingkungan, yang membocorkan rahasia infrastruktur.
+    severity: high
+    category: Information Disclosure
+    tags: [debug, disclosure, cakephp, cwe-489]
+    cwe: "CWE-489"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: "['\"]debug['\"]\\s*=>\\s*(true|1|filter_var\\(env\\(['\"]DEBUG['\"]\\s*,\\s*true\\))"
+    remediation: |
+      Pastikan environment variable `DEBUG` diset ke `false` di lingkungan production.

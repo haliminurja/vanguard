@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "PHP 8.0–8.4, firebase/php-jwt, lcobucci/jwt, tymon/jwt-auth"
+  scope: "PHP 8.0-8.4, firebase/php-jwt, lcobucci/jwt, tymon/jwt-auth"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -31,9 +31,9 @@ rules:
       - "https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/"
 
   - id: JWT-002
-    title: "Unverified JWT Decoding — payload dipercaya tanpa verifikasi signature"
+    title: "Unverified JWT Decoding - payload dipercaya tanpa verifikasi signature"
     description: >
-      Klaim JWT diekstrak dan dipercaya dari payload token tanpa memverifikasi tanda tangan kriptografisnya (json_decode(base64_decode(explode('.', $token)[1]))). Penyerang dapat memalsukan klaim apapun (role, user_id, tenant_id) karena tanda tangan diabaikan sepenuhnya — ini adalah bypass autentikasi lengkap.
+      Klaim JWT diekstrak dan dipercaya dari payload token tanpa memverifikasi tanda tangan kriptografisnya (json_decode(base64_decode(explode('.', $token)[1]))). Penyerang dapat memalsukan klaim apapun (role, user_id, tenant_id) karena tanda tangan diabaikan sepenuhnya - ini adalah bypass autentikasi lengkap.
     severity: critical
     confidence: high
     category: Signature Bypass
@@ -75,7 +75,7 @@ rules:
   - id: JWT-004
     title: "JWT token tanpa expiration claim (exp)"
     description: >
-      Token JWT dibuat tanpa menyetel claim 'exp' (expiration). Token tanpa expiration berlaku selamanya — jika token dicuri, penyerang memiliki akses permanen. Ini juga melanggar best practice keamanan dan standar compliance (PCI-DSS, SOC2).
+      Token JWT dibuat tanpa menyetel claim 'exp' (expiration). Token tanpa expiration berlaku selamanya - jika token dicuri, penyerang memiliki akses permanen. Ini juga melanggar best practice keamanan dan standar compliance (PCI-DSS, SOC2).
     severity: high
     confidence: medium
     category: Token Misconfiguration
@@ -102,7 +102,7 @@ rules:
   - id: JWT-005
     title: "JWT 'none' algorithm diterima"
     description: >
-      Konfigurasi JWT menerima algoritma 'none'. Algoritma 'none' berarti token tidak ditandatangani — penyerang cukup membuat token JSON dengan header {"alg":"none"} dan payload apapun tanpa tanda tangan. Ini adalah bypass autentikasi total.
+      Konfigurasi JWT menerima algoritma 'none'. Algoritma 'none' berarti token tidak ditandatangani - penyerang cukup membuat token JSON dengan header {"alg":"none"} dan payload apapun tanpa tanda tangan. Ini adalah bypass autentikasi total.
     severity: critical
     confidence: high
     category: Authentication Bypass

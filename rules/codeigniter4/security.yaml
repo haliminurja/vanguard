@@ -1,10 +1,10 @@
-﻿
-metadata:
-  framework: codeigniter4
-  version_range: ">=4.0.0"
-  language: php
-  ruleset_version: "2.0.0"
-  last_updated: "2026-03-09"
+
+meta:
+  category: CodeIgniter 4 Security
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "CodeIgniter 4.x, PHP 8.0-8.4"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -26,18 +26,12 @@ rules:
     enabled: true
     tags: [mass-assignment, codeigniter4, owasp-a04-2021, cwe-915]
     patterns:
-      - id: CI4-ENT-001-P1
-        type: regex
+      - type: regex
         target: model-files
-        description: "Empty allowedFields array in Model"
         pattern: 'protected\s+\$allowedFields\s*=\s*\[\s*\]'
-        confidence: high
-      - id: CI4-ENT-001-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "Model protection explicitly disabled before save/insert"
         pattern: '->protect\s*\(\s*(false|0|FALSE)\s*\)'
-        confidence: high
     remediation: |
       Explicitly define exactly which fields can be updated:
       `protected $allowedFields = ['name', 'email', 'bio'];` Ensure sensitive properties like `is_admin` are not in this array.
@@ -54,12 +48,9 @@ rules:
     enabled: true
     tags: [validation, codeigniter4, cwe-20, owasp-a03-2021]
     patterns:
-      - id: CI4-ENT-002-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "skipValidation invoked"
         pattern: '->skipValidation\s*\(\s*(true|1|TRUE)\s*\)'
-        confidence: medium
     remediation: |
       Avoid suppressing framework validation for user input. If it must be suppressed for internal logical updates, only supply safe, isolated constants.
 
@@ -75,12 +66,9 @@ rules:
     enabled: true
     tags: [sqli, codeigniter4, cwe-89, owasp-a03-2021]
     patterns:
-      - id: CI4-ENT-003-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Raw query concatenation with request variable"
         pattern: '->query\s*\(\s*["''].*\.\s*(\$request->|\$this->request->|\$_GET|\$_POST)'
-        confidence: critical
     remediation: |
       Use proper query bindings: `$db->query('SELECT * FROM users WHERE status = ?', [$status]);`
 
@@ -96,13 +84,10 @@ rules:
     enabled: true
     tags: [csrf, codeigniter4, cwe-352, owasp-a05-2021]
     patterns:
-      - id: CI4-ENT-004-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "globals filter configuration missing CSRF"
         pattern: 'public\s*\$globals\s*=\s*\[[^\]]*''before''\s*=>\s*\[(.*?)\]'
         exclude_pattern: 'csrf'
-        confidence: high
     remediation: |
       Include `csrf` in your `app/Config/Filters.php` global `before` hooks unless utilizing a pure stateless REST API (which should rely on OAuth2/JWT).
 
@@ -121,12 +106,39 @@ rules:
     enabled: true
     tags: [database, ssrf, codeigniter4, cwe-15, owasp-a06-2021]
     patterns:
-      - id: CI4-ENT-005-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Database::connect with user-controlled configuration array"
         pattern: '\\Config\\Database::connect\s*\(\s*(\$this->request->get|\$_POST)'
-        confidence: high
     remediation: |
       Never pass user input directly into `Database::connect()`. Use predefined configuration groups from `app/Config/Database.php`.
+
+  - id: CI4-ENT-006
+    title: "Cookie Secure Tidak Diaktifkan"
+    description: >
+      Di CodeIgniter 4, jika `public $cookieSecure = false;` di `app/Config/App.php`, session cookie akan dikirim melalui HTTP biasa. Ini memungkinkan session hijacking melalui network sniffing.
+    severity: high
+    category: Session Security
+    tags: [cookie, codeigniter4, cwe-614]
+    cwe: "CWE-614"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'public\s+\$cookieSecure\s*=\s*false'
+    remediation: |
+      Set `public $cookieSecure = true;` di `app/Config/App.php` atau melalui variabel lingkungan `app.cookieSecure = true`.
+
+  - id: CI4-ENT-007
+    title: "Encryption Key Lemah di CI4"
+    description: >
+      `public $key = '';` di `app/Config/Encryption.php` harus diset dengan key yang kuat (biasanya 32 karakter hexadecimal). Key yang kosong atau default memungkinkan dekripsi data sensitif yang disimpan aplikasi.
+    severity: critical
+    category: Cryptographic Failure
+    tags: [crypto, codeigniter4, cwe-326]
+    cwe: "CWE-326"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'public\s+\$key\s*=\s*[''"]\s*[''"]'
+    remediation: |
+      Gunakan perintah `php spark key:generate` untuk membuat key yang aman.
 

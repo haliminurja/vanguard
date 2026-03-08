@@ -1,14 +1,10 @@
-﻿
-metadata:
-  framework: codeigniter3
-  version_range: ">=2.0 <4.0"
-  language: php
-  ruleset_version: "2.0.0"
-  last_updated: "2026-03-09"
-  eol_notice: >
-    CodeIgniter 3.x reached End of Life on December 31, 2022.
-    Migration to CodeIgniter 4.x is strongly recommended for all
-    production enterprise applications.
+
+meta:
+  category: CodeIgniter 3 Security
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "CodeIgniter 2.x-3.x, PHP 8.0-8.4"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -32,24 +28,15 @@ rules:
     enabled: true
     tags: [rce, deserialization, session, owasp-a08-2021, codeigniter, cwe-502, cwe-565]
     patterns:
-      - id: CI-ENT-001-P1
-        type: regex
+      - type: regex
         target: config-files
-        description: "CI session not using database backend (uses cookie/file)"
         pattern: '\$config\[''sess_use_database''\]\s*=\s*(FALSE|false|0)\s*;'
-        confidence: high
-      - id: CI-ENT-001-P2
-        type: regex
+      - type: regex
         target: config-files
-        description: "CI3 sess_driver not set to database (defaults to files/cookie)"
         pattern: '\$config\[''sess_driver''\]\s*=\s*[''"](?:cookie|files|memcached|redis)[''"]\s*;'
-        confidence: medium
-      - id: CI-ENT-001-P3
-        type: regex
+      - type: regex
         target: config-files
-        description: "Empty or whitespace-only encryption key"
         pattern: '\$config\[''encryption_key''\]\s*=\s*[''"](\s*)[''"]'
-        confidence: critical
     remediation: |
       Set sessions to use the database driver: `$config['sess_driver'] = 'database';`
 
@@ -66,24 +53,15 @@ rules:
     enabled: true
     tags: [crypto, weak-key, owasp-a02-2021, codeigniter, cwe-321, cwe-326]
     patterns:
-      - id: CI-ENT-002-P1
-        type: regex
+      - type: regex
         target: config-files
-        description: "Encryption key set to empty string"
         pattern: '\$config\[''encryption_key''\]\s*=\s*[''"](\s*)[''"];'
-        confidence: critical
-      - id: CI-ENT-002-P2
-        type: regex
+      - type: regex
         target: config-files
-        description: "Encryption key set to well-known placeholder value"
         pattern: '\$config\[''encryption_key''\]\s*=\s*[''"](?i)(YourSecretKey|changeme|secret|password|1234|test|demo|key)[''"];'
-        confidence: critical
-      - id: CI-ENT-002-P3
-        type: regex
+      - type: regex
         target: config-files
-        description: "Encryption key shorter than 32 characters"
         pattern: '\$config\[''encryption_key''\]\s*=\s*[''"][^''"]{1,31}[''"];'
-        confidence: medium
     remediation: |
       Generate a 256-bit (32-byte) random key and store it via environment variables.
 
@@ -99,19 +77,13 @@ rules:
     enabled: true
     tags: [routing, lfi, path-traversal, owasp-a01-2021, codeigniter, cwe-22]
     patterns:
-      - id: CI-ENT-003-P1
-        type: regex
+      - type: regex
         target: config-files
-        description: "permitted_uri_chars contains dot-dot traversal characters"
         pattern: '\$config\[''permitted_uri_chars''\]\s*=\s*[''"][^''"]*\.\.[^''"]*[''"]'
-        confidence: critical
-      - id: CI-ENT-003-P2
-        type: regex
+      - type: regex
         target: config-files
-        description: "permitted_uri_chars allows unescaped dot character"
         pattern: '\$config\[''permitted_uri_chars''\]\s*=\s*[''"][^''"]*[^\\]\.[^''"]*[''"]'
         exclude_pattern: '(a-z|0-9|%\.|\\\.)'
-        confidence: medium
     remediation: |
       Use the safe default charset: `$config['permitted_uri_chars'] = 'a-z 0-9~%.:_\-';` and sanitize double dots.
 
@@ -128,18 +100,12 @@ rules:
     enabled: true
     tags: [sqli, codeigniter, cwe-89, owasp-a03-2021]
     patterns:
-      - id: CI-ENT-004-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Direct query() call with concatenated user variable"
         pattern: '\$this->db->query\s*\(\s*["''].*\.\s*\$(?:_GET|_POST|_REQUEST|this->input->(?:get|post))'
-        confidence: critical
-      - id: CI-ENT-004-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "where() call with raw string containing request variable"
         pattern: '\$this->db->where\s*\(\s*["''][^''"]+\s*=\s*[^''"]*\.\s*\$'
-        confidence: high
     remediation: |
       Use query bindings or the Active Record array syntax.
 
@@ -155,12 +121,9 @@ rules:
     enabled: true
     tags: [php-object-injection, deserialization, codeigniter, cwe-502]
     patterns:
-      - id: CI-ENT-005-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "unserialize on input data"
         pattern: 'unserialize\s*\(\s*\$(?:this->input->(?:post|get|cookie)|_POST|_GET|_COOKIE)'
-        confidence: high
     remediation: |
       Use `json_decode()` instead of `unserialize()`.
 
@@ -176,11 +139,39 @@ rules:
     enabled: true
     tags: [lfi, codeigniter, cwe-22]
     patterns:
-      - id: CI-ENT-006-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Loading view from user input"
         pattern: '\$this->load->view\s*\(\s*\$(?:this->input->(?:post|get)|_POST|_GET)'
-        confidence: high
     remediation: |
       Validate view names against an allowlist before loading.
+
+  - id: CI-ENT-007
+    title: "CSRF Protection Dinonaktifkan"
+    description: >
+      Proteksi CSRF bawaan CodeIgniter dinonaktifkan di `config.php`. Tanpa ini, semua form POST di aplikasi rentan terhadap serangan Cross-Site Request Forgery.
+    severity: critical
+    category: CSRF
+    tags: [csrf, codeigniter, cwe-352]
+    cwe: "CWE-352"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: '\$config\[''csrf_protection''\]\s*=\s*(FALSE|false|0)\s*;'
+    remediation: |
+      Aktifkan CSRF protection: `$config['csrf_protection'] = TRUE;`
+
+  - id: CI-ENT-008
+    title: "Base URL Tidak Didefinisikan (Auto-detection Risk)"
+    description: >
+      Jika `$config['base_url']` dibiarkan kosong, CodeIgniter mencoba menebaknya dari `$_SERVER`. Penyerang dapat memanipulasi header `Host` untuk meracuni URL yang dihasilkan aplikasi (host header poisoning), yang dapat menyebabkan tautan password reset atau aset menunjuk ke domain penyerang.
+    severity: medium
+    category: Hardening
+    tags: [host-poisoning, codeigniter, cwe-20]
+    cwe: "CWE-20"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: '\$config\[''base_url''\]\s*=\s*[''"]\s*[''"]\s*;'
+    remediation: |
+      Selalu definisikan base_url secara statis (atau via variabel lingkungan):
+      `$config['base_url'] = 'https://example.com/';`

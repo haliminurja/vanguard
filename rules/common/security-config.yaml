@@ -11,7 +11,7 @@ rules:
   - id: CFG-TLS01
     title: "SSL/TLS certificate verification dinonaktifkan"
     description: >
-      Verifikasi peer SSL dinonaktifkan dalam HTTP client (Guzzle, Laravel Http facade, atau cURL). Ini menerima sertifikat apapun — palsu, self-signed, atau kadaluarsa — mengaktifkan serangan man-in-the-middle terhadap semua request keluar.
+      Verifikasi peer SSL dinonaktifkan dalam HTTP client (Guzzle, Laravel Http facade, atau cURL). Ini menerima sertifikat apapun - palsu, self-signed, atau kadaluarsa - mengaktifkan serangan man-in-the-middle terhadap semua request keluar.
 
     severity: critical
     confidence: high
@@ -56,7 +56,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/942.html"
   - id: CFG-CORS02
-    title: "CORS supports_credentials=true — verifikasi origin dibatasi"
+    title: "CORS supports_credentials=true - verifikasi origin dibatasi"
     description: >
       Konfigurasi CORS memiliki supports_credentials=true. Dikombinasikan dengan allowed_origins yang wildcard atau luas, ini mengizinkan website manapun membuat request API cross-origin yang sepenuhnya terautentikasi.
 
@@ -121,7 +121,7 @@ rules:
         <form method="POST" action="{{ route('profile.update') }}">
             @csrf
             @method('PUT')
-            <!-- field form -->
+            <!- field form ->
         </form>
     references:
       - "https://cwe.mitre.org/data/definitions/352.html"
@@ -129,7 +129,7 @@ rules:
   - id: CFG-SAN01
     title: "Sanctum stateful domains mengandung wildcard"
     description: >
-      SANCTUM_STATEFUL_DOMAINS mengandung wildcard, menyebabkan Sanctum menerbitkan session berbasis cookie ke domain yang cocok manapun — berpotensi termasuk subdomain yang tidak berwenang atau origin eksternal.
+      SANCTUM_STATEFUL_DOMAINS mengandung wildcard, menyebabkan Sanctum menerbitkan session berbasis cookie ke domain yang cocok manapun - berpotensi termasuk subdomain yang tidak berwenang atau origin eksternal.
 
     severity: high
     confidence: high
@@ -151,7 +151,7 @@ rules:
   - id: CFG-DDL01
     title: "Schema::drop() dipanggil di luar file migration"
     description: >
-      Schema::drop() atau Schema::dropIfExists() dipanggil di luar migration. Operasi DDL DROP dalam controller, service, atau command adalah risiko destruktif — satu miskonfigurasi atau injection dapat menghapus tabel production.
+      Schema::drop() atau Schema::dropIfExists() dipanggil di luar migration. Operasi DDL DROP dalam controller, service, atau command adalah risiko destruktif - satu miskonfigurasi atau injection dapat menghapus tabel production.
 
     severity: critical
     confidence: high
@@ -168,7 +168,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/912.html"
   - id: CFG-RT01
-    title: "Route::any() — binding HTTP method yang terlalu permisif"
+    title: "Route::any() - binding HTTP method yang terlalu permisif"
     description: >
       Route::any() menerima semua HTTP method (GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD), mengekspos route ke panggilan method yang mungkin memicu perilaku tak terduga atau melewati kontrol akses berbasis method.
 

@@ -1,10 +1,10 @@
-﻿
-metadata:
-  framework: wordpress
-  version_range: ">=5.0 <=6.x"
-  language: php
-  ruleset_version: "2.0.0"
-  last_updated: "2026-03-09"
+
+meta:
+  category: WordPress Security
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "WordPress 5.0-6.x, PHP 8.0-8.4"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -26,25 +26,16 @@ rules:
     enabled: true
     tags: [privesc, mass-assignment, wordpress, owasp-a01-2021, cwe-269, cwe-284, cwe-915]
     patterns:
-      - id: WP-ENT-001-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Option key driven directly from $_POST/$_GET"
         pattern: '(update_option|update_user_meta)\s*\(\s*(\$_POST|\$_GET|\$_REQUEST|\$request_data)\[[^\]]+\]\s*,'
-        confidence: high
-      - id: WP-ENT-001-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "Option value driven from request without sanitization/nonce"
         pattern: '(update_option|update_user_meta)\s*\([^,]+,\s*(\$_POST|\$_GET|\$_REQUEST)\[[^\]]+\]\)'
         exclude_pattern: '(sanitize_text_field|sanitize_key|intval|absint|wp_verify_nonce|check_admin_referer)'
-        confidence: high
-      - id: WP-ENT-001-P3
-        type: regex
+      - type: regex
         target: php-files
-        description: "Bulk update of options from raw $_POST array"
         pattern: 'foreach\s*\(\s*\$_POST\s+as\s+\$key\s*=>\s*\$val\s*\)\s*\{[^}]*update_option'
-        confidence: critical
     remediation: |
       Always strictly whitelist which options can be updated and check capabilities/nonces:
       `if ($key === 'custom_plugin_settings') update_option($key, sanitize_text_field($value));`
@@ -61,26 +52,17 @@ rules:
     enabled: true
     tags: [sqli, wordpress, owasp-a03-2021, cwe-89, pci-dss-6.2]
     patterns:
-      - id: WP-ENT-002-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Concatenated user variable in $wpdb query methods"
         pattern: '\$wpdb->(query|get_results|get_col|get_row|get_var)\s*\(\s*["''].*\.\s*\$'
         exclude_pattern: '(\$wpdb->prepare|intval|absint|sanitize_key)'
-        confidence: high
-      - id: WP-ENT-002-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "Direct interpolation of $_GET/$_POST inside SQL string"
         pattern: '\$wpdb->(query|get_results|get_col|get_row|get_var)\s*\(\s*[''"][^''"]*\$_(?:GET|POST|REQUEST)'
-        confidence: critical
-      - id: WP-ENT-002-P3
-        type: regex
+      - type: regex
         target: php-files
-        description: "Dynamic ORDER BY column without sanitization"
         pattern: 'ORDER\s+BY\s*[''"][^''"]*\.\s*\$(?:_GET|_POST|_REQUEST|order|orderby)'
         exclude_pattern: 'wpdb->prepare'
-        confidence: medium
     remediation: |
       Wrap all SQL strings containing dynamic variables inside `$wpdb->prepare()`:
       `$wpdb->query($wpdb->prepare("SELECT * FROM {$wpdb->prefix}table WHERE id = %d", $id));`
@@ -97,23 +79,17 @@ rules:
     enabled: true
     tags: [auth-bypass, wordpress, owasp-a01-2021, cwe-285, cwe-306]
     patterns:
-      - id: WP-ENT-003-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "nopriv hook bound to destructive action name"
         pattern: 'add_action\s*\(\s*["'']wp_ajax_nopriv_(update|delete|insert|save|edit|admin|remove|set|create|upload)[^"'']*["'']'
-        confidence: high
-      - id: WP-ENT-003-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "nopriv callback performing wp_update_user or role changes"
         pattern: 'wp_ajax_nopriv_[^\s]+[^}]*(wp_update_user|wp_set_current_user|wp_set_auth_cookie|add_user_to_blog)'
-        confidence: critical
     remediation: |
       Ensure administrative or destructive tasks are only ever bound to `wp_ajax_` hooks (which require the user to be logged in) AND the handler function calls `current_user_can()`.
 
   - id: WP-ENT-004
-    title: "CSRF â€” State-Changing Request Without wp_verify_nonce() Validation"
+    title: "CSRF � State-Changing Request Without wp_verify_nonce() Validation"
     description: >
       Updates, Deletions, or Modifying endpoints are receiving raw data but the WordPress handler never validates `$_POST['_wpnonce']` via `wp_verify_nonce()` or `check_ajax_referer()`. This allows attackers to formulate CSRF payloads forcing a victim to unwittingly execute destructive behavior.
     severity: high
@@ -124,20 +100,14 @@ rules:
     enabled: true
     tags: [csrf, wordpress, owasp-a05-2021, cwe-352]
     patterns:
-      - id: WP-ENT-004-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "POST handler function body using $_POST without nonce check"
         pattern: 'function\s+\w+\s*\([^)]*\)\s*\{[^}]*(\$_POST|\$_GET)\[[^\]]+\][^}]*\}'
         exclude_pattern: '(wp_verify_nonce|check_ajax_referer|check_admin_referer)'
-        confidence: medium
-      - id: WP-ENT-004-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "Direct wp_update_post / wp_insert_post from request data without nonce"
         pattern: '(wp_update_post|wp_insert_post|wp_delete_post)\s*\([^;]*\)'
         exclude_pattern: '(wp_verify_nonce|check_admin_referer)'
-        confidence: medium
     remediation: |
       Every destructive custom API or Plugin Options save block must verify its unique nonce:
       `if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'my_action')) { wp_die(); }`
@@ -155,19 +125,13 @@ rules:
     enabled: true
     tags: [xss, stored-xss, wordpress, owasp-a03-2021, cwe-79]
     patterns:
-      - id: WP-ENT-005-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "echo of raw get_option() / get_post_meta() without escaping"
         pattern: 'echo\s+(get_option|get_post_meta|get_user_meta)\s*\('
         exclude_pattern: '(esc_html|esc_attr|esc_url|wp_kses|intval|absint)'
-        confidence: high
-      - id: WP-ENT-005-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "Direct echo of $_GET/$_POST variable without escaping"
         pattern: 'echo\s+\$_(?:GET|POST|REQUEST)\['
-        confidence: critical
     remediation: |
       Always escape at the point of output, not at the point of storage using functions like `esc_html()`, `esc_attr()`, `esc_url()`, or `wp_kses_post()`.
 
@@ -186,13 +150,10 @@ rules:
     enabled: true
     tags: [ssrf, wordpress, owasp-a10-2021, cwe-918]
     patterns:
-      - id: WP-ENT-006-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "wp_remote_get constructed from user input"
         pattern: 'wp_remote_(get|post|request)\s*\(\s*(\$_(GET|POST|REQUEST)\[|\$request_data\[)'
         exclude_pattern: '(esc_url_raw|wp_http_validate_url)'
-        confidence: high
     remediation: |
       Always use `wp_http_validate_url( $url )` which rejects local IP addresses,
       `127.0.0.1`, and validates hostnames before making the outbound request.
@@ -211,21 +172,60 @@ rules:
     enabled: true
     tags: [xmlrpc, bruteforce, ssrf, pingback, wordpress]
     patterns:
-      - id: WP-ENT-007-P1
-        type: regex
+      - type: regex
         target: php-files
-        description: "Explicitly enabling XML-RPC in configuration or removing filters"
         pattern: 'remove_filter\s*\(\s*[''"]xmlrpc_enabled[''"]'
-        confidence: medium
-      - id: WP-ENT-007-P2
-        type: regex
+      - type: regex
         target: php-files
-        description: "add_filter enabling XML-RPC explicitly"
         pattern: 'add_filter\s*\(\s*[''"]xmlrpc_enabled[''"]\s*,\s*[''"]__return_true[''"]'
-        confidence: high
     remediation: |
       Disable XML-RPC entirely if not actively used by an external app (like the WordPress mobile app).
       ```php
       add_filter('xmlrpc_enabled', '__return_false');
       ```
       Also configure the WAF/WebServer to block requests to `/xmlrpc.php`.
+
+  - id: WP-ENT-008
+    title: "Potensial Ekspor Konfigurasi Sensitif via wp-config.php Path Disclosure"
+    description: >
+      File `wp-config.php` mengandung kredensial database dan keys salt. Jika server diklasifikasikan salah atau mengizinkan directory listing, file ini bisa bocor. Secara spesifik, aturan ini mencari manipulasi path yang mungkin menargetkan file konfigurasi ini.
+    severity: critical
+    category: Information Disclosure
+    tags: [config-exposure, wordpress, cwe-200]
+    cwe: "CWE-200"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'include(_once)?\s*\(?.*wp-config\.php'
+        exclude_pattern: 'ABSPATH'
+    remediation: |
+      Pastikan `wp-config.php` berada di luar root publik jika didukung oleh instalasi, atau pastikan izin file diset ke 600 atau 640.
+
+  - id: WP-ENT-009
+    title: "FORCE_SSL_ADMIN Tidak Diaktifkan"
+    description: >
+      Tanpa `FORCE_SSL_ADMIN` diset ke true di `wp-config.php`, kredensial admin WordPress dikirim melalui HTTP yang tidak terenkripsi pada beberapa konfigurasi, memungkinkan sniffing kata sandi dan pembajakan sesi.
+    severity: high
+    category: Insecure Configuration
+    tags: [ssl, wordpress, cwe-319]
+    cwe: "CWE-319"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "define\\(\\s*['\"]FORCE_SSL_ADMIN['\"]\\s*,\\s*false\\s*\\)"
+    remediation: |
+      Set `define('FORCE_SSL_ADMIN', true);` di file `wp-config.php` Anda.
+
+  - id: WP-ENT-010
+    title: "File Editing Diaktifkan di Dashboard (DISALLOW_FILE_EDIT)"
+    description: >
+      Jika `DISALLOW_FILE_EDIT` tidak diset ke true, admin dapat mengedit file PHP langsung dari dashboard WordPress. Jika akun admin terkompromi, ini memberikan penyerang akses RCE instan untuk menanam backdoor di server.
+    severity: medium
+    category: Hardening
+    tags: [rce, hardening, wordpress]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "define\\(\\s*['\"]DISALLOW_FILE_EDIT['\"]\\s*,\\s*false\\s*\\)"
+    remediation: |
+      Tambahkan `define('DISALLOW_FILE_EDIT', true);` ke `wp-config.php` untuk menonaktifkan editor file dashboard.
