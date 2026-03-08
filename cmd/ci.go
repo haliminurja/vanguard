@@ -12,7 +12,7 @@ import (
 var ciCmd = &cobra.Command{
 	Use:   "ci",
 	Short: "Generate CI/CD configuration files",
-	Long:  "Commands to generate production-ready CI/CD workflows for GitHub Actions or GitLab CI.",
+	Long:  "Commands to generate production-ready CI/CD workflows for GitHub Actions.",
 }
 
 var ciGitHubCmd = &cobra.Command{
@@ -83,29 +83,7 @@ jobs:
 	},
 }
 
-var ciGitLabCmd = &cobra.Command{
-	Use:   "gitlab",
-	Short: "Generate GitLab CI configuration snippet",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("    Add the following to your .gitlab-ci.yml:")
-		fmt.Print(`
-vanguard_scan:
-  stage: test
-  image: golang:1.24
-  script:
-    - go install github.com/haliminurja/vanguard@latest
-    - vanguard scan . --output-format json
-  artifacts:
-    when: always
-    paths:
-      - vanguard-report.json
-`)
-		return nil
-	},
-}
-
 func init() {
 	rootCmd.AddCommand(ciCmd)
 	ciCmd.AddCommand(ciGitHubCmd)
-	ciCmd.AddCommand(ciGitLabCmd)
 }

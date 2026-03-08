@@ -104,7 +104,7 @@ output:
 ## 🤖 Integrasi CI/CD
 
 - **GitHub Actions:** `vanguard ci github`
-- **GitLab CI:** `vanguard ci gitlab`
+- **Git Hooks:** `vanguard init` otomatis memasang _pre-commit hook_ untuk mencegah commit kode yang tidak aman.
 
 ---
 
