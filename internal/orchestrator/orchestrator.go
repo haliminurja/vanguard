@@ -37,16 +37,9 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 
 	depscanner.SetExtraSkipDirs(o.cfg.Scanners.IgnoreDirs)
 
-	rulesDir := o.getRulesDirectory()
-	if rulesDir != "" {
-		rules, err := config.LoadRulesFromDir(rulesDir)
-		if err == nil && len(rules) > 0 {
-			filtered := o.filterRules(rules)
-			if len(filtered) > 0 {
-				scanners = append(scanners, depscanner.NewRulesScanner(filtered))
-			}
-		}
-	}
+	depscanner.SetExtraSkipDirs(o.cfg.Scanners.IgnoreDirs)
+
+	scanners = o.filterScanners(scanners)
 
 	scanners = o.filterScanners(scanners)
 
@@ -102,6 +95,42 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 		FrameworkType:  pc.FrameworkType,
 		PackageCount:   len(pc.InstalledPackages),
 	}))
+
+	// Load Rules after framework resolution
+	rulesDir := o.getRulesDirectory()
+	if rulesDir != "" {
+		var allRules []config.RuleDefinition
+
+		// 1. Generic PHP Rules
+		commonDir := filepath.Join(rulesDir, "common")
+		if commonRules, err := config.LoadRulesFromDir(commonDir); err == nil {
+			allRules = append(allRules, commonRules...)
+		}
+
+		// 2. Framework Specific Rules
+		if pc.FrameworkType != "" && pc.FrameworkType != "php-generic" {
+			frameworkKey := pc.FrameworkType
+			if frameworkKey == "codeigniter2" || frameworkKey == "codeigniter3" {
+				frameworkKey = "codeigniter"
+			}
+			fwDir := filepath.Join(rulesDir, frameworkKey)
+			if fwRules, err := config.LoadRulesFromDir(fwDir); err == nil {
+				allRules = append(allRules, fwRules...)
+			}
+		}
+
+		// 3. Legacy rules in root (for custom rules)
+		if rootRules, err := config.LoadRulesFromDir(rulesDir); err == nil {
+			allRules = append(allRules, rootRules...)
+		}
+
+		if len(allRules) > 0 {
+			filtered := o.filterRules(allRules)
+			if len(filtered) > 0 {
+				scanners = append(scanners, depscanner.NewRulesScanner(filtered))
+			}
+		}
+	}
 
 	o.stageComplete(models.StageResolvers)
 	o.stageStart(models.StageScanners)

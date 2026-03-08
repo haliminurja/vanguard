@@ -25,6 +25,8 @@ func (r *FrameworkResolver) Resolve(_ context.Context, root string, pc *models.P
 
 	r.resolveComposer(root, pc)
 	r.resolvePackageJSON(root, pc)
+	r.resolveFileBasedFrameworks(root, pc)
+	r.resolveGenericPHP(root, pc)
 	r.resolveEnv(root, pc)
 
 	return nil
@@ -54,15 +56,29 @@ func (r *FrameworkResolver) resolveComposer(root string, pc *models.ProjectConte
 		pc.ComposerDeps[pkg] = ver
 	}
 
-	if v, ok := composer.Require["laravel/framework"]; ok {
-		pc.FrameworkType = "laravel"
-		pc.LaravelVersion = v
-	} else if _, ok := composer.Require["symfony/framework-bundle"]; ok {
-		pc.FrameworkType = "symfony"
-	} else if _, ok := composer.Require["yiisoft/yii2"]; ok {
-		pc.FrameworkType = "yii2"
-	} else if _, ok := composer.Require["slim/slim"]; ok {
-		pc.FrameworkType = "slim"
+	frameworkMap := map[string]string{
+		"laravel/framework":                 "laravel",
+		"laravel/lumen-framework":           "lumen",
+		"symfony/framework-bundle":          "symfony",
+		"yiisoft/yii2":                      "yii2",
+		"slim/slim":                         "slim",
+		"cakephp/cakephp":                   "cakephp",
+		"codeigniter4/framework":            "codeigniter4",
+		"laminas/laminas-mvc":               "laminas",
+		"phalcon/cphalcon":                  "phalcon",
+		"drupal/core":                       "drupal",
+		"joomla/joomla-cms":                 "joomla",
+		"magento/product-community-edition": "magento",
+	}
+
+	for pkg, framework := range frameworkMap {
+		if v, ok := composer.Require[pkg]; ok {
+			pc.FrameworkType = framework
+			if framework == "laravel" {
+				pc.LaravelVersion = v
+			}
+			break
+		}
 	}
 
 	if v, ok := composer.Require["php"]; ok {
@@ -110,6 +126,68 @@ func (r *FrameworkResolver) resolvePackageJSON(root string, pc *models.ProjectCo
 	}
 }
 
+func (r *FrameworkResolver) resolveFileBasedFrameworks(root string, pc *models.ProjectContext) {
+	if pc.FrameworkType != "" {
+		return
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "artisan")); err == nil {
+		pc.FrameworkType = "laravel"
+		return
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "spark")); err == nil {
+		pc.FrameworkType = "codeigniter4"
+		return
+	}
+	if _, err := os.Stat(filepath.Join(root, "app", "Config", "App.php")); err == nil {
+		pc.FrameworkType = "codeigniter4"
+		return
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "application", "config", "config.php")); err == nil {
+		pc.FrameworkType = "codeigniter3"
+		return
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "system", "core", "Common.php")); err == nil {
+		if _, err := os.Stat(filepath.Join(root, "application", "core")); err == nil {
+			pc.FrameworkType = "codeigniter2"
+			return
+		}
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "wp-config.php")); err == nil {
+		pc.FrameworkType = "wordpress"
+		return
+	}
+}
+
+func (r *FrameworkResolver) resolveGenericPHP(root string, pc *models.ProjectContext) {
+	if pc.FrameworkType != "" {
+		return
+	}
+
+	isPHP := false
+	if _, err := os.Stat(filepath.Join(root, "index.php")); err == nil {
+		isPHP = true
+	} else {
+		entries, err := os.ReadDir(root)
+		if err == nil {
+			for _, entry := range entries {
+				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".php") {
+					isPHP = true
+					break
+				}
+			}
+		}
+	}
+
+	if isPHP {
+		pc.FrameworkType = "php-generic"
+	}
+}
+
 func (r *FrameworkResolver) resolveEnv(root string, pc *models.ProjectContext) {
 	envVars := parseEnvFile(filepath.Join(root, ".env"))
 
@@ -130,6 +208,16 @@ func (r *FrameworkResolver) resolveEnv(root string, pc *models.ProjectContext) {
 			for _, entry := range entries {
 				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".php") {
 					pc.ConfigFiles = append(pc.ConfigFiles, filepath.Join("config", entry.Name()))
+				}
+			}
+		}
+	} else if strings.HasPrefix(pc.FrameworkType, "codeigniter") {
+		configDir := filepath.Join(root, "application", "config")
+		entries, err := os.ReadDir(configDir)
+		if err == nil {
+			for _, entry := range entries {
+				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".php") {
+					pc.ConfigFiles = append(pc.ConfigFiles, filepath.Join("application", "config", entry.Name()))
 				}
 			}
 		}

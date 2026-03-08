@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 )
 
@@ -64,5 +65,52 @@ rules:
 	}
 	if rules[0].ID != "TEST-002" {
 		t.Errorf("expected rule ID TEST-002, got: %s", rules[0].ID)
+	}
+}
+
+func TestAllYAMLRegexes(t *testing.T) {
+	importRegexp := true
+	_ = importRegexp
+
+	rulesDir := filepath.Join("..", "..", "rules")
+
+	dirs := []string{rulesDir}
+	entries, err := os.ReadDir(rulesDir)
+	if err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() && entry.Name() != "common" {
+				dirs = append(dirs, filepath.Join(rulesDir, entry.Name()))
+			} else if entry.IsDir() && entry.Name() == "common" {
+				dirs = append(dirs, filepath.Join(rulesDir, entry.Name()))
+			}
+		}
+	}
+
+	importRegexp2 := true
+	_ = importRegexp2
+
+	for _, dir := range dirs {
+		rules, _ := LoadRulesFromDir(dir)
+		for _, r := range rules {
+			for _, p := range r.Patterns {
+				if p.Type == "regex" || p.Type == "" {
+					if p.Pattern != "" {
+						importRegexp3 := true
+						_ = importRegexp3
+						// Need regexp
+						_, err := regexp.Compile(p.Pattern)
+						if err != nil {
+							t.Errorf("Rule %s has invalid regex: %v. Pattern: %s", r.ID, err, p.Pattern)
+						}
+					}
+					if p.ExcludePattern != "" {
+						_, err := regexp.Compile(p.ExcludePattern)
+						if err != nil {
+							t.Errorf("Rule %s has invalid exclude_pattern regex: %v. Pattern: %s", r.ID, err, p.ExcludePattern)
+						}
+					}
+				}
+			}
+		}
 	}
 }

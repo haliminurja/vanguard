@@ -1,0 +1,92 @@
+rules:
+  - id: LAR-ENT-001
+    title: "Cache Poisoning / Insecure Cache Key from User Input"
+    description: >
+      `Cache::remember` or `Cache::get` keys are constructed using unsanitized user input. Attackers can inject characters or manipulate keys to overwrite or read cached data of other users or system states, potentially leading to privilege escalation or session hijacking.
+    severity: high
+    category: Injection
+    enabled: true
+    tags: [cache-poisoning, owasp-a01, cwe-470, laravel]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Cache::(remember|rememberForever|get|put|add|pull)\s*\(\s*(\$request->|request\()'
+        exclude_pattern: '(Auth::id|session\(\)->id|hash)'
+    remediation: |
+      Ensure cache keys are bounded by authorized scopes and deterministic:
+      `Cache::remember("user.{$user->id}.profile", 3600, ...)`
+    references:
+      - https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/17-Testing_for_Web_Cache_Poisoning
+
+  - id: LAR-ENT-002
+    title: "Queue / Job Payload Tampering (Insecure Deserialization)"
+    description: >
+      Laravel jobs are serialized. If an attacker can inject an arbitrary PHP class name or raw serialized string into a queued job (e.g. from an exposed Redis instance or poisoned queue payload input), Laravel's worker will unserialize it resulting in Remote Code Execution.
+    severity: critical
+    category: Deserialization
+    enabled: true
+    tags: [rce, deserialization, owasp-a08, queue, laravel]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(Queue::pushRaw|->pushRaw)\s*\(\s*(\$request->|request\()'
+    remediation: |
+      Never allow user input to create raw queue payloads. Always use Laravel's standard `dispatch(new Job($data))` which handles safe serialization.
+    references:
+      - https://cwe.mitre.org/data/definitions/502.html
+
+  - id: LAR-ENT-003
+    title: "Telescope / Horizon Exposed in Production"
+    description: >
+      Laravel Telescope and Horizon provide incredibly detailed diagnostic info, including request payloads, headers, DB queries, and exceptions. If their `gate()` authorization logic allows arbitrary users or falls back to wide-open logic in production, you expose pure enterprise gold to attackers.
+    severity: critical
+    category: Information Disclosure
+    enabled: true
+    tags: [info-disclosure, owasp-a05, telescope, horizon, laravel]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(Telescope|Horizon)::auth\s*\(\s*function\s*\([^)]*\)\s*\{\s*return\s+(true|1)\s*;\s*\}\s*\)'
+      - type: regex
+        target: php-files
+        pattern: 'Gate::define\s*\(\s*[''"]view(Telescope|Horizon)[''"]\s*,\s*function\s*\([^)]*\)\s*\{\s*return\s+(true|1)\s*;\s*\}\s*\)'
+    remediation: |
+      Restrict access strictly to administrators in the `TelescopeServiceProvider` or `HorizonServiceProvider`:
+      `return in_array($user->email, ['admin@company.com']);`
+    references:
+      - https://laravel.com/docs/telescope#dashboard-authorization
+
+  - id: LAR-ENT-004
+    title: "Task Scheduling Command Injection"
+    description: >
+      `$schedule->command()` or `$schedule->exec()` relies on raw string concatenation from a database or user input. Attackers who manipulate the scheduled task registry can achieve root/www-data RCE via OS command injection.
+    severity: critical
+    category: Command Injection
+    enabled: true
+    tags: [rce, cmd-injection, scheduling, laravel]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$schedule->(exec|command)\s*\(\s*.*(\$request->|\$_GET|\$_POST)'
+    remediation: |
+      Never build schedule commands with user data. If a command requires dynamic parameters, pass them as safe arguments or retrieve them securely within the invoked Artisan command itself.
+    references:
+      - https://cwe.mitre.org/data/definitions/78.html
+
+  - id: LAR-ENT-005
+    title: "Insecure File Upload via guessExtension()"
+    description: >
+      Using `$file->getClientOriginalExtension()` allows attackers to upload files like `shell.php.jpg` if only simple string matching is relied upon. Furthermore, storing files in the `public` disk directly without sanitizing the name leads to RCE if PHP execution is enabled in that directory.
+    severity: critical
+    category: File Upload
+    enabled: true
+    tags: [file-upload, rce, owasp-a04, cwe-434, laravel]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$request->file\([^)]*\)->storeAs\s*\([^,]+,\s*\$request->file\([^)]*\)->getClientOriginalName\(\)'
+    remediation: |
+      Always generate a secure random filename and rely on `$file->extension()` (which maps the MIME type) rather than the client-provided name:
+      `$path = $request->file('avatar')->store('avatars');` // Auto-generates a secure hash name
+    references:
+      - https://cwe.mitre.org/data/definitions/434.html

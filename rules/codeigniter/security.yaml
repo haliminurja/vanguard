@@ -1,0 +1,49 @@
+rules:
+  - id: CI-ENT-001
+    title: "Insecure Session Deserialization (CI < 3.0)"
+    description: >
+      CodeIgniter 2 and early 3 versions stored session data as a serialized array inside a client-side cookie. If the `$config['encryption_key']` is leaked, weak, or default, an attacker can forge a malicious serialized cookie to trigger PHP Object Injection resulting in RCE via POP chains.
+    severity: critical
+    category: Deserialization
+    enabled: true
+    tags: [rce, deserialization, session, owasp-a08, codeigniter, cwe-502]
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: '\$config\[''sess_use_database''\]\s*=\s*FALSE;'
+    remediation: |
+      Mandatory security update: For legacy CI, you MUST set `$config['sess_use_database'] = TRUE;` or upgrade to CI3 native PHP sessions (`sess_driver = 'database'`).
+
+  - id: CI-ENT-002
+    title: "Weak or Predictable Encryption Key"
+    description: >
+      The CodeIgniter encryption key `$config['encryption_key']` is empty or left as a predictable dummy value. Since CI 2/3 relies heavily on this key for session HMACs, CSRF tokens, and the Encrypt class, a weak key grants attackers full impersonation and data-tampering capabilities.
+    severity: critical
+    category: Cryptography
+    enabled: true
+    tags: [crypto, owasp-a02, codeigniter, cwe-321]
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: '\$config\[''encryption_key''\]\s*=\s*[''"]\s*[''"];'
+      - type: regex
+        target: config-files
+        pattern: '\$config\[''encryption_key''\]\s*=\s*[''"]YourSecretKey[''"];'
+    remediation: |
+      Generate a cryptographically secure 32-byte (256-bit) random string using `bin2hex(random_bytes(16))` and set it immediately in `config.php`.
+
+  - id: CI-ENT-003
+    title: "Routing Bypass via URI Traversal"
+    description: >
+      If URI protocols rely on `PATH_INFO` or `QUERY_STRING` without adequate sanitization, attackers can inject `../` transversals in the URL (e.g., `index.php?c=../../config/database`) to force the CI router to load arbitrary local PHP files as controllers.
+    severity: high
+    category: Path Traversal
+    enabled: true
+    tags: [routing, lfi, owasp-a01, codeigniter, cwe-22]
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: '\$config\[''permitted_uri_chars''\]\s*=\s*[''"][^''"]*\.\.[^''"]*[''"]'
+    remediation: |
+      Ensure the `$config['permitted_uri_chars']` strictly disallows dot-dot (`..`) patterns.
+      Safe value: `a-z 0-9~%.:_\-`

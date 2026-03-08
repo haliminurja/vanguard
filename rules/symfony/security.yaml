@@ -1,0 +1,50 @@
+rules:
+  - id: SYM-ENT-001
+    title: "ESI (Edge Side Includes) Injection"
+    description: >
+      Symfony's `{{ render_esi() }}` or `HttpCache` ESI integration allows rendering fragments. If the `src` attribute or fragment URI is derived from user input, an attacker can perform Server-Side Request Forgery (SSRF) or include arbitrary enterprise-internal resources into the final response payload.
+    severity: critical
+    category: Injection
+    enabled: true
+    tags: [esi-injection, ssrf, owasp-a10, symfony, cwe-918]
+    patterns:
+      - type: regex
+        target: twig-files
+        pattern: 'render_esi\s*\(\s*(app\.request|app\.request\.query|app\.request\.request)'
+      - type: regex
+        target: php-files
+        pattern: '->render\s*\([^,]+,\s*\[[^\]]*''esi''\s*=>\s*\$request->'
+    remediation: |
+      Never construct ESI URIs dynamically from user input. Map inputs to predefined, safe internal routes.
+
+  - id: SYM-ENT-002
+    title: "Unsafe Object Deserialization via SerializerComponent"
+    description: >
+      The Symfony Serializer component can instantiate objects from JSON/XML. If type enforcement is disabled or an attacker can specify the deserialization target class (e.g., via a polymorphic `__class` property on a maliciously drafted payload), they can trigger POP chains leading to RCE.
+    severity: critical
+    category: Deserialization
+    enabled: true
+    tags: [rce, deserialization, owasp-a08, symfony, cwe-502]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->deserialize\s*\(\s*\$request->getContent\(\)\s*,\s*\$request->get\('
+    remediation: |
+      Hardcode the target class during deserialization. Never allow the user request string or payload properties to dictate the class being instantiated.
+      `$serializer->deserialize($data, UserDto::class, 'json');`
+
+  - id: SYM-ENT-003
+    title: "Symfony Profiler / _profiler Exposed in Production"
+    description: >
+      The Symfony Web Profiler Toolbar reveals extreme detail including database credentials, raw queries, tokens, and active session dumps. If this route (`/_profiler`) or toolbar is active in a production or staging enterprise environment, it constitutes a massive breach of confidentiality.
+    severity: critical
+    category: Information Disclosure
+    enabled: true
+    tags: [profiler, debug, owasp-a05, symfony, cwe-200]
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'web_profiler:\s*toolbar:\s*true'
+        exclude_pattern: '(dev|test)'
+    remediation: |
+      Ensure the WebProfilerBundle is strictly registered only in `dev` and `test` environments via `bundles.php`.

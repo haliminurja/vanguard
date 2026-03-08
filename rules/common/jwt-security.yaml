@@ -1,0 +1,55 @@
+meta:
+  category: JWT Security
+  version: "3.0.0"
+  updated: "2025"
+rules:
+  - id: JWT-ENT-001
+    title: "JWT Algorithm Confusion / Missing Strict Algorithm Check"
+    description: >
+      JWT libraries (like `firebase/php-jwt`) require explicitly defining permitted algorithms during decode. If `JWT::decode($token, $key)` is called without passing an array of allowed algorithms (e.g., `['HS256']`), attackers can change the token header to 'HS256' but sign it with the server's public RSA key. The server will incorrectly verify the HMAC using the public key string, granting full bypass.
+    severity: critical
+    confidence: high
+    category: Authentication Bypass
+    tags: [jwt, auth-bypass, algorithm-confusion, cwe-347, owasp-a02]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'JWT::decode\s*\(\s*\$[^,]+,\s*(?:new\s+Key\s*\([^,]+|\$[^,]+)\s*\)'
+        exclude_pattern: '(new\s+Key\s*\([^,]+,\s*[''"][A-Z0-9]+[''"]|\[\s*[''"][A-Z0-9]+[''"]\s*\])'
+    remediation: |
+      Always strictly specify the expected cryptographic algorithm:
+      `$decoded = JWT::decode($token, new Key($publicKey, 'RS256'));`
+
+  - id: JWT-ENT-002
+    title: "Unverified JWT Decoding (Trusting Payload without Signature)"
+    description: >
+      Extracting and trusting claims from a JWT token payload without verifying its cryptographic signature (`json_decode(base64_decode(explode('.', $token)[1]))`). Attackers can forge any claim (role, user\_id) since the signature is ignored entirely.
+    severity: critical
+    confidence: high
+    category: Signature Bypass
+    tags: [jwt, signature-bypass, cwe-345, owasp-a02]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'base64_decode\s*\(\s*explode\s*\(\s*[''"]\.[''"]\s*,\s*\$[^)]+\)\s*\[\s*1\s*\]\s*\)'
+    remediation: |
+      Never decode and trust JWT payloads manually. Always use an established library (`firebase/php-jwt`) to decode and cryptographically verify the token simultaneously.
+      `$decoded = JWT::decode($jwt, new Key($key, 'HS256'));`
+
+  - id: JWT-ENT-003
+    title: "Hardcoded JWT Secret Key"
+    description: >
+      A JWT secret or private key is hardcoded directly within PHP source code instead of being injected securely via environment variables. If the source code is leaked, attackers can mint arbitrary valid administrative tokens across all environments.
+    severity: high
+    confidence: high
+    category: Hardcoded Secret
+    tags: [jwt, secret, hardcoded-credential, cwe-798, owasp-a07]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'JWT::(encode|decode)\s*\([^,]+,\s*(?:new\s+Key\s*\(\s*)?[''"][^''"]{12,}[''"]'
+        exclude_pattern: '(test|Test|example|mock|Mock)'
+    remediation: |
+      Load secrets securely from environment variables:
+      `$secret = env('JWT_SECRET');`
+      `$decoded = JWT::decode($token, new Key($secret, 'HS256'));`

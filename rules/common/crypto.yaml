@@ -215,3 +215,22 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/697.html"
       - "https://owasp.org/www-pdf-archive/PHPMagicTricks-TypeJuggling.pdf"
+  - id: CRY-C04
+    title: "Weak RSA Padding (PKCS#1 v1.5) Vulnerable to Bleichenbacher Oracle"
+    description: >
+      openssl_public_encrypt() atau openssl_private_decrypt() digunakan dengan OPENSSL_PKCS1_PADDING (atau padding dibiarkan ke default). PKCS1 v1.5 padding rentan terhadap serangan Bleichenbacher's Oracle, dimana penyerang dapat mendekripsi ciphertext atau memalsukan signature dengan mengamati respons error (padding oracle).
+    severity: high
+    confidence: high
+    category: Weak Padding
+    tags: [crypto, rsa, padding-oracle, owasp-a02, cwe-327]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'openssl_(public_encrypt|private_decrypt)\s*\([^,]+,\s*[^,]+,\s*[^,]+(?:,\s*OPENSSL_PKCS1_PADDING)?\s*\)'
+        exclude_pattern: '(OPENSSL_PKCS1_OAEP_PADDING)'
+    remediation: |
+      Gunakan OAEP padding yang aman terhadapa adaptive chosen-ciphertext attacks:
+      `openssl_public_encrypt($data, $encrypted, $pubKey, OPENSSL_PKCS1_OAEP_PADDING);`
+    references:
+      - "https://cwe.mitre.org/data/definitions/327.html"
+      - "https://robotattack.org/"

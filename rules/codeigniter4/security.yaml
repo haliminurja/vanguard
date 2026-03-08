@@ -1,0 +1,66 @@
+rules:
+  - id: CI4-ENT-001
+    title: "Entity / Model Mass Assignment ($allowedFields Misconfiguration)"
+    description: >
+      CodeIgniter 4 defines secure mass assignment using the `$allowedFields` array inside the Model. If `$allowedFields` is left empty, undefined, or manually disabled via `protect(false)`, the application allows attackers to override user IDs, roles, or administrative flags when calling `$model->insert($data)` or `save()`.
+    severity: critical
+    category: Mass Assignment
+    enabled: true
+    tags: [mass-assignment, codeigniter4, owasp-a04, cwe-915]
+    patterns:
+      - type: regex
+        target: model-files
+        pattern: 'protected\s+\$allowedFields\s*=\s*\[\s*\]'
+      - type: regex
+        target: php-files
+        pattern: '->protect\s*\(\s*(false|0|FALSE)\s*\)'
+    remediation: |
+      Explicitly define exactly which fields can be updated via the frontend array payload:
+      `protected $allowedFields = ['name', 'email', 'bio'];` Ensure sensitive properties like `is_admin` are not in this array.
+
+  - id: CI4-ENT-002
+    title: "Bypassed Validation on Model ->save()"
+    description: >
+      Model validation is explicitly bypassed using `->skipValidation(true)`. If `$data` contains raw payload elements from `$_POST` or `$this->request->getPost()`, the CodeIgniter 4 validation rules are ignored entirely, leading to malicious persistence (XSS strings in database, SQLi).
+    severity: high
+    category: Validation
+    enabled: true
+    tags: [validation, codeigniter4, cwe-20, owasp-a03]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->skipValidation\s*\(\s*(true|1|TRUE)\s*\)'
+    remediation: |
+      Avoid suppressing framework validation for user input. If it must be suppressed for internal logical updates, only supply safe, isolated constants.
+      `$model->skipValidation(true)->save(['last_login' => date('Y-m-d')]);`
+
+  - id: CI4-ENT-003
+    title: "SQL Injection via CodeIgniter Query Builder ->query()"
+    description: >
+      Direct raw queries using `$db->query($sql)` without query bindings `?`. Even when using the query builder, string concatenation directly into the SQL payload bypasses the framework's escaping rules.
+    severity: critical
+    category: SQL Injection
+    enabled: true
+    tags: [sqli, codeigniter4, cwe-89, owasp-a03]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->query\s*\(\s*["''].*\.\s*(\$request->|\$this->request->|\$_GET|\$_POST)'
+    remediation: |
+      Use proper query bindings: `$db->query('SELECT * FROM users WHERE status = ?', [$status]);`
+
+  - id: CI4-ENT-004
+    title: "CSRF Filter Missing Globally"
+    description: >
+      CodeIgniter 4 handles CSRF via a strict pre-filter. If `csrf_protection` is disabled in `app/Config/Filters.php` globals or the `.env` development overrides logic, the entire application will be vulnerable to state-changing CSRF exploits.
+    severity: critical
+    category: CSRF
+    enabled: true
+    tags: [csrf, codeigniter4, cwe-352, owasp-a05]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'public\s*\$globals\s*=\s*\[[^\]]*''before''\s*=>\s*\[(.*?)\]'
+        exclude_pattern: 'csrf'
+    remediation: |
+      Include `csrf` in your `app/Config/Filters.php` global `before` hooks unless utilizing a pure stateless REST API (which should rely on OAuth2/JWT).

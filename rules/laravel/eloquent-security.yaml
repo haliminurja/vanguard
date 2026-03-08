@@ -1,0 +1,37 @@
+rules:
+  - id: LAR-ELOQ-001
+    title: "JSON Extract SQL Injection (Column Wrapping Bypass)"
+    description: >
+      Passing user input directly to `->orderBy('name->json')` or `->whereJsonContains()` keys. Laravel's grammar parses `->` constructs, and attackers can inject SQL syntax by escaping the JSON path extraction logic, resulting in SQL injection even without direct raw queries.
+    severity: high
+    category: SQL Injection
+    enabled: true
+    tags: [sqli, owasp-a03, laravel, json]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->(orderBy|where|orWhere)\(\s*(\$request->|request\()[^)]*->'
+        exclude_pattern: '(in_array|whitelist)'
+    remediation: |
+      Never allow user input to define column names or JSON extraction paths. Always whitelist sort parameters.
+      `$allowedSorts = ['name', 'price', 'meta->category'];`
+    references:
+      - https://cwe.mitre.org/data/definitions/89.html
+
+  - id: LAR-ELOQ-002
+    title: "Unscoped / Missing Tenant Isolation in Global Scopes"
+    description: >
+      A global scope used for tenant isolation does not gracefully handle cases where no tenant or authenticated user is present, or it explicitly drops the scope if missing. Attackers triggering unauthenticated or cross-tenant edge cases might view all enterprise data.
+    severity: critical
+    category: Access Control
+    enabled: true
+    tags: [multi-tenant, idor, owasp-a01, cwe-285, laravel]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'if\s*\([^)]*Auth::check\(\).*return;\s*\}'
+    remediation: |
+      Global scopes should fail closed:
+      `$builder->where('tenant_id', Auth::user()?->tenant_id ?? -1);`
+    references:
+      - https://cwe.mitre.org/data/definitions/285.html

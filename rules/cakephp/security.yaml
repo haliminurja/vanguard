@@ -1,0 +1,48 @@
+rules:
+  - id: CAKE-ENT-001
+    title: "SecurityComponent Form Tampering Ignored"
+    description: >
+      The legacy `SecurityComponent` in CakePHP 3/4 relies on tokens to verify form tampering. Disabling `validatePost` or `unlockedActions` wildly reduces security posture, allowing attackers to inject CSRF or tamper with POST fields unchecked.
+    severity: high
+    category: CSRF
+    enabled: true
+    tags: [cakephp, csrf, cwe-352, owasp-a05]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$this->Security->(unlockedActions|setConfig\(\s*\[[^\]]*''validatePost''\s*=>\s*false)'
+    remediation: |
+      Do not disable `validatePost` globally. Refactor actions that require non-standard tokens to specifically bypass only the required fields using `unlockedFields`.
+
+  - id: CAKE-ENT-002
+    title: "Mass Assignment Bypass via ORM $_accessible"
+    description: >
+      CakePHP 3/4 Entities use the `$_accessible` array to define which properties can be mass-assigned (`patchEntity`). If `$_accessible = ['*' => true]` is utilized without explicit overriding of `$is_admin => false`, any payload mapped via `$this->request->getData()` will escalate privileges.
+    severity: critical
+    category: Mass Assignment
+    enabled: true
+    tags: [mass-assignment, cakephp, cwe-915, owasp-a04]
+    patterns:
+      - type: regex
+        target: model-files
+        pattern: '\$_accessible\s*=\s*\[[^\]]*[''"]\*[''"]\s*=>\s*true'
+        exclude_pattern: '([''"](role|admin|is_admin|superuser)[''"]\s*=>\s*false)'
+    remediation: |
+      If assigning `* => true`, explicitly set security-critical entity properties to false:
+      `protected $_accessible = ['*' => true, 'is_admin' => false, 'role' => false];`
+      
+  - id: CAKE-ENT-003
+    title: "AuthComponent Allow(*) Wide-Open Bypass"
+    description: >
+      A Controller invokes `$this->Auth->allow()` without arguments or explicitly passing `*`, rendering all actions inside the controller completely readable/actionable to unauthenticated visitors.
+    severity: high
+    category: Authentication Bypass
+    enabled: true
+    tags: [auth-bypass, idor, cakephp, cwe-285, owasp-a01]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$this->Auth->allow\s*\(\s*(?:\[\s*\])?\s*\)'
+    remediation: |
+      Pass only the explicit action boundaries that demand open entry:
+      `$this->Auth->allow(['login', 'register', 'forgotPassword']);`

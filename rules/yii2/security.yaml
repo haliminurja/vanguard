@@ -1,0 +1,51 @@
+rules:
+  - id: YII-ENT-001
+    title: "Gii (Code Generator) Exposed in Production"
+    description: >
+      Yii's Gii is an extremely powerful code generator. If the Gii module is left enabled and bound to `0.0.0.0` or wide-open IP addresses in a production environment, attackers can immediately auto-generate controllers that read/write shell code, gaining instant RCE on the server.
+    severity: critical
+    category: Information Disclosure
+    enabled: true
+    tags: [gii, rce, debugging, cwe-284, owasp-a05]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$config\[(?:''|")modules(?:''|")\]\[(?:''|")gii(?:''|")\]\s*=\s*\['
+        exclude_pattern: '(if\s*\(\s*YII_ENV_DEV\s*\))'
+    remediation: |
+      Ensure the Gii module configuration is wrapped inside an environment check:
+      `if (YII_ENV_DEV) { $config['modules']['gii'] = [...]; }`
+
+  - id: YII-ENT-002
+    title: "Unsafe Caching causing Object Deserialization"
+    description: >
+      Yii2 caching mechanisms (`yii\caching\Cache`) rely on standard PHP serialization internally. If an attacker controls the backing cache store (like an exposed Memcached/Redis without auth) or manipulates the cache key/content, they can inject malicious serialized payloads leading to RCE when Yii loads the cache line.
+    severity: high
+    category: Deserialization
+    enabled: true
+    tags: [cache, deserialization, yii2, cwe-502, owasp-a08]
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: '\$config\[(?:''|")components(?:''|")\]\[(?:''|")cache(?:''|")\]\s*=\s*\['
+        exclude_pattern: '(password|password_hash|auth_pass|username)'
+      - type: regex
+        target: php-files
+        pattern: 'Yii::\$app->cache->(get|set|add)\s*\(\s*(\$request->|request\()'
+    remediation: |
+      Avoid dynamic cache keys generated directly from `$request->get()`. Always ensure Redis/Memcached components are properly secured with passwords in staging/production setups.
+
+  - id: YII-ENT-003
+    title: "Cookie Validation Validation Disabled Globally"
+    description: >
+      Yii2 validates cookies securely via MACs using the `cookieValidationKey`. If `enableCookieValidation` is maliciously or accidentally set to `false`, an attacker can arbitrarily spoof cookies leading directly to Session Hijacking, CSRF bypass, or Privilege Escalation.
+    severity: critical
+    category: Cryptography
+    enabled: true
+    tags: [crypto, session-hijacking, cwe-565, yii2]
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '[''"]enableCookieValidation[''"]\s*=>\s*(false|0|FALSE)'
+    remediation: |
+      Do not disable `enableCookieValidation`. Provide a strong `cookieValidationKey` instead.
