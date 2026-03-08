@@ -1,0 +1,404 @@
+meta:
+  category: Business Logic & Access Control
+  version: "4.0.0"
+  updated: "2026"
+  maintainer: "Security Engineering Team"
+  scope: "Laravel 10–12, PHP 8.0–8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+rules:
+  - id: BIZ-001
+    title: "Tidak ada Rate Limiting pada endpoint autentikasi (Login/OTP/MFA)"
+    description: >
+      Aplikasi mendefinisikan rute login, OTP, atau lupa password tanpa menerapkan rate limiting middleware (misal, `throttle:login`).
+      Ketiadaan pembatasan otomatis pada endpoint ini mengeksposur sistem terhadap brute force, credential stuffing, dan serangan SMS/Email bombing.
+    severity: critical
+    confidence: high
+    category: Brute Force
+    tags: [business-logic, rate-limit, cwe-307, owasp-a07]
+    cwe: "CWE-307"
+    owasp: "A07:2021"
+    patterns:
+      - type: regex
+        target: routes-files
+        pattern: "Route::(post|any|match)\\s*\\([\"']/?(login|api/login|auth/login|forgot-password|reset-password|otp|verify-otp)[\"']"
+        exclude_pattern: "(throttle|RateLimiter|middleware\\s*\\([\"'][^\"']*throttle)"
+    remediation: |
+      Gunakan middleware throttle bawaan Laravel pada semua rute sensitif:
+        Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+        // 5 percobaan per menit per IP
+    references:
+      - "https://cwe.mitre.org/data/definitions/307.html"
+      - "https://laravel.com/docs/routing#rate-limiting"
+
+  - id: BIZ-002
+    title: "Insecure Password Reset — Token reset dikirim sebagai parameter GET HTTP"
+    description: >
+      Aplikasi mengirimkan password reset token menggunakan HTTP GET request murni via redirect atau output Blade ke dalam tag `<a>` atau `<form>` yang di-submit menggunakan metode GET.
+      Parameter GET rentan terekam di server logs, proxy logs, dan browser history.
+    severity: high
+    confidence: medium
+    category: Info Disclosure
+    tags: [business-logic, password-reset, cwe-598, owasp-a02]
+    cwe: "CWE-598"
+    owasp: "A02:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "redirect\\s*\\(\\s*\\)\\s*->\\s*(to|away|route)\\s*\\(.*\\?.*(token|reset_token)=\\$.*"
+      - type: regex
+        target: blade-files
+        pattern: "action=[\"']\\s*\\{\\{\\s*route\\s*\\(.*(token)=\\$"
+    remediation: |
+      Kirimkan token sebagai Form POST parameter terenkripsi, atau gunakan URL base dengan route parameter `/{token}`, tetapi pastikan halaman reset tidak melakukan pemanggilan external apa pun (mencegah token bocor via header Referer).
+      Rekomendasi terbaik: Gunakan fasad bawaan `Password::broker()`.
+    references:
+      - "https://cwe.mitre.org/data/definitions/598.html"
+
+  - id: BIZ-003
+    title: "Mengembalikan detail error spesifik dalam respon Login (User Enumeration)"
+    description: >
+      Fungsi login mengembalikan balasan yang berbeda seperti "Email tidak ditemukan" atau "Password salah".
+      Hal ini memungkinkan pelaku ancaman mengumpulkan dan memvalidasi ribuan email (User Enumeration).
+    severity: medium
+    confidence: medium
+    category: Account Harvesting
+    tags: [business-logic, auth, cwe-204, owasp-a07]
+    cwe: "CWE-204"
+    owasp: "A07:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "return\\s+(back\\(\\)->withErrors|response\\(\\)->json)\\s*\\(.*([\"']Email not found[\"']|[\"']Invalid password[\"']|[\"']User does not exist[\"']|[\"']Password salah[\"']|[\"']Email tidak ditemukan[\"']|[\"']User not found[\"']|[\"']Account not found[\"']|[\"']Wrong password[\"'])"
+    remediation: |
+      Selalu gunakan pesan generik dan konsisten untuk semua kegagalan login:
+        return back()->withErrors(['email' => 'Kredensial yang Anda masukkan tidak valid.']);
+      Validasi gagal wajib memiliki response time yang sama baik saat email benar/salah untuk mencegah timing attack (gunakan `Hash::check` dummy).
+    references:
+      - "https://cwe.mitre.org/data/definitions/204.html"
+
+  - id: BIZ-004
+    title: "Race Condition — Operasi saldo/inventaris tanpa database locking"
+    description: >
+      Operasi yang melibatkan pengurangan saldo, stok, kuota, atau kredit dilakukan tanpa database locking (lockForUpdate, sharedLock) atau atomic operation. Penyerang mengirim request paralel untuk mengeksploitasi race condition — misalnya melakukan withdrawal dua kali dari saldo yang sama sebelum update pertama selesai, menyebabkan double-spending atau negative balance.
+    severity: critical
+    confidence: medium
+    category: Race Condition
+    tags: [business-logic, race-condition, toctou, cwe-362, owasp-a04]
+    cwe: "CWE-362"
+    owasp: "A04:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(->decrement|->increment)\s*\(\s*["\''](balance|credit|stock|quantity|quota|points|wallet|coins|tokens)["\'']\s*,'
+        exclude_pattern: '(lockForUpdate|sharedLock|DB::transaction|atomic|->lock\()'
+      - type: regex
+        target: php-files
+        pattern: '\$\w+->(balance|credit|stock|quantity|wallet|points)\s*[-+]=\s*'
+        exclude_pattern: "(lockForUpdate|sharedLock|DB::transaction|atomic)"
+    remediation: |
+      Gunakan pessimistic locking di dalam transaksi database untuk operasi kritis:
+        DB::transaction(function () use ($user, $amount) {
+            $wallet = $user->wallet()->lockForUpdate()->first();
+            abort_if($wallet->balance < $amount, 422, 'Saldo tidak cukup');
+            $wallet->decrement('balance', $amount);
+            Transaction::create(['user_id' => $user->id, 'amount' => -$amount]);
+        });
+    references:
+      - "https://cwe.mitre.org/data/definitions/362.html"
+      - "https://laravel.com/docs/queries#pessimistic-locking"
+
+  - id: BIZ-005
+    title: "Race Condition — Coupon/voucher redemption tanpa uniqueness check"
+    description: >
+      Logika redeem coupon, voucher, atau promo code memeriksa ketersediaan dan mengurangi usage tanpa atomic constraint. Penyerang mengirim request paralel dengan coupon yang sama untuk mendapatkan diskon berulang kali sebelum counter usage di-update — menyebabkan kerugian finansial langsung.
+    severity: high
+    confidence: medium
+    category: Race Condition
+    tags: [business-logic, race-condition, coupon-abuse, cwe-362, owasp-a04]
+    cwe: "CWE-362"
+    owasp: "A04:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(coupon|voucher|promo|discount|redem)\w*->(usage|used_count|times_used)\s*(\+\+|--|\+=|-=)'
+        exclude_pattern: "(lockForUpdate|DB::transaction|unique|atomic)"
+      - type: regex
+        target: php-files
+        pattern: 'if\s*\(\s*\$\w*(coupon|voucher|promo)\w*->(usage|used_count|times_used)\s*<'
+        exclude_pattern: "(lockForUpdate|DB::transaction)"
+    remediation: |
+      Gunakan atomic update dengan database constraint:
+        DB::transaction(function () use ($coupon, $order) {
+            $c = Coupon::where('code', $coupon->code)
+                ->where('used_count', '<', DB::raw('max_uses'))
+                ->lockForUpdate()
+                ->firstOrFail();
+            $c->increment('used_count');
+            $order->applyDiscount($c->discount_amount);
+        });
+    references:
+      - "https://cwe.mitre.org/data/definitions/362.html"
+
+  - id: BIZ-006
+    title: "Price/Amount Manipulation — harga dari client-side input"
+    description: >
+      Harga, jumlah pembayaran, atau diskon diambil langsung dari input request ($request->input('price'), $request->input('amount')) dan digunakan dalam kalkulasi order atau pembayaran tanpa verifikasi server-side terhadap sumber harga yang otoritatif (database/config). Penyerang memodifikasi hidden field atau API payload untuk menyetel harga arbitrer.
+    severity: critical
+    confidence: high
+    category: Price Manipulation
+    tags: [business-logic, price-tampering, cwe-472, owasp-a04]
+    cwe: "CWE-472"
+    owasp: "A04:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$request->(input|get|post)\s*\(\s*["''](price|amount|total|subtotal|unit_price|discount_amount|tax_amount|shipping_cost|fee)["'']'
+        exclude_pattern: '(validate|Product::find|->price|config\(|calculatePrice|getPrice)'
+    remediation: |
+      JANGAN PERNAH mengambil harga dari input klien. Selalu hitung server-side:
+        $product = Product::findOrFail($request->input('product_id'));
+        $total   = $product->price * $request->integer('quantity');
+        // Validasi quantity juga!
+        abort_if($request->integer('quantity') < 1 || $request->integer('quantity') > 100, 422);
+    references:
+      - "https://cwe.mitre.org/data/definitions/472.html"
+
+  - id: BIZ-007
+    title: "Quantity/Amount tanpa batas minimum dan maksimum"
+    description: >
+      Quantity atau amount dari input pengguna tidak divalidasi terhadap batas minimum dan maksimum. Penyerang memasukkan nilai negatif (menyebabkan refund atau kredit), nol (bypass biaya), atau sangat besar (integer overflow, DoS, atau resource exhaustion).
+    severity: high
+    confidence: medium
+    category: Input Validation
+    tags: [business-logic, input-validation, cwe-20, owasp-a04]
+    cwe: "CWE-20"
+    owasp: "A04:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$request->(input|get|integer)\s*\(\s*["''](quantity|qty|amount|count|units|seats|tickets|items)["'']'
+        exclude_pattern: '(validate|min:|max:|between:|gt:|gte:|integer|numeric|->integer\()'
+    remediation: |
+      Selalu validasi batas quantity dengan aturan ketat:
+        $request->validate([
+            'quantity' => 'required|integer|min:1|max:100',
+            'amount'   => 'required|numeric|min:0.01|max:999999.99',
+        ]);
+    references:
+      - "https://cwe.mitre.org/data/definitions/20.html"
+
+  - id: BIZ-008
+    title: "Privilege Escalation — role/permission diset dari input pengguna"
+    description: >
+      Field role, permission, is_admin, atau level akses diset langsung dari input pengguna melalui $request->input(), $request->all(), atau mass assignment. Penyerang menambahkan field tersembunyi untuk menaikkan privilege mereka sendiri ke admin atau role yang lebih tinggi.
+    severity: critical
+    confidence: high
+    category: Privilege Escalation
+    tags: [business-logic, privilege-escalation, cwe-269, owasp-a01]
+    cwe: "CWE-269"
+    owasp: "A01:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$request->(input|get|all|only)\s*\(\s*["'']?(role|is_admin|admin|permission|level|user_type|account_type|is_superadmin|group_id|department_id)["'']?'
+        exclude_pattern: '(authorize|Gate::|can\(|hasRole|isAdmin|policy|abort_unless|middleware)'
+      - type: regex
+        target: php-files
+        pattern: '->fill\s*\(\s*\$request->(all|input)\s*\(.*\)\s*\)'
+        exclude_pattern: '(only\(|validated\(|safe\()'
+    remediation: |
+      JANGAN izinkan user mengeset role/permission via input. Tetapkan di server:
+        // ✅ BENAR — role diset secara eksplisit oleh admin yang terotorisasi
+        $this->authorize('assignRole', $user);
+        $user->update(['role' => $validatedRole]);
+
+        // ✅ Gunakan $fillable yang ketat di Model
+        protected $fillable = ['name', 'email', 'bio'];
+        // role, is_admin TIDAK boleh ada di $fillable
+    references:
+      - "https://cwe.mitre.org/data/definitions/269.html"
+
+  - id: BIZ-009
+    title: "Business Logic Bypass — status/state transition tanpa validasi"
+    description: >
+      Status order, pembayaran, atau workflow di-update langsung dari input pengguna tanpa memvalidasi transisi state yang valid. Penyerang dapat melompati langkah workflow (misalnya langsung set status ke 'completed' atau 'paid' tanpa proses pembayaran), menyebabkan kerugian finansial atau bypass bisnis proses.
+    severity: high
+    confidence: medium
+    category: Business Logic Bypass
+    tags: [business-logic, state-machine, workflow-bypass, cwe-840, owasp-a04]
+    cwe: "CWE-840"
+    owasp: "A04:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->update\s*\(\s*\[\s*["''](status|state|payment_status|order_status|workflow_status)["'']\s*=>\s*\$request->'
+      - type: regex
+        target: php-files
+        pattern: '\$\w+->(status|state|payment_status|order_status)\s*=\s*\$request->(input|get)\s*\('
+    remediation: |
+      Implementasikan state machine dengan transisi yang divalidasi:
+        $allowedTransitions = [
+            'pending'    => ['processing', 'cancelled'],
+            'processing' => ['shipped', 'cancelled'],
+            'shipped'    => ['delivered', 'returned'],
+        ];
+
+        $newStatus = $request->input('status');
+        $current   = $order->status;
+
+        abort_unless(
+            in_array($newStatus, $allowedTransitions[$current] ?? [], true),
+            422, "Transisi dari '{$current}' ke '{$newStatus}' tidak valid"
+        );
+
+        $order->update(['status' => $newStatus]);
+    references:
+      - "https://cwe.mitre.org/data/definitions/840.html"
+
+  - id: BIZ-010
+    title: "Insufficient Anti-Automation — endpoint sensitif tanpa CAPTCHA atau challenge"
+    description: >
+      Endpoint registrasi, contact form, atau verifikasi tidak memiliki mekanisme anti-automation (CAPTCHA, honeypot, proof-of-work). Bot dapat mendaftarkan ribuan akun fake, mengirim spam massal, atau menghabiskan resource OTP/email secara otomatis.
+    severity: medium
+    confidence: medium
+    category: Anti-Automation
+    tags: [business-logic, anti-automation, bot-prevention, cwe-799, owasp-a07]
+    cwe: "CWE-799"
+    owasp: "A07:2021"
+    patterns:
+      - type: regex
+        target: routes-files
+        pattern: "Route::(post|any)\\s*\\([^)]*[\"'](register|signup|contact|subscribe|newsletter|feedback|comment)[\"']"
+        exclude_pattern: "(captcha|recaptcha|turnstile|hcaptcha|honeypot|throttle|RateLimiter)"
+    remediation: |
+      Tambahkan CAPTCHA atau mekanisme anti-bot pada endpoint publik:
+        $request->validate([
+            'g-recaptcha-response' => 'required|captcha',
+            // atau gunakan package: anhskohbo/no-captcha, ryan-mitchell/laravel-turnstile
+        ]);
+
+        // Alternatif: honeypot field
+        abort_if($request->filled('website'), 422);   // hidden field — bot akan mengisinya
+    references:
+      - "https://cwe.mitre.org/data/definitions/799.html"
+
+  - id: BIZ-011
+    title: "Insecure Direct Object Reference — akses resource tanpa ownership check"
+    description: >
+      Controller mengakses resource berdasarkan ID dari URL atau input tanpa memverifikasi bahwa resource tersebut milik pengguna yang terautentikasi. Penyerang menebak atau melakukan brute force ID untuk mengakses data pengguna lain (invoice, pesanan, dokumen, profil).
+    severity: high
+    confidence: medium
+    category: IDOR
+    tags: [business-logic, idor, owasp-a01, cwe-639]
+    cwe: "CWE-639"
+    owasp: "A01:2021"
+    patterns:
+      - type: regex
+        target: controller-files
+        pattern: '(Order|Invoice|Document|Payment|Message|Ticket|Report|File|Upload)::find(OrFail)?\s*\(\s*\$'
+        exclude_pattern: '(authorize|policy|can\(|Gate::|abort_unless|where\s*\(\s*["\x27]user_id|belongsTo|->user\(\))'
+    remediation: |
+      Selalu scope query berdasarkan pengguna terautentikasi atau gunakan Policy:
+        // ✅ BENAR — scope via relationship
+        $order = auth()->user()->orders()->findOrFail($id);
+
+        // ✅ BENAR — scope via Policy
+        $order = Order::findOrFail($id);
+        $this->authorize('view', $order);
+
+        // ❌ SALAH
+        // $order = Order::findOrFail($request->input('order_id'));
+    references:
+      - "https://cwe.mitre.org/data/definitions/639.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html"
+
+  - id: BIZ-012
+    title: "Menggunakan ID sequential/predictable untuk resource sensitif"
+    description: >
+      Resource sensitif (invoice, dokumen, pembayaran) menggunakan auto-increment integer ID yang sequential. Penyerang dapat dengan mudah menebak ID resource lain dengan melakukan increment/decrement dari ID yang sudah diketahui. Meskipun bukan kerentanan sendiri, ini memperbesar dampak IDOR jika authorization check terlewat.
+    severity: medium
+    confidence: low
+    category: Predictable Resource ID
+    tags: [business-logic, idor, enumeration, cwe-330, owasp-a01]
+    cwe: "CWE-330"
+    owasp: "A01:2021"
+    patterns:
+      - type: regex
+        target: routes-files
+        pattern: 'Route::(get|put|patch|delete)\s*\([^)]*/(invoice|payment|document|order|receipt|ticket|report)\s*\/\s*\{[a-z_]*id?\}'
+        exclude_pattern: "(uuid|ulid|slug|hashid|signed)"
+    remediation: |
+      Gunakan UUID atau ULID untuk resource sensitif:
+        // Migration
+        $table->uuid('id')->primary();
+        // atau
+        $table->ulid('id')->primary();
+
+        // Model
+        use HasUuids;  // Laravel 9+
+        // atau
+        use HasUlids;  // Laravel 9.30+
+    references:
+      - "https://cwe.mitre.org/data/definitions/330.html"
+      - "https://laravel.com/docs/eloquent#uuid-and-ulid-keys"
+
+  - id: BIZ-013
+    title: "Time-of-Check to Time-of-Use (TOCTOU) pada operasi pembayaran"
+    description: >
+      Operasi pembayaran memeriksa saldo atau status tetapi tidak menggunakan transaksi database atau locking antara pengecekan dan eksekusi. Window antara check dan update memungkinkan race condition dimana penyerang mengirim dua permintaan pembayaran bersamaan, keduanya lolos pengecekan saldo sebelum salah satu mengurangi saldo.
+    severity: critical
+    confidence: medium
+    category: TOCTOU
+    tags: [business-logic, race-condition, toctou, payment, cwe-367, owasp-a04]
+    cwe: "CWE-367"
+    owasp: "A04:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'if\s*\(\s*\$\w+->(balance|credit|wallet|funds)\s*(>=|>|<=|<|==)\s*\$\w*(amount|price|total|cost)'
+        exclude_pattern: "(lockForUpdate|sharedLock|DB::transaction|atomic)"
+    remediation: |
+      Bungkus pengecekan dan operasi dalam satu transaksi dengan pessimistic lock:
+        DB::transaction(function () use ($user, $amount) {
+            $wallet = Wallet::where('user_id', $user->id)->lockForUpdate()->firstOrFail();
+
+            if ($wallet->balance < $amount) {
+                throw new InsufficientFundsException();
+            }
+
+            $wallet->decrement('balance', $amount);
+            Payment::create([
+                'user_id' => $user->id,
+                'amount'  => $amount,
+                'status'  => 'completed',
+            ]);
+        });
+    references:
+      - "https://cwe.mitre.org/data/definitions/367.html"
+
+  - id: BIZ-014
+    title: "Mass Email/SMS Trigger dari endpoint tanpa rate limiting"
+    description: >
+      Endpoint yang memicu pengiriman email atau SMS (forgot password, resend verification, invite) tidak memiliki rate limiting yang cukup ketat. Penyerang dapat menggunakan endpoint ini untuk membombardir korban dengan ribuan email/SMS, menyebabkan biaya infrastruktur yang signifikan dan potensi blacklisting domain pengirim.
+    severity: high
+    confidence: medium
+    category: Resource Abuse
+    tags: [business-logic, email-bombing, sms-bombing, cwe-770, owasp-a04]
+    cwe: "CWE-770"
+    owasp: "A04:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "(Mail::to|Notification::send|dispatch.*Mail|dispatch.*Sms|dispatch.*Notification|SendSms|SmsService)"
+        exclude_pattern: "(throttle|RateLimiter|Cache::has|cooldown|rate_limit|recently_sent)"
+    remediation: |
+      Terapkan rate limiting per-user/per-IP dan cooldown period:
+        $key = "resend_otp:{$request->input('email')}";
+        abort_if(RateLimiter::tooManyAttempts($key, 3), 429, 'Terlalu banyak permintaan. Coba lagi nanti.');
+        RateLimiter::hit($key, 300);  // 3 percobaan per 5 menit
+
+        Mail::to($user)->send(new VerificationMail($user));
+    references:
+      - "https://cwe.mitre.org/data/definitions/770.html"

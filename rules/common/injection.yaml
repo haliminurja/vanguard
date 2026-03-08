@@ -1,9 +1,12 @@
 meta:
   category: Injection
-  version: "3.0.0"
-  updated: "2025"
+  version: "4.0.0"
   maintainer: "Security Engineering Team"
-  scope: "Laravel 10–12, PHP 8.0–8.4"
+  updated: "2026"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
 rules:
   - id: INJ-S01
     title: "SQL Injection — DB::raw() dengan interpolasi variabel PHP"
@@ -656,3 +659,44 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/98.html"
       - "https://www.php.net/manual/en/wrappers.php"
+
+  - id: INJ-L01
+    title: "LDAP Injection — unescaped parameters in LDAP search/modify"
+    description: >
+      LDAP queries (ldap_search, ldap_add, ldap_modify) are constructed using raw user input without escaping LDAP control characters. Attackers can alter the logical structure of the LDAP filter (e.g., using `)(|(uid=*))`) to bypass authentication, elevate privileges, or extract directory information.
+    severity: critical
+    confidence: high
+    category: Injection
+    tags: [ldap-injection, owasp-a03, cwe-90]
+    cwe: "CWE-90"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bldap_(search|add|modify|delete|compare)_?\w*\s*\([^,]+,[^,]*(\$_GET|\$_POST|\$_REQUEST|\$request->)'
+        exclude_pattern: '(ldap_escape|preg_replace|str_replace)'
+    remediation: |
+      Always escape user input using `ldap_escape($input, '', LDAP_ESCAPE_FILTER)` before inserting it into LDAP filters or DNs.
+    references:
+      - "https://cwe.mitre.org/data/definitions/90.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/LDAP_Injection_Prevention_Cheat_Sheet.html"
+
+  - id: INJ-N01
+    title: "NoSQL Injection — uncast array payloads passed to MongoDB queries"
+    description: >
+      MongoDB queries receive raw user input via arrays (like `$_GET` or `$request->all()`). If PHP associative arrays are passed directly into MongoDB query builders without type-casting to strings, attackers can inject operator objects (e.g., `?username[$ne]=null`) to bypass authentication or extract sensitive data.
+    severity: critical
+    confidence: high
+    category: Injection
+    tags: [nosql-injection, mongodb, owasp-a03, cwe-943]
+    cwe: "CWE-943"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->(find|findOne|where|orWhere)\(\s*\[\s*[''"]\w+[''"]\s*=>\s*(\$_GET|\$_POST|\$request->)'
+        exclude_pattern: '(intval|string|strval|\(string\)|sanitize)'
+    remediation: |
+      Strictly type-cast user input to strings or integers before using them in NoSQL queries:
+      `$user = User::where('username', (string) $request->input('username'))->first();`
+    references:
+      - "https://cwe.mitre.org/data/definitions/943.html"
+      - "https://www.php.net/manual/en/mongodb.security.injection.php"

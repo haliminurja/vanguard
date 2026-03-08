@@ -1,9 +1,12 @@
 meta:
   category: Advanced Attack Vectors
-  version: "3.0.0"
-  updated: "2025"
+  version: "4.0.0"
   maintainer: "Security Engineering Team"
-  scope: "Laravel 10–12, PHP 8.0–8.4"
+  updated: "2026"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
 rules:
   - id: ADV-SSRF01
     title: "SSRF — HTTP request keluar dengan URL dari input pengguna"

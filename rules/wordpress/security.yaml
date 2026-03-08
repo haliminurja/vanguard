@@ -1,69 +1,259 @@
+##############################################################################
+# ENTERPRISE SECURITY RULESET — WORDPRESS (Core + Plugin/Theme)
+# Version : 2.0.0
+# Last Updated : 2026-03-09
+# Maintainer : Enterprise AppSec Team
+# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
+##############################################################################
+
+metadata:
+  framework: wordpress
+  version_range: ">=5.0 <=6.x"
+  language: php
+  ruleset_version: "2.0.0"
+  last_updated: "2026-03-09"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+
 rules:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # WP-ENT-001 | Privilege Escalation via update_option() / update_user_meta()
+  # ─────────────────────────────────────────────────────────────────────────
   - id: WP-ENT-001
-    title: "Privilege Escalation via update_option() / update_user_meta()"
+    title: "Privilege Escalation via Unguarded update_option() / update_user_meta()"
     description: >
       WordPress saves core site configurations and user roles via the `options` and `usermeta` tables. If the $option_name and $option_value are driven directly from user input (e.g. `$_POST['key']`), an attacker can update `default_role` to administrator, or change `siteurl` to hijack the deployment.
     severity: critical
-    category: Injection
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
+    category: Privilege Escalation / Mass Assignment
     enabled: true
-    tags: [privesc, wordpress, owasp-a01, cwe-269, cwe-284]
+    tags: [privesc, mass-assignment, wordpress, owasp-a01-2021, cwe-269, cwe-284, cwe-915]
     patterns:
-      - type: regex
+      - id: WP-ENT-001-P1
+        type: regex
         target: php-files
-        pattern: '(update_option|update_user_meta)\s*\(\s*(\$_POST|\$_GET|\$request_data)\[[^\]]+\]\s*,'
-      - type: regex
+        description: "Option key driven directly from $_POST/$_GET"
+        pattern: '(update_option|update_user_meta)\s*\(\s*(\$_POST|\$_GET|\$_REQUEST|\$request_data)\[[^\]]+\]\s*,'
+        confidence: high
+      - id: WP-ENT-001-P2
+        type: regex
         target: php-files
-        pattern: '(update_option|update_user_meta)\s*\([^,]+,\s*(\$_POST|\$_GET|\$request_data)\[[^\]]+\]\)'
-        exclude_pattern: '(sanitize_text_field|intval|wp_verify_nonce)'
+        description: "Option value driven from request without sanitization/nonce"
+        pattern: '(update_option|update_user_meta)\s*\([^,]+,\s*(\$_POST|\$_GET|\$_REQUEST)\[[^\]]+\]\)'
+        exclude_pattern: '(sanitize_text_field|sanitize_key|intval|absint|wp_verify_nonce|check_admin_referer)'
+        confidence: high
+      - id: WP-ENT-001-P3
+        type: regex
+        target: php-files
+        description: "Bulk update of options from raw $_POST array"
+        pattern: 'foreach\s*\(\s*\$_POST\s+as\s+\$key\s*=>\s*\$val\s*\)\s*\{[^}]*update_option'
+        confidence: critical
     remediation: |
-      Always strictly whitelist which options can be updated:
+      Always strictly whitelist which options can be updated and check capabilities/nonces:
       `if ($key === 'custom_plugin_settings') update_option($key, sanitize_text_field($value));`
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # WP-ENT-002 | SQL Injection via $wpdb Unprepared Queries
+  # ─────────────────────────────────────────────────────────────────────────
   - id: WP-ENT-002
     title: "SQL Injection via $wpdb Unprepared Operations"
     description: >
       WordPress `$wpdb` accepts raw SQL statements. If `$wpdb->query()`, `$wpdb->get_results()`, or `$wpdb->get_col()` are called with string concatenation rather than enforcing `$wpdb->prepare()`, the database is completely open to catastrophic SQL injection (exfiltration of `wp_users` keys).
     severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: SQL Injection
     enabled: true
-    tags: [sqli, wordpress, owasp-a03, cwe-89]
+    tags: [sqli, wordpress, owasp-a03-2021, cwe-89, pci-dss-6.2]
     patterns:
-      - type: regex
+      - id: WP-ENT-002-P1
+        type: regex
         target: php-files
+        description: "Concatenated user variable in $wpdb query methods"
         pattern: '\$wpdb->(query|get_results|get_col|get_row|get_var)\s*\(\s*["''].*\.\s*\$'
-        exclude_pattern: '(\$wpdb->prepare|intval)'
+        exclude_pattern: '(\$wpdb->prepare|intval|absint|sanitize_key)'
+        confidence: high
+      - id: WP-ENT-002-P2
+        type: regex
+        target: php-files
+        description: "Direct interpolation of $_GET/$_POST inside SQL string"
+        pattern: '\$wpdb->(query|get_results|get_col|get_row|get_var)\s*\(\s*[''"][^''"]*\$_(?:GET|POST|REQUEST)'
+        confidence: critical
+      - id: WP-ENT-002-P3
+        type: regex
+        target: php-files
+        description: "Dynamic ORDER BY column without sanitization"
+        pattern: 'ORDER\s+BY\s*[''"][^''"]*\.\s*\$(?:_GET|_POST|_REQUEST|order|orderby)'
+        exclude_pattern: 'wpdb->prepare'
+        confidence: medium
     remediation: |
       Wrap all SQL strings containing dynamic variables inside `$wpdb->prepare()`:
       `$wpdb->query($wpdb->prepare("SELECT * FROM {$wpdb->prefix}table WHERE id = %d", $id));`
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # WP-ENT-003 | Unauthenticated Admin Ajax (nopriv) Sensitive Actions
+  # ─────────────────────────────────────────────────────────────────────────
   - id: WP-ENT-003
-    title: "Missing Authentication in Admin-Ajax Hooks (nopriv)"
+    title: "Unauthenticated Admin-Ajax Hooks Performing Privileged Actions"
     description: >
-      Hooks defined with `add_action('wp_ajax_nopriv_*', ...)` bypass authentication and execute actions for guest users. If a developer uses a `wp_ajax_nopriv_` hook to perform a sensitive CRUD action (like updating database content or launching an administrative action) intended only for admins, any unauthenticated attacker can execute it.
+      Hooks defined with `add_action('wp_ajax_nopriv_*', ...)` bypass authentication and execute actions for guest users. If a developer uses a `wp_ajax_nopriv_` hook to perform a sensitive CRUD action intended only for admins, any unauthenticated attacker can execute it.
     severity: critical
+    cvss_v3:
+      score: 9.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Authentication Bypass
     enabled: true
-    tags: [auth-bypass, wordpress, owasp-a01, cwe-285]
+    tags: [auth-bypass, wordpress, owasp-a01-2021, cwe-285, cwe-306]
     patterns:
-      - type: regex
+      - id: WP-ENT-003-P1
+        type: regex
         target: php-files
-        pattern: 'add_action\s*\(\s*["'']wp_ajax_nopriv_(update|delete|insert|save|edit|admin)[^"'']*["'']'
+        description: "nopriv hook bound to destructive action name"
+        pattern: 'add_action\s*\(\s*["'']wp_ajax_nopriv_(update|delete|insert|save|edit|admin|remove|set|create|upload)[^"'']*["'']'
+        confidence: high
+      - id: WP-ENT-003-P2
+        type: regex
+        target: php-files
+        description: "nopriv callback performing wp_update_user or role changes"
+        pattern: 'wp_ajax_nopriv_[^\s]+[^}]*(wp_update_user|wp_set_current_user|wp_set_auth_cookie|add_user_to_blog)'
+        confidence: critical
     remediation: |
       Ensure administrative or destructive tasks are only ever bound to `wp_ajax_` hooks (which require the user to be logged in) AND the handler function calls `current_user_can()`.
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # WP-ENT-004 | State-Changing Requests Without wp_verify_nonce() (CSRF)
+  # ─────────────────────────────────────────────────────────────────────────
   - id: WP-ENT-004
-    title: "State-Changing Request without wp_verify_nonce()"
+    title: "CSRF — State-Changing Request Without wp_verify_nonce() Validation"
     description: >
       Updates, Deletions, or Modifying endpoints are receiving raw data but the WordPress handler never validates `$_POST['_wpnonce']` via `wp_verify_nonce()` or `check_ajax_referer()`. This allows attackers to formulate CSRF payloads forcing a victim to unwittingly execute destructive behavior.
     severity: high
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
     category: CSRF
     enabled: true
-    tags: [csrf, wordpress, owasp-a05, cwe-352]
+    tags: [csrf, wordpress, owasp-a05-2021, cwe-352]
     patterns:
-      - type: regex
+      - id: WP-ENT-004-P1
+        type: regex
         target: php-files
+        description: "POST handler function body using $_POST without nonce check"
         pattern: 'function\s+\w+\s*\([^)]*\)\s*\{[^}]*(\$_POST|\$_GET)\[[^\]]+\][^}]*\}'
         exclude_pattern: '(wp_verify_nonce|check_ajax_referer|check_admin_referer)'
+        confidence: medium
+      - id: WP-ENT-004-P2
+        type: regex
+        target: php-files
+        description: "Direct wp_update_post / wp_insert_post from request data without nonce"
+        pattern: '(wp_update_post|wp_insert_post|wp_delete_post)\s*\([^;]*\)'
+        exclude_pattern: '(wp_verify_nonce|check_admin_referer)'
+        confidence: medium
     remediation: |
       Every destructive custom API or Plugin Options save block must verify its unique nonce:
       `if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'my_action')) { wp_die(); }`
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # WP-ENT-005 | Stored XSS via Missing Output Escaping in Plugin Templates
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: WP-ENT-005
+    title: "Stored / Reflected XSS via Missing Output Escaping in Plugin Templates"
+    description: >
+      When plugin or theme templates echo raw database values or user input without escaping,
+      attackers can inject persistent JavaScript payloads.
+    severity: high
+    cvss_v3:
+      score: 7.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H"
+    category: Cross-Site Scripting (XSS)
+    enabled: true
+    tags: [xss, stored-xss, wordpress, owasp-a03-2021, cwe-79]
+    patterns:
+      - id: WP-ENT-005-P1
+        type: regex
+        target: php-files
+        description: "echo of raw get_option() / get_post_meta() without escaping"
+        pattern: 'echo\s+(get_option|get_post_meta|get_user_meta)\s*\('
+        exclude_pattern: '(esc_html|esc_attr|esc_url|wp_kses|intval|absint)'
+        confidence: high
+      - id: WP-ENT-005-P2
+        type: regex
+        target: php-files
+        description: "Direct echo of $_GET/$_POST variable without escaping"
+        pattern: 'echo\s+\$_(?:GET|POST|REQUEST)\['
+        confidence: critical
+    remediation: |
+      Always escape at the point of output, not at the point of storage using functions like `esc_html()`, `esc_attr()`, `esc_url()`, or `wp_kses_post()`.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # WP-ENT-006 | Server-Side Request Forgery via wp_remote_get()
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: WP-ENT-006
+    title: "Server-Side Request Forgery (SSRF) via Unvalidated wp_remote_get()"
+    description: >
+      Calling `wp_remote_get()`, `wp_remote_post()`, or `wp_safe_remote_get()` using a
+      user-provided URL without sufficient validation allows an attacker to
+      make the server send HTTP requests to internal networks or cloud metadata APIs.
+      Note: `wp_safe_remote_get()` only drops redirects, it does not prevent all SSRF!
+    severity: critical
+    cvss_v3:
+      score: 9.3
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N"
+    category: Server-Side Request Forgery (SSRF)
+    enabled: true
+    tags: [ssrf, wordpress, owasp-a10-2021, cwe-918]
+    patterns:
+      - id: WP-ENT-006-P1
+        type: regex
+        target: php-files
+        description: "wp_remote_get constructed from user input"
+        pattern: 'wp_remote_(get|post|request)\s*\(\s*(\$_(GET|POST|REQUEST)\[|\$request_data\[)'
+        exclude_pattern: '(esc_url_raw|wp_http_validate_url)'
+        confidence: high
+    remediation: |
+      Always use `wp_http_validate_url( $url )` which rejects local IP addresses,
+      `127.0.0.1`, and validates hostnames before making the outbound request.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # WP-ENT-007 | XML-RPC Enabled Enabling Bruteforce and Pingback SSRF
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: WP-ENT-007
+    title: "XML-RPC Enabled (Bruteforce & Pingback SSRF)"
+    description: >
+      The legacy xmlrpc.php endpoint allows attackers to perform massive, amplified
+      bruteforce attacks against `wp_users` via the `system.multicall` method. It
+      also enables Pingback SSRF (`pingback.ping`).
+    severity: medium
+    cvss_v3:
+      score: 6.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L"
+    category: Configuration / SSRF
+    enabled: true
+    tags: [xmlrpc, bruteforce, ssrf, pingback, wordpress]
+    patterns:
+      - id: WP-ENT-007-P1
+        type: regex
+        target: php-files
+        description: "Explicitly enabling XML-RPC in configuration or removing filters"
+        pattern: 'remove_filter\s*\(\s*[''"]xmlrpc_enabled[''"]'
+        confidence: medium
+      - id: WP-ENT-007-P2
+        type: regex
+        target: php-files
+        description: "add_filter enabling XML-RPC explicitly"
+        pattern: 'add_filter\s*\(\s*[''"]xmlrpc_enabled[''"]\s*,\s*[''"]__return_true[''"]'
+        confidence: high
+    remediation: |
+      Disable XML-RPC entirely if not actively used by an external app (like the WordPress mobile app).
+      ```php
+      add_filter('xmlrpc_enabled', '__return_false');
+      ```
+      Also configure the WAF/WebServer to block requests to `/xmlrpc.php`.

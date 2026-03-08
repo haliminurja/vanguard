@@ -1,18 +1,23 @@
 meta:
   category: Session Security
-  version: "3.0.0"
+  version: "4.0.0"
   maintainer: "Security Engineering Team"
-  updated: "2025"
+  updated: "2026"
+  scope: "Laravel 10–12, PHP 8.0–8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
 rules:
   - id: SES-001
     title: "Session tidak di-regenerate setelah autentikasi"
     description: >
       Auth::attempt() atau Auth::login() dipanggil tanpa memanggil $request->session()->regenerate() setelahnya. Tanpa regenerasi session, aplikasi rentan terhadap session fixation — penyerang yang mengetahui session ID dapat membajak session setelah pengguna mengautentikasi.
-
     severity: high
     confidence: medium
     category: Session Fixation
     tags: [session, owasp-a07, cwe-384]
+    cwe: "CWE-384"
+    owasp: "A07:2021"
     patterns:
       - type: regex
         target: php-files
@@ -27,19 +32,21 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/384.html"
       - "https://owasp.org/www-community/attacks/Session_fixation"
+
   - id: SES-002
     title: "Data sensitif disimpan langsung dalam session"
     description: >
       Password mentah, token, atau data kartu pembayaran disimpan langsung dalam session via session()->put(). Bahkan dengan session terenkripsi, menyimpan secret mentah memperluas attack surface dan mungkin melanggar PCI-DSS, GDPR, atau HIPAA.
-
     severity: high
     confidence: high
     category: Sensitive Data in Session
     tags: [session, info-disclosure, owasp-a02, cwe-312]
+    cwe: "CWE-312"
+    owasp: "A02:2021"
     patterns:
       - type: regex
         target: php-files
-        pattern: 'session\(\)->put\s*\(\s*["'']?(password|passwd|secret|credit_card|cvv|card_number|ssn|social_security|private_key)'
+        pattern: 'session\(\)->put\s*\(\s*["'']?(password|passwd|secret|credit_card|cvv|card_number|ssn|social_security|private_key|api_key|token)'
       - type: regex
         target: php-files
         pattern: '\$request->session\(\)->put\s*\(\s*["'']?(password|passwd|credit_card|cvv|card_number|ssn)'
@@ -49,15 +56,17 @@ rules:
         Cache::put("payment:{$userId}", encrypt($token), now()->addMinutes(5));
     references:
       - "https://cwe.mitre.org/data/definitions/312.html"
+
   - id: SES-003
     title: "Cookie dibuat tanpa flag Secure dan HttpOnly"
     description: >
       Cookie dibuat dengan Secure atau HttpOnly secara eksplisit disetel ke false. Tanpa Secure, cookie dikirim melalui HTTP. Tanpa HttpOnly, JavaScript dapat mencurinya — mengaktifkan pencurian via XSS bahkan ketika HTTPS diterapkan.
-
     severity: high
     confidence: high
     category: Insecure Cookie
     tags: [cookies, owasp-a05, cwe-614]
+    cwe: "CWE-614"
+    owasp: "A05:2021"
     patterns:
       - type: regex
         target: php-files
@@ -75,3 +84,125 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/614.html"
       - "https://owasp.org/www-community/controls/SecureCookieAttribute"
+
+  - id: SES-004
+    title: "Session cookie SameSite tidak dikonfigurasi atau disetel ke 'none'"
+    description: >
+      Konfigurasi session cookie tidak menyetel atribut SameSite atau menyetelnya ke 'none'. Tanpa SameSite restriction, cookie session dikirim pada semua cross-site requests, memungkinkan serangan CSRF bahkan tanpa exploit khusus. SameSite=none secara eksplisit mengizinkan pengiriman cookies lintas situs.
+    severity: high
+    confidence: high
+    category: CSRF via Cookie
+    tags: [session, csrf, cookies, owasp-a05, cwe-1275]
+    cwe: "CWE-1275"
+    owasp: "A05:2021"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: "'same_site'\\s*=>\\s*('none'|\"none\"|null)"
+      - type: regex
+        target: env-files
+        pattern: 'SESSION_SAME_SITE\s*=\s*(none|null)'
+    remediation: |
+      Set SameSite ke 'lax' (kompatibilitas baik) atau 'strict' (lebih aman):
+        // config/session.php
+        'same_site' => 'lax',
+    references:
+      - "https://cwe.mitre.org/data/definitions/1275.html"
+      - "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite"
+
+  - id: SES-005
+    title: "Session lifetime terlalu panjang (>24 jam)"
+    description: >
+      Session lifetime dikonfigurasi lebih dari 1440 menit (24 jam). Session yang terlalu panjang memperbesar window serangan jika session token dicuri — penyerang memiliki waktu lebih lama untuk mengeksploitasi session yang dibajak sebelum expired.
+    severity: medium
+    confidence: medium
+    category: Session Misconfiguration
+    tags: [session, owasp-a07, cwe-613]
+    cwe: "CWE-613"
+    owasp: "A07:2021"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: "'lifetime'\\s*=>\\s*(1[5-9][0-9]{2}|[2-9][0-9]{3}|[0-9]{5,})"
+      - type: regex
+        target: env-files
+        pattern: 'SESSION_LIFETIME\s*=\s*(1[5-9][0-9]{2}|[2-9][0-9]{3}|[0-9]{5,})'
+    remediation: |
+      Set session lifetime yang wajar berdasarkan jenis aplikasi:
+        // config/session.php
+        'lifetime' => 120,          // 2 jam — aplikasi umum
+        'expire_on_close' => true,   // session berakhir saat browser ditutup
+      Untuk aplikasi perbankan/keuangan, gunakan 15-30 menit dengan inactivity timeout.
+    references:
+      - "https://cwe.mitre.org/data/definitions/613.html"
+
+  - id: SES-006
+    title: "Session tidak di-invalidate saat logout"
+    description: >
+      Aksi logout memanggil Auth::logout() tanpa menginvalidasi session ($request->session()->invalidate()) dan meregenerasi CSRF token ($request->session()->regenerateToken()). Session lama tetap valid di server — jika token dicuri sebelum logout, penyerang masih dapat menggunakannya.
+    severity: high
+    confidence: medium
+    category: Session Persistence
+    tags: [session, auth, owasp-a07, cwe-613]
+    cwe: "CWE-613"
+    owasp: "A07:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Auth::logout\s*\(\s*\)'
+        exclude_pattern: '(invalidate|flush|destroy|regenerateToken|Fortify|Breeze|Jetstream|test|Test)'
+    remediation: |
+      Lakukan invalidasi penuh pada logout:
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        return redirect('/');
+    references:
+      - "https://cwe.mitre.org/data/definitions/613.html"
+
+  - id: SES-007
+    title: "Session driver menggunakan 'file' di production (shared hosting risk)"
+    description: >
+      Session driver disetel ke 'file'. Pada shared hosting atau multi-server deployment, file session tersimpan di filesystem lokal dan tidak ter-share antar server. Pada shared hosting, pengguna lain di server yang sama berpotensi membaca file session jika permission salah. Gunakan database, Redis, atau Memcached di production.
+    severity: medium
+    confidence: low
+    category: Session Misconfiguration
+    tags: [session, config, owasp-a05, cwe-732]
+    cwe: "CWE-732"
+    owasp: "A05:2021"
+    patterns:
+      - type: regex
+        target: env-files
+        pattern: 'SESSION_DRIVER\s*=\s*file'
+    remediation: |
+      Gunakan session driver yang lebih aman di production:
+        SESSION_DRIVER=redis       # Lebih cepat, mendukung TTL otomatis
+        SESSION_DRIVER=database    # Persisten, dapat diaudit
+    references:
+      - "https://cwe.mitre.org/data/definitions/732.html"
+      - "https://laravel.com/docs/session#configuration"
+
+  - id: SES-008
+    title: "Session ID dikirim via URL parameter (session hijacking risk)"
+    description: >
+      PHP dikonfigurasi untuk mengirim session ID via URL (session.use_trans_sid = 1 atau session.use_only_cookies = 0). Session ID dalam URL muncul di server logs, browser history, Referer header, dan dapat dibagikan secara tidak sengaja — mengaktifkan session hijacking pasif.
+    severity: critical
+    confidence: high
+    category: Session Exposure
+    tags: [session, owasp-a07, cwe-384]
+    cwe: "CWE-384"
+    owasp: "A07:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "ini_set\\s*\\(\\s*[\"']session\\.use_trans_sid[\"']\\s*,\\s*[\"']?1[\"']?"
+      - type: regex
+        target: php-files
+        pattern: "ini_set\\s*\\(\\s*[\"']session\\.use_only_cookies[\"']\\s*,\\s*[\"']?0[\"']?"
+    remediation: |
+      Pastikan session hanya menggunakan cookie:
+        ini_set('session.use_only_cookies', '1');
+        ini_set('session.use_trans_sid', '0');
+      Laravel secara default menggunakan cookie, tetapi kode legacy PHP mungkin mengubah pengaturan ini.
+    references:
+      - "https://cwe.mitre.org/data/definitions/384.html"

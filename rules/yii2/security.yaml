@@ -1,51 +1,178 @@
-rules:
-  - id: YII-ENT-001
-    title: "Gii (Code Generator) Exposed in Production"
-    description: >
-      Yii's Gii is an extremely powerful code generator. If the Gii module is left enabled and bound to `0.0.0.0` or wide-open IP addresses in a production environment, attackers can immediately auto-generate controllers that read/write shell code, gaining instant RCE on the server.
-    severity: critical
-    category: Information Disclosure
-    enabled: true
-    tags: [gii, rce, debugging, cwe-284, owasp-a05]
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '\$config\[(?:''|")modules(?:''|")\]\[(?:''|")gii(?:''|")\]\s*=\s*\['
-        exclude_pattern: '(if\s*\(\s*YII_ENV_DEV\s*\))'
-    remediation: |
-      Ensure the Gii module configuration is wrapped inside an environment check:
-      `if (YII_ENV_DEV) { $config['modules']['gii'] = [...]; }`
+##############################################################################
+# ENTERPRISE SECURITY RULESET — YII2 FRAMEWORK
+# Version : 2.0.0
+# Last Updated : 2026-03-09
+# Maintainer : Enterprise AppSec Team
+# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
+##############################################################################
 
-  - id: YII-ENT-002
-    title: "Unsafe Caching causing Object Deserialization"
+metadata:
+  framework: yii2
+  version_range: ">=2.0.14"
+  language: php
+  ruleset_version: "2.0.0"
+  last_updated: "2026-03-09"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+
+rules:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # YII-ENT-001 | Gii Code Generator Exposed in Production → RCE
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: YII-ENT-001
+    title: "Yii2 Gii Code Generator Exposed in Production (Instant RCE)"
     description: >
-      Yii2 caching mechanisms (`yii\caching\Cache`) rely on standard PHP serialization internally. If an attacker controls the backing cache store (like an exposed Memcached/Redis without auth) or manipulates the cache key/content, they can inject malicious serialized payloads leading to RCE when Yii loads the cache line.
+      The Gii module is Yii2's scaffolding and code-generation tool with an
+      interactive web interface. When enabled in production or bound to
+      `0.0.0.0` (all network interfaces), any network-accessible attacker can
+      achieve instant unauthenticated Remote Code Execution.
+    severity: critical
+    cvss_v3:
+      score: 10.0
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H"
+    category: Remote Code Execution / Information Disclosure
+    enabled: true
+    tags: [gii, rce, debug-exposure, cwe-284, owasp-a05-2021, yii2]
+    patterns:
+      - id: YII-ENT-001-P1
+        type: regex
+        target: php-files
+        description: "Gii module config block outside dev environment guard"
+        pattern: '\$config\[(?:''|")modules(?:''|")\]\[(?:''|")gii(?:''|")\]\s*=\s*\['
+        exclude_pattern: '(if\s*\(\s*YII_ENV_DEV\s*\)|YII_ENV\s*===\s*[''"]dev[''"])'
+        confidence: high
+      - id: YII-ENT-001-P2
+        type: regex
+        target: php-files
+        description: "Gii allowedIPs set to wildcard (0.0.0.0/all)"
+        pattern: '[''"]allowedIPs[''"]\s*=>\s*\[\s*[''"](\*|0\.0\.0\.0)[''"]'
+        confidence: critical
+    remediation: |
+      Wrap Gii configuration inside an environment check `if (YII_ENV_DEV)`.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # YII-ENT-002 | Unsafe Caching → Object Deserialization RCE
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: YII-ENT-002
+    title: "Unsafe Yii2 Cache Configuration Enabling Object Deserialization"
+    description: >
+      Yii2's caching layer uses PHP `unserialize()`. If the cache backend is
+      exposed without authentication or cache keys are manipulated, an attacker
+      can trigger RCE via POP chains.
     severity: high
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Deserialization
     enabled: true
-    tags: [cache, deserialization, yii2, cwe-502, owasp-a08]
+    tags: [cache, deserialization, yii2, cwe-502, owasp-a08-2021]
     patterns:
-      - type: regex
+      - id: YII-ENT-002-P1
+        type: regex
         target: config-files
+        description: "Cache component configured without authentication credentials"
         pattern: '\$config\[(?:''|")components(?:''|")\]\[(?:''|")cache(?:''|")\]\s*=\s*\['
-        exclude_pattern: '(password|password_hash|auth_pass|username)'
-      - type: regex
+        exclude_pattern: '(password|password_hash|auth_pass|username|authPassword)'
+        confidence: medium
+      - id: YII-ENT-002-P2
+        type: regex
         target: php-files
-        pattern: 'Yii::\$app->cache->(get|set|add)\s*\(\s*(\$request->|request\()'
+        description: "Cache key built from raw request data"
+        pattern: 'Yii::\$app->cache->(get|set|add)\s*\(\s*(\$request->|\$_GET|\$_POST|request\()'
+        confidence: high
     remediation: |
-      Avoid dynamic cache keys generated directly from `$request->get()`. Always ensure Redis/Memcached components are properly secured with passwords in staging/production setups.
+      Authenticate Redis/Memcached connections and avoid building cache keys from raw user input.
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # YII-ENT-003 | Cookie Validation Disabled → Session Hijacking / CSRF
+  # ─────────────────────────────────────────────────────────────────────────
   - id: YII-ENT-003
-    title: "Cookie Validation Validation Disabled Globally"
+    title: "Cookie Validation Disabled — Session Hijacking and CSRF Bypass"
     description: >
-      Yii2 validates cookies securely via MACs using the `cookieValidationKey`. If `enableCookieValidation` is maliciously or accidentally set to `false`, an attacker can arbitrarily spoof cookies leading directly to Session Hijacking, CSRF bypass, or Privilege Escalation.
+      When `enableCookieValidation` is set to false, session cookies can be forged
+      without the HMAC signature, leading to session hijacking.
     severity: critical
-    category: Cryptography
+    cvss_v3:
+      score: 9.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Cryptographic Failure / Session Security
     enabled: true
-    tags: [crypto, session-hijacking, cwe-565, yii2]
+    tags: [crypto, session-hijacking, csrf-bypass, yii2, cwe-565, owasp-a02-2021]
     patterns:
-      - type: regex
+      - id: YII-ENT-003-P1
+        type: regex
         target: php-files
+        description: "enableCookieValidation explicitly disabled"
         pattern: '[''"]enableCookieValidation[''"]\s*=>\s*(false|0|FALSE)'
+        confidence: critical
+      - id: YII-ENT-003-P2
+        type: regex
+        target: php-files
+        description: "cookieValidationKey set to empty string or default placeholder"
+        pattern: '[''"]cookieValidationKey[''"]\s*=>\s*[''"](\s*|your_key_here|changeme|secret)[''"]'
+        confidence: critical
     remediation: |
-      Do not disable `enableCookieValidation`. Provide a strong `cookieValidationKey` instead.
+      Never disable `enableCookieValidation` and provide a strong random key.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # YII-ENT-004 | SQL Injection via ActiveRecord findBySql / createCommand
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: YII-ENT-004
+    title: "SQL Injection via Yii2 findBySql() / createCommand() Concatenation"
+    description: >
+      Bypassing Active Record parameterization using `findBySql()` or `createCommand()`
+      with direct string concatenation leads to SQL injection.
+    severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: SQL Injection
+    enabled: true
+    tags: [sqli, yii2, cwe-89, owasp-a03-2021]
+    patterns:
+      - id: YII-ENT-004-P1
+        type: regex
+        target: php-files
+        description: "findBySql with concatenated request variable"
+        pattern: '::findBySql\s*\(\s*["''].*\.\s*\$(?:_GET|_POST|_REQUEST|request)'
+        confidence: critical
+      - id: YII-ENT-004-P2
+        type: regex
+        target: php-files
+        description: "createCommand with raw string concatenation"
+        pattern: '->createCommand\s*\(\s*["''].*\.\s*\$(?:_GET|_POST|_REQUEST)'
+        confidence: critical
+    remediation: |
+      Use parameterized queries exclusively.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # YII-ENT-005 | Server-Side Template Injection (SSTI) in Twig/Smarty ViewRenderer
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: YII-ENT-005
+    title: "Server-Side Template Injection (SSTI) in Yii2 View Renderer"
+    description: >
+      When using Twig or Smarty extensions with Yii2, passing user-controlled
+      input directly as a template string to `render()` or compiling templates
+      dynamically can lead to Server-Side Template Injection (SSTI) and RCE.
+    severity: critical
+    cvss_v3:
+      score: 10.0
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H"
+    category: Injection
+    enabled: true
+    tags: [ssti, rce, yii2, cwe-1336, owasp-a03-2021]
+    patterns:
+      - id: YII-ENT-005-P1
+        type: regex
+        target: php-files
+        description: "Rendering template string constructed from user input"
+        pattern: '->render(?:Ajax|Partial)?\s*\(\s*["''][^"''\)]*\.\s*\$(?:_GET|_POST|_REQUEST|request)'
+        exclude_pattern: '(->render|\$this->render)\s*\(\s*["''][a-zA-Z0-9_\-\/]+(\.twig|\.tpl)?["'']'
+        confidence: high
+    remediation: |
+      Never construct template paths or inline template strings from untrusted input. Use predefined template files and pass data via the context array.

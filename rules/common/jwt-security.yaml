@@ -1,55 +1,222 @@
 meta:
   category: JWT Security
-  version: "3.0.0"
-  updated: "2025"
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "PHP 8.0–8.4, firebase/php-jwt, lcobucci/jwt, tymon/jwt-auth"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
 rules:
-  - id: JWT-ENT-001
+  - id: JWT-001
     title: "JWT Algorithm Confusion / Missing Strict Algorithm Check"
     description: >
-      JWT libraries (like `firebase/php-jwt`) require explicitly defining permitted algorithms during decode. If `JWT::decode($token, $key)` is called without passing an array of allowed algorithms (e.g., `['HS256']`), attackers can change the token header to 'HS256' but sign it with the server's public RSA key. The server will incorrectly verify the HMAC using the public key string, granting full bypass.
+      JWT library (firebase/php-jwt) dipanggil tanpa mendefinisikan algoritma yang diizinkan secara eksplisit saat decode. Tanpa pembatasan algoritma, penyerang dapat mengubah header token ke 'HS256' dan menandatanganinya dengan public RSA key server. Server akan memverifikasi HMAC menggunakan public key string, memberikan bypass autentikasi penuh (Algorithm Confusion Attack).
     severity: critical
     confidence: high
     category: Authentication Bypass
     tags: [jwt, auth-bypass, algorithm-confusion, cwe-347, owasp-a02]
+    cwe: "CWE-347"
+    owasp: "A02:2021"
     patterns:
       - type: regex
         target: php-files
         pattern: 'JWT::decode\s*\(\s*\$[^,]+,\s*(?:new\s+Key\s*\([^,]+|\$[^,]+)\s*\)'
-        exclude_pattern: '(new\s+Key\s*\([^,]+,\s*[''"][A-Z0-9]+[''"]|\[\s*[''"][A-Z0-9]+[''"]\s*\])'
+        exclude_pattern: "(new\\s+Key\\s*\\([^,]+,\\s*['\"][A-Z0-9]+['\"]|\\[\\s*['\"][A-Z0-9]+['\"]\\s*\\])"
     remediation: |
-      Always strictly specify the expected cryptographic algorithm:
-      `$decoded = JWT::decode($token, new Key($publicKey, 'RS256'));`
+      Selalu tentukan algoritma kriptografi yang diharapkan secara eksplisit:
+        $decoded = JWT::decode($token, new Key($publicKey, 'RS256'));
+    references:
+      - "https://cwe.mitre.org/data/definitions/347.html"
+      - "https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/"
 
-  - id: JWT-ENT-002
-    title: "Unverified JWT Decoding (Trusting Payload without Signature)"
+  - id: JWT-002
+    title: "Unverified JWT Decoding — payload dipercaya tanpa verifikasi signature"
     description: >
-      Extracting and trusting claims from a JWT token payload without verifying its cryptographic signature (`json_decode(base64_decode(explode('.', $token)[1]))`). Attackers can forge any claim (role, user\_id) since the signature is ignored entirely.
+      Klaim JWT diekstrak dan dipercaya dari payload token tanpa memverifikasi tanda tangan kriptografisnya (json_decode(base64_decode(explode('.', $token)[1]))). Penyerang dapat memalsukan klaim apapun (role, user_id, tenant_id) karena tanda tangan diabaikan sepenuhnya — ini adalah bypass autentikasi lengkap.
     severity: critical
     confidence: high
     category: Signature Bypass
     tags: [jwt, signature-bypass, cwe-345, owasp-a02]
+    cwe: "CWE-345"
+    owasp: "A02:2021"
     patterns:
       - type: regex
         target: php-files
-        pattern: 'base64_decode\s*\(\s*explode\s*\(\s*[''"]\.[''"]\s*,\s*\$[^)]+\)\s*\[\s*1\s*\]\s*\)'
+        pattern: "base64_decode\\s*\\(\\s*explode\\s*\\(\\s*['\"]\\.['\"]\\s*,\\s*\\$[^)]+\\)\\s*\\[\\s*1\\s*\\]\\s*\\)"
     remediation: |
-      Never decode and trust JWT payloads manually. Always use an established library (`firebase/php-jwt`) to decode and cryptographically verify the token simultaneously.
-      `$decoded = JWT::decode($jwt, new Key($key, 'HS256'));`
+      Jangan pernah decode dan percaya payload JWT secara manual. Selalu gunakan library yang memverifikasi tanda tangan secara kriptografis:
+        $decoded = JWT::decode($jwt, new Key($key, 'HS256'));
+    references:
+      - "https://cwe.mitre.org/data/definitions/345.html"
 
-  - id: JWT-ENT-003
-    title: "Hardcoded JWT Secret Key"
+  - id: JWT-003
+    title: "Hardcoded JWT Secret Key dalam source code"
     description: >
-      A JWT secret or private key is hardcoded directly within PHP source code instead of being injected securely via environment variables. If the source code is leaked, attackers can mint arbitrary valid administrative tokens across all environments.
+      JWT secret atau private key di-hardcode langsung dalam source PHP alih-alih diinjeksi secara aman via environment variable. Jika source code bocor (via repository leak, backup exposure, atau insider threat), penyerang dapat mencetak token admin yang valid untuk semua environment.
     severity: high
     confidence: high
     category: Hardcoded Secret
     tags: [jwt, secret, hardcoded-credential, cwe-798, owasp-a07]
+    cwe: "CWE-798"
+    owasp: "A07:2021"
     patterns:
       - type: regex
         target: php-files
-        pattern: 'JWT::(encode|decode)\s*\([^,]+,\s*(?:new\s+Key\s*\(\s*)?[''"][^''"]{12,}[''"]'
+        pattern: "JWT::(encode|decode)\\s*\\([^,]+,\\s*(?:new\\s+Key\\s*\\(\\s*)?['\"][^'\"]{12,}['\"]"
         exclude_pattern: '(test|Test|example|mock|Mock)'
     remediation: |
-      Load secrets securely from environment variables:
-      `$secret = env('JWT_SECRET');`
-      `$decoded = JWT::decode($token, new Key($secret, 'HS256'));`
+      Load secret secara aman dari environment variable:
+        $secret  = env('JWT_SECRET');
+        $decoded = JWT::decode($token, new Key($secret, 'HS256'));
+    references:
+      - "https://cwe.mitre.org/data/definitions/798.html"
+
+  - id: JWT-004
+    title: "JWT token tanpa expiration claim (exp)"
+    description: >
+      Token JWT dibuat tanpa menyetel claim 'exp' (expiration). Token tanpa expiration berlaku selamanya — jika token dicuri, penyerang memiliki akses permanen. Ini juga melanggar best practice keamanan dan standar compliance (PCI-DSS, SOC2).
+    severity: high
+    confidence: medium
+    category: Token Misconfiguration
+    tags: [jwt, token-lifetime, cwe-613, owasp-a07]
+    cwe: "CWE-613"
+    owasp: "A07:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "JWT::encode\\s*\\(\\s*\\["
+        exclude_pattern: "(exp|expiration|expires|ttl)"
+    remediation: |
+      Selalu sertakan claim 'exp' dengan lifetime yang wajar:
+        $payload = [
+            'sub' => $user->id,
+            'iat' => time(),
+            'exp' => time() + (60 * 60),  // 1 jam
+        ];
+        $jwt = JWT::encode($payload, $key, 'HS256');
+    references:
+      - "https://cwe.mitre.org/data/definitions/613.html"
+      - "https://tools.ietf.org/html/rfc7519#section-4.1.4"
+
+  - id: JWT-005
+    title: "JWT 'none' algorithm diterima"
+    description: >
+      Konfigurasi JWT menerima algoritma 'none'. Algoritma 'none' berarti token tidak ditandatangani — penyerang cukup membuat token JSON dengan header {"alg":"none"} dan payload apapun tanpa tanda tangan. Ini adalah bypass autentikasi total.
+    severity: critical
+    confidence: high
+    category: Authentication Bypass
+    tags: [jwt, none-algorithm, cwe-327, owasp-a02]
+    cwe: "CWE-327"
+    owasp: "A02:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "['\"](none|None|NONE)['\"]"
+        exclude_pattern: '(exclude|reject|deny|block|forbidden|!=|!==|test|Test)'
+      - type: regex
+        target: config-files
+        pattern: "(algo|algorithm).*['\"]none['\"]"
+    remediation: |
+      Jangan pernah mengizinkan algoritma 'none'. Gunakan algoritma yang aman:
+        // Hanya algoritma yang kuat
+        $decoded = JWT::decode($token, new Key($key, 'RS256'));
+        // Atau HMAC
+        $decoded = JWT::decode($token, new Key($secret, 'HS256'));
+    references:
+      - "https://cwe.mitre.org/data/definitions/327.html"
+
+  - id: JWT-006
+    title: "JWT secret key terlalu pendek (<32 karakter)"
+    description: >
+      JWT HMAC secret key yang kurang dari 32 karakter (256 bit) rentan terhadap brute force attack. Dengan computing power modern, secret pendek dapat di-crack dalam hitungan jam hingga hari, memungkinkan penyerang memalsukan token arbitrer.
+    severity: high
+    confidence: medium
+    category: Weak Key
+    tags: [jwt, weak-key, cwe-326, owasp-a02]
+    cwe: "CWE-326"
+    owasp: "A02:2021"
+    patterns:
+      - type: regex
+        target: env-files
+        pattern: "JWT_SECRET\\s*=\\s*[^\\s#]{1,31}$"
+      - type: regex
+        target: config-files
+        pattern: "['\"](jwt_secret|JWT_SECRET)['\"]\\s*=>\\s*['\"][^'\"]{1,31}['\"]"
+        exclude_pattern: '(env\(|getenv)'
+    remediation: |
+      Gunakan secret minimal 64 karakter (512 bit) untuk HMAC:
+        JWT_SECRET=$(openssl rand -base64 64)
+      Atau gunakan RSA/EC key pairs untuk keamanan lebih baik:
+        openssl genpkey -algorithm RSA -out private.key -pkeyopt rsa_keygen_bits:2048
+    references:
+      - "https://cwe.mitre.org/data/definitions/326.html"
+
+  - id: JWT-007
+    title: "JWT refresh token tidak dirotasi setelah penggunaan"
+    description: >
+      Refresh token JWT digunakan untuk menerbitkan access token baru tetapi tidak dirotasi (diganti) setelah setiap penggunaan. Jika refresh token dicuri, penyerang memiliki akses permanen ke akun karena token yang sama dapat digunakan berulang kali tanpa batas.
+    severity: high
+    confidence: medium
+    category: Token Reuse
+    tags: [jwt, refresh-token, cwe-384, owasp-a07]
+    cwe: "CWE-384"
+    owasp: "A07:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(refresh_token|refreshToken)\s*=\s*\$request->(input|get|bearerToken|header)\s*\('
+        exclude_pattern: '(revoke|delete|invalidate|blacklist|rotate|replace|new_refresh)'
+    remediation: |
+      Rotasi refresh token setiap kali digunakan dan invalidasi yang lama:
+        DB::transaction(function () use ($oldRefreshToken, $user) {
+            // Invalidasi token lama
+            RefreshToken::where('token', $oldRefreshToken)->delete();
+
+            // Buat refresh token baru
+            $newRefreshToken = RefreshToken::create([
+                'user_id'    => $user->id,
+                'token'      => Str::random(64),
+                'expires_at' => now()->addDays(30),
+            ]);
+
+            // Buat access token baru
+            $accessToken = JWT::encode([...], $key, 'HS256');
+        });
+    references:
+      - "https://cwe.mitre.org/data/definitions/384.html"
+      - "https://auth0.com/blog/refresh-tokens-what-are-they-and-when-to-use-them/"
+
+  - id: JWT-008
+    title: "JWT token tidak di-blacklist/revoke saat logout"
+    description: >
+      Endpoint logout tidak menambahkan JWT token ke blacklist atau daftar revoke. Karena JWT bersifat stateless, token yang sudah diterbitkan tetap valid sampai expired meskipun pengguna sudah logout. Penyerang yang mencuri token sebelum logout masih bisa menggunakannya.
+    severity: high
+    confidence: medium
+    category: Token Persistence
+    tags: [jwt, logout, token-revocation, cwe-613, owasp-a07]
+    cwe: "CWE-613"
+    owasp: "A07:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'function\s+(logout|signout|logOut|signOut)\s*\('
+        exclude_pattern: '(blacklist|revoke|invalidate|JWTAuth::invalidate|cache.*token|Redis.*token|DB.*token|delete.*token)'
+    remediation: |
+      Implementasikan token blacklist menggunakan cache:
+        public function logout(Request $request): JsonResponse
+        {
+            $token = $request->bearerToken();
+            $payload = JWTAuth::parseToken()->getPayload();
+            $ttl = $payload->get('exp') - time();
+
+            // Blacklist token sampai expiry
+            Cache::put("jwt_blacklist:{$token}", true, $ttl);
+
+            return response()->json(['message' => 'Logged out']);
+        }
+
+        // Di middleware, cek blacklist
+        abort_if(Cache::has("jwt_blacklist:{$token}"), 401, 'Token revoked');
+    references:
+      - "https://cwe.mitre.org/data/definitions/613.html"

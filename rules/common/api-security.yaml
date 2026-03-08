@@ -1,9 +1,12 @@
 meta:
   category: API Security
-  version: "3.0.0"
-  updated: "2025"
+  version: "4.0.0"
   maintainer: "Security Engineering Team"
-  scope: "Laravel 10–12, PHP 8.0–8.4"
+  updated: "2026"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
 rules:
   - id: API-001
     title: "Unbounded query — API mengembalikan semua record tanpa pagination"
@@ -223,3 +226,22 @@ rules:
         $token = $request->bearerToken();
     references:
       - "https://cwe.mitre.org/data/definitions/598.html"
+  - id: API-008
+    title: "Kunci API Auth (Passport/Sanctum) yang di-hardcode dalam konfigurasi"
+    description: >
+      Aplikasi mendefinisikan kunci personal access token (Sanctum/Passport) atau public/private key path secara langsung sebagai string tekstual di dalam konfigurasi API alih-alih mengambilnya dari `.env`. Ini dapat bocor sangat mudah melalui repository.
+    severity: high
+    confidence: medium
+    category: Hardcoded Secret
+    tags: [api, oath, jwt, cwe-798]
+    cwe: "CWE-798"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '((passport|sanctum|_keys|public_key|private_key).*=>.*[\"\/][A-Za-z0-9_\-\.]+[\"\/])'
+        exclude_pattern: '(env|storage_path|base_path|\w+_path)'
+    remediation: |
+      Pastikan konfigurasi auth/Passport/Sanctum mengambil nilainya dari `env()` atau menggunakan helper bawaan:
+        'private_key' => env('PASSPORT_PRIVATE_KEY', storage_path('oauth-private.key')),
+    references:
+      - "https://cwe.mitre.org/data/definitions/798.html"

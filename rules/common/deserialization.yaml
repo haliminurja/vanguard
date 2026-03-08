@@ -1,0 +1,169 @@
+meta:
+  category: Deserialization & Object Injection
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Laravel 10–12, PHP 8.0–8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+rules:
+  - id: DESER-001
+    title: "Insecure Deserialization — unserialize() dengan input pengguna"
+    description: >
+      unserialize() dipanggil dengan input yang dikontrol pengguna. PHP unserialize()
+      dapat menginstansiasi objek arbitrer dan memicu method magic (__destruct, __wakeup,
+      __toString), memungkinkan penyerang mengeksekusi kode arbitrer melalui POP chain
+      (Property-Oriented Programming) — ini adalah Remote Code Execution.
+    severity: critical
+    confidence: high
+    category: Insecure Deserialization
+    tags: [deserialization, rce, php-object-injection, owasp-a08, cwe-502]
+    cwe: "CWE-502"
+    owasp: "A08:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'unserialize\s*\(\s*(\$request->|\$_GET|\$_POST|\$_COOKIE|\$_REQUEST|base64_decode\s*\(\s*\$)'
+      - type: regex
+        target: php-files
+        pattern: 'unserialize\s*\(\s*\$\w*(data|input|payload|body|content|value|param)\w*'
+        exclude_pattern: '(allowed_classes\s*=>\s*false|allowed_classes\s*=>\s*\[|test|Test|mock|Mock)'
+    remediation: |
+      JANGAN gunakan unserialize() untuk data dari pengguna. Gunakan JSON:
+        // ✅ BENAR — JSON aman dari object injection
+        $data = json_decode($input, true, 10, JSON_THROW_ON_ERROR);
+
+        // Jika unserialize() tidak bisa dihindari, blokir pembuatan objek:
+        $data = unserialize($input, ['allowed_classes' => false]);
+    references:
+      - "https://cwe.mitre.org/data/definitions/502.html"
+      - "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/16-Testing_for_HTTP_Incoming_Requests"
+
+  - id: DESER-002
+    title: "Insecure Deserialization — unserialize() tanpa allowed_classes restriction"
+    description: >
+      unserialize() dipanggil tanpa parameter allowed_classes. Sejak PHP 7.0, parameter
+      ini memungkinkan pembatasan class yang boleh di-instantiasi. Tanpa restriction,
+      semua class dalam autoloader tersedia untuk POP chain attack.
+    severity: high
+    confidence: high
+    category: Insecure Deserialization
+    tags: [deserialization, rce, owasp-a08, cwe-502]
+    cwe: "CWE-502"
+    owasp: "A08:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'unserialize\s*\(\s*\$[^,)]+\s*\)'
+        exclude_pattern: '(allowed_classes|json_decode|test|Test|mock|Mock|\$this->serializer)'
+    remediation: |
+      Jika unserialize() harus digunakan, batasi allowed_classes:
+        // Blokir semua class
+        $data = unserialize($input, ['allowed_classes' => false]);
+        // Atau whitelist class tertentu
+        $data = unserialize($input, ['allowed_classes' => [UserDTO::class]]);
+    references:
+      - "https://cwe.mitre.org/data/definitions/502.html"
+
+  - id: DESER-003
+    title: "Insecure Deserialization — cookie berisi data terserialisasi"
+    description: >
+      Aplikasi membaca dan melakukan unserialize pada data dari cookie. Cookie dikontrol
+      sepenuhnya oleh klien — even jika terenkripsi, jika encryption key bocor (via
+      APP_KEY leak), penyerang dapat membuat cookie dengan payload serialized arbitrer
+      untuk RCE via POP chain.
+    severity: critical
+    confidence: high
+    category: Insecure Deserialization
+    tags: [deserialization, cookies, rce, owasp-a08, cwe-502]
+    cwe: "CWE-502"
+    owasp: "A08:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'unserialize\s*\(\s*(Cookie::|cookie\(|\$_COOKIE|\$request->cookie)'
+      - type: regex
+        target: php-files
+        pattern: 'unserialize\s*\(\s*(decrypt|Crypt::decrypt)\s*\(\s*(\$_COOKIE|\$request->cookie)'
+    remediation: |
+      Gunakan JSON untuk data cookie. Jangan serialize objek ke cookie:
+        // ✅ BENAR
+        $preferences = json_decode($request->cookie('prefs', '{}'), true);
+
+        // Set cookie
+        return response()->withCookie(
+            cookie('prefs', json_encode($prefs), 60 * 24)
+        );
+    references:
+      - "https://cwe.mitre.org/data/definitions/502.html"
+
+  - id: DESER-004
+    title: "PHP Object Injection via __wakeup() atau __destruct() yang berbahaya"
+    description: >
+      Class mendefinisikan method __wakeup() atau __destruct() yang melakukan operasi berbahaya
+      (file operations, command execution, database queries). Class ini menjadi gadget dalam
+      POP chain — jika penyerang menemukan entry point unserialize(), class ini memungkinkan
+      eskalasi dari deserialization ke RCE.
+    severity: high
+    confidence: medium
+    category: POP Chain Gadget
+    tags: [deserialization, pop-chain, gadget, owasp-a08, cwe-502]
+    cwe: "CWE-502"
+    owasp: "A08:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'function\s+__(wakeup|destruct)\s*\(\s*\)\s*\{[^}]*(exec|system|passthru|shell_exec|file_put_contents|unlink|fwrite|include|require|eval)'
+    remediation: |
+      Hindari operasi berbahaya di magic methods. Jika diperlukan, validasi state:
+        public function __destruct()
+        {
+            // ✅ Hanya operasi aman, non-destruktif
+            if (isset($this->tempFile) && file_exists($this->tempFile)) {
+                // Validasi path sebelum operasi
+                $safePath = realpath($this->tempFile);
+                if ($safePath && str_starts_with($safePath, sys_get_temp_dir())) {
+                    unlink($safePath);
+                }
+            }
+        }
+    references:
+      - "https://cwe.mitre.org/data/definitions/502.html"
+
+  - id: DESER-005
+    title: "Insecure Deserialization — Queue/Cache backend tanpa autentikasi"
+    description: >
+      Laravel queue atau cache backend (Redis, Memcached) dikonfigurasi tanpa password authentication.
+      Laravel menggunakan PHP serialize() untuk menyimpan job dan cache data. Jika backend
+      terekspos tanpa autentikasi, penyerang dapat inject payload serialized untuk RCE
+      saat Laravel membaca dan melakukan unserialize pada data.
+    severity: critical
+    confidence: high
+    category: Insecure Backend
+    tags: [deserialization, redis, cache, queue, owasp-a08, cwe-502]
+    cwe: "CWE-502"
+    owasp: "A08:2021"
+    patterns:
+      - type: regex
+        target: env-files
+        pattern: 'REDIS_PASSWORD\s*=\s*$'
+      - type: regex
+        target: config-files
+        pattern: "'password'\\s*=>\\s*(null|''|\"\")"
+        exclude_pattern: '(sqlite|testing)'
+    remediation: |
+      Selalu autentikasi koneksi Redis/Memcached:
+        REDIS_PASSWORD=your_strong_random_password_here
+        REDIS_HOST=127.0.0.1  # Jangan bind ke 0.0.0.0
+
+        // config/database.php
+        'redis' => [
+            'default' => [
+                'host'     => env('REDIS_HOST', '127.0.0.1'),
+                'password' => env('REDIS_PASSWORD'),
+                'port'     => env('REDIS_PORT', 6379),
+            ],
+        ],
+    references:
+      - "https://cwe.mitre.org/data/definitions/502.html"

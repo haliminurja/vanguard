@@ -1,50 +1,247 @@
+##############################################################################
+# ENTERPRISE SECURITY RULESET — SYMFONY FRAMEWORK
+# Version : 2.0.0
+# Last Updated : 2026-03-09
+# Maintainer : Enterprise AppSec Team
+# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
+##############################################################################
+
+metadata:
+  framework: symfony
+  version_range: ">=4.4 <=7.x"
+  language: php
+  ruleset_version: "2.0.0"
+  last_updated: "2026-03-09"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+
 rules:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SYM-ENT-001 | ESI Injection → SSRF
+  # ─────────────────────────────────────────────────────────────────────────
   - id: SYM-ENT-001
-    title: "ESI (Edge Side Includes) Injection"
+    title: "ESI (Edge Side Includes) Injection leading to SSRF"
     description: >
-      Symfony's `{{ render_esi() }}` or `HttpCache` ESI integration allows rendering fragments. If the `src` attribute or fragment URI is derived from user input, an attacker can perform Server-Side Request Forgery (SSRF) or include arbitrary enterprise-internal resources into the final response payload.
+      Symfony's `render_esi()` Twig helper and `HttpCache` ESI integration
+      renders sub-requests as fragments. When the fragment URI or `src`
+      attribute is derived from unvalidated user input (query parameters,
+      POST body, headers), an attacker can craft arbitrary URIs to perform SSRF.
     severity: critical
+    cvss_v3:
+      score: 9.3
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N"
     category: Injection
     enabled: true
-    tags: [esi-injection, ssrf, owasp-a10, symfony, cwe-918]
+    tags: [esi-injection, ssrf, owasp-a10-2021, symfony, cwe-918, pci-dss-6.2]
     patterns:
-      - type: regex
+      - id: SYM-ENT-001-P1
+        type: regex
         target: twig-files
-        pattern: 'render_esi\s*\(\s*(app\.request|app\.request\.query|app\.request\.request)'
-      - type: regex
+        description: "render_esi() call with user-supplied request parameter"
+        pattern: 'render_esi\s*\(\s*(app\.request|app\.request\.query|app\.request\.request|app\.request\.headers)'
+        confidence: high
+      - id: SYM-ENT-001-P2
+        type: regex
         target: php-files
-        pattern: '->render\s*\([^,]+,\s*\[[^\]]*''esi''\s*=>\s*\$request->'
+        description: "PHP-level ESI render call with $request-derived parameter"
+        pattern: '->render\s*\([^,]+,\s*\[[^\]]*[''"]esi[''"]\s*=>\s*\$request->'
+        confidence: high
+      - id: SYM-ENT-001-P3
+        type: regex
+        target: php-files
+        description: "HttpKernel sub-request spawned from user-controlled URL"
+        pattern: 'HttpKernelInterface::SUB_REQUEST[^;]*\$request->get\('
+        confidence: medium
     remediation: |
-      Never construct ESI URIs dynamically from user input. Map inputs to predefined, safe internal routes.
+      NEVER construct ESI URIs dynamically from request parameters. Maintain a strict allowlist of internal route names.
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # SYM-ENT-002 | Unsafe Deserialization via Serializer Component → RCE
+  # ─────────────────────────────────────────────────────────────────────────
   - id: SYM-ENT-002
-    title: "Unsafe Object Deserialization via SerializerComponent"
+    title: "Unsafe Object Deserialization via Symfony SerializerComponent"
     description: >
-      The Symfony Serializer component can instantiate objects from JSON/XML. If type enforcement is disabled or an attacker can specify the deserialization target class (e.g., via a polymorphic `__class` property on a maliciously drafted payload), they can trigger POP chains leading to RCE.
+      The Symfony Serializer component can instantiate arbitrary PHP objects
+      from JSON/XML input. When the target class is not hardcoded but instead
+      derived from user-supplied data, it can lead to RCE via POP chain.
     severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Deserialization
     enabled: true
-    tags: [rce, deserialization, owasp-a08, symfony, cwe-502]
+    tags: [rce, deserialization, owasp-a08-2021, symfony, cwe-502]
     patterns:
-      - type: regex
+      - id: SYM-ENT-002-P1
+        type: regex
         target: php-files
+        description: "Deserialize target class driven by $request content"
         pattern: '->deserialize\s*\(\s*\$request->getContent\(\)\s*,\s*\$request->get\('
+        confidence: high
+      - id: SYM-ENT-002-P2
+        type: regex
+        target: php-files
+        description: "Denormalize with dynamic class name from request"
+        pattern: '->denormalize\s*\([^,]+,\s*\$request->(?:get|query->get|request->get)\('
+        confidence: high
+      - id: SYM-ENT-002-P3
+        type: regex
+        target: php-files
+        description: "JMS deserialize with user-controlled type string"
+        pattern: 'JMS\\Serializer.*->deserialize\s*\([^,]+,\s*\$_(?:POST|GET|REQUEST)'
+        confidence: medium
     remediation: |
-      Hardcode the target class during deserialization. Never allow the user request string or payload properties to dictate the class being instantiated.
-      `$serializer->deserialize($data, UserDto::class, 'json');`
+      Always hardcode the deserialization target class. `deserialize($request->getContent(), UserDto::class, 'json');`
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # SYM-ENT-003 | Web Profiler Exposed in Production → Info Disclosure
+  # ─────────────────────────────────────────────────────────────────────────
   - id: SYM-ENT-003
-    title: "Symfony Profiler / _profiler Exposed in Production"
+    title: "Symfony Web Profiler / _profiler Route Exposed in Production"
     description: >
-      The Symfony Web Profiler Toolbar reveals extreme detail including database credentials, raw queries, tokens, and active session dumps. If this route (`/_profiler`) or toolbar is active in a production or staging enterprise environment, it constitutes a massive breach of confidentiality.
+      The Symfony Web Profiler Toolbar exposes extremely sensitive runtime data
+      including database credentials, full query logs with bind parameters, and active session tokens.
     severity: critical
+    cvss_v3:
+      score: 8.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
     category: Information Disclosure
     enabled: true
-    tags: [profiler, debug, owasp-a05, symfony, cwe-200]
+    tags: [profiler, debug-exposure, owasp-a05-2021, symfony, cwe-200, cwe-215]
     patterns:
-      - type: regex
+      - id: SYM-ENT-003-P1
+        type: regex
         target: config-files
-        pattern: 'web_profiler:\s*toolbar:\s*true'
-        exclude_pattern: '(dev|test)'
+        description: "WebProfiler toolbar enabled outside dev/test environment"
+        pattern: 'web_profiler:\s*\n\s*toolbar:\s*true'
+        exclude_pattern: '(dev|test|local)'
+        confidence: high
+      - id: SYM-ENT-003-P2
+        type: regex
+        target: php-files
+        description: "WebProfilerBundle registered unconditionally in bundles.php"
+        pattern: 'WebProfilerBundle::class\s*=>\s*\[''all''\s*=>\s*true\]'
+        confidence: high
+      - id: SYM-ENT-003-P3
+        type: regex
+        target: config-files
+        description: "APP_ENV not set to prod (default dev exposes profiler)"
+        pattern: '^APP_ENV\s*=\s*(?:dev|test|local)'
+        confidence: medium
     remediation: |
-      Ensure the WebProfilerBundle is strictly registered only in `dev` and `test` environments via `bundles.php`.
+      Ensure `WebProfilerBundle` is only registered for `dev` and `test` in `bundles.php`. Set `APP_ENV=prod`.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SYM-ENT-004 | Open Redirect via $request->headers->get('Referer')
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: SYM-ENT-004
+    title: "Open Redirect via Unvalidated Referer / Redirect URL"
+    description: >
+      Using `$request->headers->get('Referer')` or `$request->query->get('redirect')`
+      directly as the Location header in a `RedirectResponse` enables open redirects.
+    severity: high
+    cvss_v3:
+      score: 6.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+    category: Open Redirect
+    enabled: true
+    tags: [open-redirect, phishing, owasp-a01-2021, symfony, cwe-601]
+    patterns:
+      - id: SYM-ENT-004-P1
+        type: regex
+        target: php-files
+        description: "RedirectResponse constructed from unvalidated Referer header"
+        pattern: 'new\s+RedirectResponse\s*\(\s*\$request->headers->get\s*\(\s*[''"]Referer[''"]\s*\)'
+        confidence: high
+      - id: SYM-ENT-004-P2
+        type: regex
+        target: php-files
+        description: "redirect() called with user query parameter directly"
+        pattern: 'return\s+\$this->redirect\s*\(\s*\$request->(?:query|request)->get\s*\('
+        confidence: high
+    remediation: |
+      Always validate redirect targets against an allow-list of internal paths or use `generateUrl()`.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SYM-ENT-005 | Missing CSRF Protection on State-Changing Forms
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: SYM-ENT-005
+    title: "Missing CSRF Token Validation on State-Changing Endpoints"
+    description: >
+      Symfony's `CsrfTokenManager` provides built-in CSRF protection. When
+      forms or API endpoints that mutate state (POST/PUT/PATCH/DELETE) skip
+      `$this->isCsrfTokenValid()` or omit `{{ csrf_token('intention') }}`,
+      attackers can forge cross-site requests.
+    severity: high
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: CSRF
+    enabled: true
+    tags: [csrf, owasp-a05-2021, symfony, cwe-352]
+    patterns:
+      - id: SYM-ENT-005-P1
+        type: regex
+        target: php-files
+        description: "POST/DELETE handler without CSRF token validation"
+        pattern: 'Request\s+\$request[^{]*\{[^}]*(delete|update|save|insert)[^}]*\$request->request->get'
+        exclude_pattern: 'isCsrfTokenValid|_token'
+        confidence: medium
+    remediation: |
+      Always include and validate CSRF tokens in Symfony forms.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SYM-ENT-006 | ExpressionLanguage Injection (RCE)
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: SYM-ENT-006
+    title: "ExpressionLanguage Injection leading to RCE"
+    description: >
+      Passing user-controlled input directly to the `evaluate()` or `compile()`
+      methods of Symfony's `ExpressionLanguage` component allows attackers to
+      execute arbitrary PHP code.
+    severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: Injection
+    enabled: true
+    tags: [rce, expression-language, owasp-a03-2021, symfony, cwe-94]
+    patterns:
+      - id: SYM-ENT-006-P1
+        type: regex
+        target: php-files
+        description: "ExpressionLanguage evaluate/compile with user input"
+        pattern: '->(?:evaluate|compile)\s*\(\s*\$request->(?:request|query)->get\('
+        confidence: high
+    remediation: |
+      Never allow users to provide the expression string. User input should only be passed as variables in the second argument dictionary.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SYM-ENT-007 | Insecure Remember-Me Configuration
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: SYM-ENT-007
+    title: "Insecure Remember-Me Configuration (Secret Re-use)"
+    description: >
+      If the `remember_me` firewall configuration uses a weak, hardcoded, or globally shared `secret`,
+      attackers can forge remember-me cookies to hijack user sessions.
+    severity: high
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: Session Management
+    enabled: true
+    tags: [remember-me, session-hijacking, symfony, cwe-287, owasp-a02-2021]
+    patterns:
+      - id: SYM-ENT-007-P1
+        type: regex
+        target: config-files
+        description: "remember_me secret hardcoded to unresolvable string"
+        pattern: 'remember_me:\s*\n.*\n*\s*secret:\s*[''"](?:secret|changeme|ThisTokenIsNotSoSecretChangeIt)[''"]'
+        confidence: high
+    remediation: |
+      Always use the application secret `%kernel.secret%` or a dedicated environment variable for the `remember_me` secret.

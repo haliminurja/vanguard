@@ -1,0 +1,515 @@
+##############################################################################
+# ENTERPRISE SECURITY RULESET — LARAVEL FRAMEWORK
+# Version : 4.0.0
+# Last Updated : 2026-03-09
+# Maintainer : Security Engineering Team
+# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
+##############################################################################
+
+metadata:
+  framework: laravel
+  version_range: ">=10.0 <=12.x"
+  language: php
+  ruleset_version: "4.0.0"
+  last_updated: "2026-03-09"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+
+rules:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-001 | Eloquent Mass Assignment via $guarded = []
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-001
+    title: "Eloquent Mass Assignment — $guarded = [] mengizinkan semua field"
+    description: >
+      Model Eloquent mendefinisikan $guarded = [] yang mengizinkan SETIAP atribut diset via create() atau update().
+      Penyerang dapat menyetel is_admin, role, email_verified_at, password, atau field sensitif lainnya
+      melalui input request jika controller menggunakan $request->all().
+    severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: Mass Assignment
+    enabled: true
+    tags: [mass-assignment, eloquent, owasp-a04-2021, cwe-915, laravel]
+    cwe: "CWE-915"
+    patterns:
+      - type: regex
+        target: model-files
+        pattern: 'protected\s+\$guarded\s*=\s*\[\s*\]'
+        exclude_pattern: '(seed|Seed|test|Test|factory|Factory)'
+    remediation: |
+      Gunakan whitelist $fillable eksplisit:
+        protected $fillable = ['name', 'email', 'bio', 'avatar'];
+        // ATAU proteksi field sensitif
+        protected $guarded = ['id', 'is_admin', 'role', 'email_verified_at', 'password'];
+    references:
+      - "https://cwe.mitre.org/data/definitions/915.html"
+      - "https://laravel.com/docs/eloquent#mass-assignment"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-002 | SQL Injection via DB::raw() / whereRaw()
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-002
+    title: "SQL Injection — DB::raw() / whereRaw() dengan interpolasi variabel"
+    description: >
+      Query builder menggunakan DB::raw(), whereRaw(), selectRaw(), orderByRaw(), havingRaw(),
+      atau DB::statement() dengan interpolasi variabel langsung dari request. Query parameterized
+      Laravel di-bypass, mengekspos database ke SQL Injection penuh.
+    severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: SQL Injection
+    enabled: true
+    tags: [sqli, eloquent, owasp-a03-2021, cwe-89, laravel, pci-dss-6.2]
+    cwe: "CWE-89"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(DB::raw|whereRaw|selectRaw|orderByRaw|havingRaw|groupByRaw|DB::statement)\s*\(\s*["''][^"'']*\$'
+        exclude_pattern: '(\?\s*,|bindings|->addBinding|escapeString|intval|->integer)'
+    remediation: |
+      Gunakan query binding untuk semua input:
+        // BENAR — parameter binding
+        $users = DB::table('users')
+            ->whereRaw('email = ?', [$request->input('email')])
+            ->get();
+        // SALAH — interpolasi langsung
+        // DB::raw("SELECT * FROM users WHERE email = '{$email}'");
+    references:
+      - "https://cwe.mitre.org/data/definitions/89.html"
+      - "https://laravel.com/docs/queries#raw-expressions"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-003 | Auth Bypass via loginUsingId() tanpa verifikasi
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-003
+    title: "Auth Bypass — Auth::loginUsingId() dengan user ID dari request"
+    description: >
+      Auth::loginUsingId() dipanggil dengan ID yang berasal dari request input tanpa verifikasi kepemilikan.
+      Penyerang mengganti ID untuk login sebagai user lain, termasuk admin.
+    severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: Authentication Bypass
+    enabled: true
+    tags: [auth-bypass, owasp-a07-2021, cwe-287, laravel]
+    cwe: "CWE-287"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Auth::(loginUsingId|onceUsingId)\s*\(\s*(\$request->|request\(|$_GET|$_POST)'
+    remediation: |
+      loginUsingId() hanya boleh digunakan dalam konteks terkontrol (seeder, testing, admin impersonation dengan audit):
+        // ✅ Admin impersonation dengan audit trail
+        $this->authorize('impersonate', $targetUser);
+        Log::warning('Admin impersonation', ['admin_id' => auth()->id(), 'target_id' => $targetUser->id]);
+        Auth::loginUsingId($targetUser->id);
+    references:
+      - "https://cwe.mitre.org/data/definitions/287.html"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-004 | Unvalidated File Upload via storeAs() / putFile()
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-004
+    title: "File Upload — tanpa validasi MIME type dan ekstensi"
+    description: >
+      File upload menggunakan storeAs() atau putFile() tanpa validasi mime type, ukuran, dan ekstensi
+      di dalam request validation rules. Penyerang dapat mengupload shell PHP, web backdoor,
+      atau malware yang dieksekusi di server.
+    severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
+    category: Unrestricted File Upload
+    enabled: true
+    tags: [file-upload, rce, owasp-a04-2021, cwe-434, laravel]
+    cwe: "CWE-434"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(\$request->file\(|\$file\s*=\s*\$request->|UploadedFile)[^;]*->(store|storeAs|storePublicly|putFile|putFileAs|move)\s*\('
+        exclude_pattern: '(validate|mimes:|mimetypes:|max:|file\|image|->validate\()'
+    remediation: |
+      Selalu validasi file upload dengan aturan ketat:
+        $request->validate([
+            'document' => 'required|file|mimes:pdf,doc,docx|max:10240',
+            'avatar'   => 'required|image|mimes:jpg,png,webp|max:2048|dimensions:max_width=2000',
+        ]);
+        // Simpan dengan nama acak, BUKAN nama asli
+        $path = $request->file('document')->store('documents', 's3');
+    references:
+      - "https://cwe.mitre.org/data/definitions/434.html"
+      - "https://laravel.com/docs/validation#rule-mimes"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-005 | Blade XSS via {!! !!} dengan user input
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-005
+    title: "XSS — Blade raw output {!! !!} dengan data tidak tepercaya"
+    description: >
+      Blade meng-output variabel mentah via {!! !!} tanpa escaping. Jika variabel berasal dari
+      input pengguna, database tanpa sanitasi, atau API eksternal, penyerang menyisipkan JavaScript
+      yang dijalankan di browser korban — memungkinkan session hijacking, keylogging, dan data theft.
+    severity: high
+    cvss_v3:
+      score: 7.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:L/A:N"
+    category: Cross-Site Scripting (XSS)
+    enabled: true
+    tags: [xss, blade, owasp-a03-2021, cwe-79, laravel]
+    cwe: "CWE-79"
+    patterns:
+      - type: regex
+        target: blade-files
+        pattern: '\{!!\s*\$[a-zA-Z]'
+        exclude_pattern: '(Purifier|clean|strip_tags|htmlspecialchars|e\(|sanitize|markdown|trusted_html)'
+    remediation: |
+      Gunakan {{ }} (auto-escaped) daripada {!! !!}:
+        <!-- ✅ BENAR — auto-escaped -->
+        <p>{{ $user->bio }}</p>
+        <!-- Jika HTML diperlukan, gunakan HTMLPurifier -->
+        {!! clean($user->bio) !!}
+    references:
+      - "https://cwe.mitre.org/data/definitions/79.html"
+      - "https://laravel.com/docs/blade#displaying-data"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-006 | Sanctum / Passport Token tanpa Expiration
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-006
+    title: "API Token — Sanctum/Passport token tanpa expiration"
+    description: >
+      Token Sanctum atau Passport dibuat tanpa menyetel masa kedaluwarsa. Token tanpa expiration
+      berlaku selamanya — jika dicuri, penyerang memiliki akses API permanen ke akun pengguna.
+    severity: high
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Token Misconfiguration
+    enabled: true
+    tags: [sanctum, passport, token, owasp-a07-2021, cwe-613, laravel]
+    cwe: "CWE-613"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->createToken\s*\(\s*["''][^"'']+["'']\s*\)'
+        exclude_pattern: '(expiration|expiresAt|expires_at|addMinutes|addHours|addDays)'
+      - type: regex
+        target: config-files
+        pattern: "'expiration'\\s*=>\\s*(null|0)"
+    remediation: |
+      Selalu setel expiration pada API tokens:
+        // Sanctum — global config
+        'expiration' => 60 * 24,  // 24 jam dalam menit
+
+        // Sanctum — per-token (Laravel 11+)
+        $token = $user->createToken('api', ['*'], now()->addHours(24));
+
+        // Passport
+        Passport::tokensExpireIn(now()->addHours(24));
+        Passport::refreshTokensExpireIn(now()->addDays(30));
+    references:
+      - "https://cwe.mitre.org/data/definitions/613.html"
+      - "https://laravel.com/docs/sanctum#token-expiration"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-007 | Middleware Bypass — route tanpa middleware auth
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-007
+    title: "Route sensitif tanpa middleware autentikasi"
+    description: >
+      Route yang menangani operasi sensitif (admin panel, pengaturan akun, CRUD resources)
+      didefinisikan tanpa middleware 'auth', 'auth:sanctum', atau guard lainnya.
+      Pengguna yang tidak terautentikasi dapat mengakses endpoint tersebut.
+    severity: critical
+    cvss_v3:
+      score: 9.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Authentication Missing
+    enabled: true
+    tags: [auth, middleware, owasp-a07-2021, cwe-306, laravel]
+    cwe: "CWE-306"
+    patterns:
+      - type: regex
+        target: routes-files
+        pattern: "Route::(post|put|patch|delete)\\s*\\(\\s*[\"'][^\"']*(admin|dashboard|settings|account|profile|user|payment|order|invoice)[^\"']*[\"']"
+        exclude_pattern: '(middleware\s*\(\s*["\x27][^\x27"]*auth|->middleware|group.*auth)'
+    remediation: |
+      Gunakan middleware group untuk semua route sensitif:
+        Route::middleware(['auth', 'verified'])->group(function () {
+            Route::resource('orders', OrderController::class);
+            Route::resource('payments', PaymentController::class);
+        });
+
+        Route::middleware(['auth', 'can:admin'])->prefix('admin')->group(function () {
+            Route::resource('users', Admin\UserController::class);
+        });
+    references:
+      - "https://cwe.mitre.org/data/definitions/306.html"
+      - "https://laravel.com/docs/middleware"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-008 | Artisan Command Injection
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-008
+    title: "Artisan Command Injection — argumen dari user input"
+    description: >
+      Artisan::call() atau Artisan::queue() dipanggil dengan argumen yang berasal dari request.
+      Beberapa Artisan commands dapat membaca file, menghapus data, atau mengeksekusi kode arbitrer.
+    severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: Command Injection
+    enabled: true
+    tags: [cmd-injection, artisan, owasp-a03-2021, cwe-78, laravel]
+    cwe: "CWE-78"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Artisan::(call|queue)\s*\(\s*(\$request->|request\(|\$_GET|\$_POST)'
+    remediation: |
+      Jangan izinkan user memilih Artisan command. Gunakan whitelist:
+        $allowedCommands = ['cache:clear', 'queue:restart'];
+        $command = $request->input('command');
+        abort_unless(in_array($command, $allowedCommands, true), 422);
+        Artisan::call($command);
+    references:
+      - "https://cwe.mitre.org/data/definitions/78.html"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-009 | Insecure Encryption — APP_KEY leaked atau default
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-009
+    title: "APP_KEY lemah, default, atau placeholder"
+    description: >
+      APP_KEY disetel ke nilai placeholder ('base64:...short...', 'SomeRandomString', atau kosong).
+      APP_KEY adalah root of trust untuk enkripsi cookies, session, signed URLs, dan semua data
+      terenkripsi via Crypt facade. Key lemah = semua enkripsi dapat di-break.
+    severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: Cryptographic Failure
+    enabled: true
+    tags: [crypto, app-key, owasp-a02-2021, cwe-321, laravel]
+    cwe: "CWE-321"
+    patterns:
+      - type: regex
+        target: env-files
+        pattern: "APP_KEY\\s*=\\s*$"
+      - type: regex
+        target: env-files
+        pattern: "APP_KEY\\s*=\\s*(SomeRandomString|YourAppKey|changeme|secret|base64:[A-Za-z0-9+/=]{1,20}$)"
+    remediation: |
+      Generate key yang kuat dengan Artisan:
+        php artisan key:generate
+      Key harus berupa base64-encoded 256-bit random value.
+      Jangan share APP_KEY antar environment.
+    references:
+      - "https://cwe.mitre.org/data/definitions/321.html"
+      - "https://laravel.com/docs/encryption"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-010 | Queue Job Data Serialization Attack
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-010
+    title: "Queue Job — user input langsung di-dispatch tanpa validasi"
+    description: >
+      Job yang di-dispatch ke queue menerima $request->all() atau data mentah dari request
+      tanpa validasi. Data job diserialisasi dan tersimpan di queue backend (Redis/database).
+      Jika queue backend terekspos, penyerang dapat memodifikasi payload job untuk
+      mengeksekusi kode arbitrer saat job diproses.
+    severity: high
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Insecure Deserialization
+    enabled: true
+    tags: [queue, deserialization, owasp-a08-2021, cwe-502, laravel]
+    cwe: "CWE-502"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'dispatch\s*\(\s*new\s+\w+\s*\(\s*\$request->(all|input|getContent)\s*\(\s*\)'
+        exclude_pattern: '(validate|validated|only\(|specific_field)'
+    remediation: |
+      Validasi dan filter input sebelum dispatch:
+        $data = $request->validate([
+            'email'   => 'required|email',
+            'message' => 'required|string|max:1000',
+        ]);
+        dispatch(new SendNotification($data['email'], $data['message']));
+    references:
+      - "https://cwe.mitre.org/data/definitions/502.html"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-011 | Signed URL Tampering — missing signature middleware
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-011
+    title: "Signed URL — route menerima signed URL tanpa middleware verifikasi"
+    description: >
+      URL::signedRoute() atau URL::temporarySignedRoute() digunakan untuk membuat URL yang
+      ditandatangani, tetapi route target tidak menggunakan middleware 'signed' untuk memverifikasi
+      tanda tangan. Tanpa verifikasi, URL dapat dimanipulasi oleh penyerang.
+    severity: high
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Integrity Bypass
+    enabled: true
+    tags: [signed-url, integrity, owasp-a04-2021, cwe-345, laravel]
+    cwe: "CWE-345"
+    patterns:
+      - type: regex
+        target: routes-files
+        pattern: "(signedRoute|temporarySignedRoute)"
+        exclude_pattern: '(middleware.*signed|->middleware\s*\(\s*["\x27]signed)'
+    remediation: |
+      Tambahkan middleware 'signed' pada route yang menerima signed URL:
+        Route::get('/unsubscribe/{user}', [SubscriptionController::class, 'unsubscribe'])
+            ->name('unsubscribe')
+            ->middleware('signed');
+    references:
+      - "https://cwe.mitre.org/data/definitions/345.html"
+      - "https://laravel.com/docs/urls#signed-urls"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-012 | Gate/Policy Bypass — Controller tanpa authorization
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-012
+    title: "Controller CRUD tanpa authorization check"
+    description: >
+      Method update/delete/store di controller Resource mengakses model tanpa memanggil
+      $this->authorize(), Gate::allows(), atau Policy. Tanpa authorization, setiap user
+      yang terautentikasi dapat memodifikasi data milik user lain.
+    severity: high
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Broken Access Control
+    enabled: true
+    tags: [authorization, idor, owasp-a01-2021, cwe-862, laravel]
+    cwe: "CWE-862"
+    patterns:
+      - type: regex
+        target: controller-files
+        pattern: 'public\s+function\s+(update|destroy|delete|edit|store)\s*\([^)]*\$\w+\s*\)\s*\{[^}]*->update\s*\('
+        exclude_pattern: '(authorize|Gate::|can\(|policy|abort_unless|abort_if|middleware.*can:)'
+    remediation: |
+      Gunakan Policy Laravel untuk setiap operasi CRUD:
+        public function update(Request $request, Post $post)
+        {
+            $this->authorize('update', $post);
+            // ... logic update
+        }
+    references:
+      - "https://cwe.mitre.org/data/definitions/862.html"
+      - "https://laravel.com/docs/authorization"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-013 | Scheduler & Task Exposure
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-013
+    title: "Scheduled task menjalankan command dengan secret di arguments"
+    description: >
+      Laravel Task Scheduler (Kernel.php atau console.php) mendefinisikan scheduled command
+      dengan API key, password, atau secret di-hardcode sebagai argumen. Nilai ini terekspos
+      di process list, Telescope, dan log scheduler.
+    severity: high
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Hardcoded Secret
+    enabled: true
+    tags: [scheduler, hardcoded-credential, owasp-a07-2021, cwe-798, laravel]
+    cwe: "CWE-798"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(->command|Artisan::call)\s*\(\s*[''"][^''"]*(password|secret|api_key|token|key)\s*=\s*[^$]'
+        exclude_pattern: '(env\(|config\(|getenv)'
+    remediation: |
+      Gunakan environment variables untuk semua secrets:
+        $schedule->command('sync:data --api-key=' . config('services.api.key'))->daily();
+    references:
+      - "https://cwe.mitre.org/data/definitions/798.html"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-014 | Event Listener tanpa error handling
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-014
+    title: "Event Listener menangani data sensitif tanpa validasi"
+    description: >
+      Event listener menerima event payload dan melakukan operasi database atau API call
+      tanpa memvalidasi data event. Event dari sumber yang tidak dipercaya (webhook, queue)
+      dapat berisi payload yang dimanipulasi untuk SQL injection atau privilege escalation.
+    severity: medium
+    cvss_v3:
+      score: 6.5
+      vector: "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:H/A:N"
+    category: Input Validation
+    enabled: true
+    tags: [events, input-validation, owasp-a03-2021, cwe-20, laravel]
+    cwe: "CWE-20"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'function\s+handle\s*\(\s*\w+Event\s+\$event\s*\)\s*\{[^}]*DB::'
+        exclude_pattern: '(validate|validator|sanitize|filter_var|intval)'
+    remediation: |
+      Validasi data event sebelum operasi:
+        public function handle(OrderEvent $event): void
+        {
+            $orderId = (int) $event->orderId;
+            abort_if($orderId <= 0, 422);
+            // ... proses order
+        }
+    references:
+      - "https://cwe.mitre.org/data/definitions/20.html"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAR-ENT-015 | Telescope/Horizon exposed tanpa auth di production
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: LAR-ENT-015
+    title: "Laravel Telescope/Horizon tidak dilindungi autentikasi di production"
+    description: >
+      Laravel Telescope atau Horizon dashboard diakses tanpa gate authorization yang memadai.
+      Dashboard ini mengekspos query database, request payload, queue job, exception, dan log —
+      informasi yang sangat berharga bagi penyerang untuk merencanakan serangan targeted.
+    severity: critical
+    cvss_v3:
+      score: 8.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
+    category: Information Disclosure
+    enabled: true
+    tags: [telescope, horizon, debug-exposure, owasp-a05-2021, cwe-200, laravel]
+    cwe: "CWE-200"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(Telescope|Horizon)::auth\s*\(\s*function\s*\([^)]*\)\s*\{[^}]*return\s+true'
+      - type: regex
+        target: config-files
+        pattern: "'enabled'\\s*=>\\s*(true|env\\s*\\(\\s*'TELESCOPE_ENABLED')"
+        exclude_pattern: '(app\(\)->isLocal|app\(\)->environment\(\s*["\x27]local|APP_ENV|isProduction)'
+    remediation: |
+      Lindungi dashboard dengan gate authorization yang ketat:
+        // TelescopeServiceProvider.php
+        Telescope::auth(function ($request) {
+            return $request->user()?->isAdmin() ?? false;
+        });
+
+        // Di production, pertimbangkan untuk menonaktifkan sepenuhnya:
+        TELESCOPE_ENABLED=false
+    references:
+      - "https://cwe.mitre.org/data/definitions/200.html"
+      - "https://laravel.com/docs/telescope#authorization"

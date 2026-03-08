@@ -1,7 +1,12 @@
 meta:
   category: Authentication & Authorization
-  version: "3.0.0"
-  updated: "2025"
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
 rules:
   - id: AUTH-A01
     title: "Auth::loginUsingId() dengan input pengguna tidak tervalidasi"
@@ -24,28 +29,7 @@ rules:
         Auth::loginUsingId($request->route('id'));
     references:
       - "https://cwe.mitre.org/data/definitions/287.html"
-  - id: AUTH-A02
-    title: "Session tidak di-regenerate setelah autentikasi"
-    description: >
-      Auth::attempt() atau Auth::login() dipanggil tanpa memanggil $request->session()->regenerate() setelahnya. Tanpa regenerasi session, aplikasi rentan terhadap session fixation — penyerang yang mengetahui session ID dapat membajak session setelah pengguna mengautentikasi.
 
-    severity: high
-    confidence: medium
-    category: Session Fixation
-    tags: [session, auth, owasp-a07, cwe-384]
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: 'Auth::(attempt|login)\s*\('
-        exclude_pattern: '(regenerate|invalidate|Fortify|Breeze|Jetstream|LoginResponse|test|Test)'
-    remediation: |
-      Selalu regenerasi session segera setelah autentikasi berhasil:
-        if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
-            return redirect()->intended('dashboard');
-        }
-    references:
-      - "https://cwe.mitre.org/data/definitions/384.html"
   - id: AUTH-A03
     title: "Weak password validation — tanpa aturan kompleksitas"
     description: >

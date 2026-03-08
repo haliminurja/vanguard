@@ -1,7 +1,12 @@
 meta:
   category: Cryptography
-  version: "3.0.0"
-  updated: "2025"
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
 rules:
   - id: CRY-H01
     title: "md5() digunakan untuk hashing — rentan terhadap collision"
@@ -194,27 +199,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/208.html"
       - "https://www.php.net/manual/en/function.hash-equals.php"
-  - id: CRY-J01
-    title: "Loose comparison pada nilai yang sensitif keamanan (type juggling)"
-    description: >
-      Operator persamaan loose (==) membandingkan hash, token, atau key. PHP type juggling menyebabkan '0e123' == '0e456' (magic hash collision), memungkinkan bypass autentikasi atau verifikasi token. Ini adalah kerentanan PHP klasik yang sering terlewat.
 
-    severity: high
-    confidence: medium
-    category: Type Juggling
-    tags: [crypto, type-juggling, owasp-a07, cwe-697]
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '\$\w*(hash|token|api_key|secret|signature|digest|hmac|otp|pin)\w*\s*(==|!=)\s*'
-        exclude_pattern: '(===|!==|hash_equals|password_verify|Hash::check)'
-    remediation: |
-      Gunakan perbandingan constant-time untuk semua token dan hash:
-        if (hash_equals($expected, $provided)) { ... }
-        if (Hash::check($password, $user->password)) { ... }
-    references:
-      - "https://cwe.mitre.org/data/definitions/697.html"
-      - "https://owasp.org/www-pdf-archive/PHPMagicTricks-TypeJuggling.pdf"
   - id: CRY-C04
     title: "Weak RSA Padding (PKCS#1 v1.5) Vulnerable to Bleichenbacher Oracle"
     description: >

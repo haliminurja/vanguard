@@ -1,8 +1,12 @@
 meta:
   category: Security Configuration
-  version: "3.0.0"
+  version: "4.0.0"
   maintainer: "Security Engineering Team"
-  updated: "2025"
+  updated: "2026"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
 rules:
   - id: CFG-TLS01
     title: "SSL/TLS certificate verification dinonaktifkan"

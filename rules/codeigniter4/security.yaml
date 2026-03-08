@@ -1,66 +1,154 @@
+##############################################################################
+# ENTERPRISE SECURITY RULESET — CODEIGNITER 4
+# Version : 2.0.0
+# Last Updated : 2026-03-09
+# Maintainer : Enterprise AppSec Team
+# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
+##############################################################################
+
+metadata:
+  framework: codeigniter4
+  version_range: ">=4.0.0"
+  language: php
+  ruleset_version: "2.0.0"
+  last_updated: "2026-03-09"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+
 rules:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI4-ENT-001 | Entity / Model Mass Assignment
+  # ─────────────────────────────────────────────────────────────────────────
   - id: CI4-ENT-001
     title: "Entity / Model Mass Assignment ($allowedFields Misconfiguration)"
     description: >
-      CodeIgniter 4 defines secure mass assignment using the `$allowedFields` array inside the Model. If `$allowedFields` is left empty, undefined, or manually disabled via `protect(false)`, the application allows attackers to override user IDs, roles, or administrative flags when calling `$model->insert($data)` or `save()`.
+      CodeIgniter 4 defines secure mass assignment using the `$allowedFields` array inside the Model. If `$allowedFields` is left empty, undefined, or manually disabled via `protect(false)`, the application allows attackers to override user IDs, roles, or administrative flags.
     severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Mass Assignment
     enabled: true
-    tags: [mass-assignment, codeigniter4, owasp-a04, cwe-915]
+    tags: [mass-assignment, codeigniter4, owasp-a04-2021, cwe-915]
     patterns:
-      - type: regex
+      - id: CI4-ENT-001-P1
+        type: regex
         target: model-files
+        description: "Empty allowedFields array in Model"
         pattern: 'protected\s+\$allowedFields\s*=\s*\[\s*\]'
-      - type: regex
+        confidence: high
+      - id: CI4-ENT-001-P2
+        type: regex
         target: php-files
+        description: "Model protection explicitly disabled before save/insert"
         pattern: '->protect\s*\(\s*(false|0|FALSE)\s*\)'
+        confidence: high
     remediation: |
-      Explicitly define exactly which fields can be updated via the frontend array payload:
+      Explicitly define exactly which fields can be updated:
       `protected $allowedFields = ['name', 'email', 'bio'];` Ensure sensitive properties like `is_admin` are not in this array.
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI4-ENT-002 | Bypassed Validation on Model ->save()
+  # ─────────────────────────────────────────────────────────────────────────
   - id: CI4-ENT-002
     title: "Bypassed Validation on Model ->save()"
     description: >
-      Model validation is explicitly bypassed using `->skipValidation(true)`. If `$data` contains raw payload elements from `$_POST` or `$this->request->getPost()`, the CodeIgniter 4 validation rules are ignored entirely, leading to malicious persistence (XSS strings in database, SQLi).
+      Model validation is explicitly bypassed using `->skipValidation(true)`. If `$data` contains raw payload elements, the CodeIgniter 4 validation rules are ignored entirely, leading to malicious persistence.
     severity: high
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
     category: Validation
     enabled: true
-    tags: [validation, codeigniter4, cwe-20, owasp-a03]
+    tags: [validation, codeigniter4, cwe-20, owasp-a03-2021]
     patterns:
-      - type: regex
+      - id: CI4-ENT-002-P1
+        type: regex
         target: php-files
+        description: "skipValidation invoked"
         pattern: '->skipValidation\s*\(\s*(true|1|TRUE)\s*\)'
+        confidence: medium
     remediation: |
       Avoid suppressing framework validation for user input. If it must be suppressed for internal logical updates, only supply safe, isolated constants.
-      `$model->skipValidation(true)->save(['last_login' => date('Y-m-d')]);`
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI4-ENT-003 | SQL Injection via CodeIgniter Query Builder ->query()
+  # ─────────────────────────────────────────────────────────────────────────
   - id: CI4-ENT-003
     title: "SQL Injection via CodeIgniter Query Builder ->query()"
     description: >
       Direct raw queries using `$db->query($sql)` without query bindings `?`. Even when using the query builder, string concatenation directly into the SQL payload bypasses the framework's escaping rules.
     severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: SQL Injection
     enabled: true
-    tags: [sqli, codeigniter4, cwe-89, owasp-a03]
+    tags: [sqli, codeigniter4, cwe-89, owasp-a03-2021]
     patterns:
-      - type: regex
+      - id: CI4-ENT-003-P1
+        type: regex
         target: php-files
+        description: "Raw query concatenation with request variable"
         pattern: '->query\s*\(\s*["''].*\.\s*(\$request->|\$this->request->|\$_GET|\$_POST)'
+        confidence: critical
     remediation: |
       Use proper query bindings: `$db->query('SELECT * FROM users WHERE status = ?', [$status]);`
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI4-ENT-004 | CSRF Filter Missing Globally
+  # ─────────────────────────────────────────────────────────────────────────
   - id: CI4-ENT-004
     title: "CSRF Filter Missing Globally"
     description: >
       CodeIgniter 4 handles CSRF via a strict pre-filter. If `csrf_protection` is disabled in `app/Config/Filters.php` globals or the `.env` development overrides logic, the entire application will be vulnerable to state-changing CSRF exploits.
     severity: critical
+    cvss_v3:
+      score: 8.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H"
     category: CSRF
     enabled: true
-    tags: [csrf, codeigniter4, cwe-352, owasp-a05]
+    tags: [csrf, codeigniter4, cwe-352, owasp-a05-2021]
     patterns:
-      - type: regex
+      - id: CI4-ENT-004-P1
+        type: regex
         target: php-files
+        description: "globals filter configuration missing CSRF"
         pattern: 'public\s*\$globals\s*=\s*\[[^\]]*''before''\s*=>\s*\[(.*?)\]'
         exclude_pattern: 'csrf'
+        confidence: high
     remediation: |
       Include `csrf` in your `app/Config/Filters.php` global `before` hooks unless utilizing a pure stateless REST API (which should rely on OAuth2/JWT).
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI4-ENT-005 | Insecure Database::connect() Configuration
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: CI4-ENT-005
+    title: "Insecure Database Connection Configuration"
+    description: >
+      CodeIgniter 4's `Database::connect()` can accept a custom configuration array.
+      If this array is constructed using unvalidated user input, attackers may connect
+      the application to a malicious database server, leading to data exfiltration or
+      RCE via rogue MySQL servers.
+    severity: high
+    cvss_v3:
+      score: 8.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
+    category: Insecure Configuration
+    enabled: true
+    tags: [database, ssrf, codeigniter4, cwe-15, owasp-a06-2021]
+    patterns:
+      - id: CI4-ENT-005-P1
+        type: regex
+        target: php-files
+        description: "Database::connect with user-controlled configuration array"
+        pattern: '\\Config\\Database::connect\s*\(\s*(\$this->request->get|\$_POST)'
+        confidence: high
+    remediation: |
+      Never pass user input directly into `Database::connect()`. Use predefined configuration groups from `app/Config/Database.php`.
+

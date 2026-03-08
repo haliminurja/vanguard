@@ -1,49 +1,211 @@
+##############################################################################
+# ENTERPRISE SECURITY RULESET — CODEIGNITER 3 (Legacy / CI < 3.2)
+# Version : 2.0.0
+# Last Updated : 2026-03-09
+# Maintainer : Enterprise AppSec Team
+# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
+##############################################################################
+
+metadata:
+  framework: codeigniter3
+  version_range: ">=2.0 <4.0"
+  language: php
+  ruleset_version: "2.0.0"
+  last_updated: "2026-03-09"
+  eol_notice: >
+    CodeIgniter 3.x reached End of Life on December 31, 2022.
+    Migration to CodeIgniter 4.x is strongly recommended for all
+    production enterprise applications.
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+
 rules:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI-ENT-001 | Insecure Client-Side Session Storage → RCE via POP Chain
+  # ─────────────────────────────────────────────────────────────────────────
   - id: CI-ENT-001
-    title: "Insecure Session Deserialization (CI < 3.0)"
+    title: "Insecure Client-Side Session Deserialization (CI 2.x / Early 3.x)"
     description: >
-      CodeIgniter 2 and early 3 versions stored session data as a serialized array inside a client-side cookie. If the `$config['encryption_key']` is leaked, weak, or default, an attacker can forge a malicious serialized cookie to trigger PHP Object Injection resulting in RCE via POP chains.
+      CodeIgniter 2 and early CI 3 versions stored session data as a PHP
+      serialized array inside an HMAC-signed client-side cookie. If the
+      encryption key is weak or leaked, it triggers PHP Object Injection.
     severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: Deserialization / Insecure Session
+    enabled: true
+    tags: [rce, deserialization, session, owasp-a08-2021, codeigniter, cwe-502, cwe-565]
+    patterns:
+      - id: CI-ENT-001-P1
+        type: regex
+        target: config-files
+        description: "CI session not using database backend (uses cookie/file)"
+        pattern: '\$config\[''sess_use_database''\]\s*=\s*(FALSE|false|0)\s*;'
+        confidence: high
+      - id: CI-ENT-001-P2
+        type: regex
+        target: config-files
+        description: "CI3 sess_driver not set to database (defaults to files/cookie)"
+        pattern: '\$config\[''sess_driver''\]\s*=\s*[''"](?:cookie|files|memcached|redis)[''"]\s*;'
+        confidence: medium
+      - id: CI-ENT-001-P3
+        type: regex
+        target: config-files
+        description: "Empty or whitespace-only encryption key"
+        pattern: '\$config\[''encryption_key''\]\s*=\s*[''"](\s*)[''"]'
+        confidence: critical
+    remediation: |
+      Set sessions to use the database driver: `$config['sess_driver'] = 'database';`
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI-ENT-002 | Weak / Empty Encryption Key → Full Impersonation
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: CI-ENT-002
+    title: "Weak, Empty, or Default Encryption Key in CodeIgniter Config"
+    description: >
+      CodeIgniter's `$config['encryption_key']` is the cryptographic root of
+      trust. A weak key allows session forgery, CSRF bypass, and data decryption.
+    severity: critical
+    cvss_v3:
+      score: 9.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Cryptographic Failure
+    enabled: true
+    tags: [crypto, weak-key, owasp-a02-2021, codeigniter, cwe-321, cwe-326]
+    patterns:
+      - id: CI-ENT-002-P1
+        type: regex
+        target: config-files
+        description: "Encryption key set to empty string"
+        pattern: '\$config\[''encryption_key''\]\s*=\s*[''"](\s*)[''"];'
+        confidence: critical
+      - id: CI-ENT-002-P2
+        type: regex
+        target: config-files
+        description: "Encryption key set to well-known placeholder value"
+        pattern: '\$config\[''encryption_key''\]\s*=\s*[''"](?i)(YourSecretKey|changeme|secret|password|1234|test|demo|key)[''"];'
+        confidence: critical
+      - id: CI-ENT-002-P3
+        type: regex
+        target: config-files
+        description: "Encryption key shorter than 32 characters"
+        pattern: '\$config\[''encryption_key''\]\s*=\s*[''"][^''"]{1,31}[''"];'
+        confidence: medium
+    remediation: |
+      Generate a 256-bit (32-byte) random key and store it via environment variables.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI-ENT-003 | Path Traversal via permitted_uri_chars → LFI
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: CI-ENT-003
+    title: "Local File Inclusion via URI Traversal in permitted_uri_chars"
+    description: >
+      If `$config['permitted_uri_chars']` allows dot (`.`) characters without filtering, attackers can inject `../` to force the router to include arbitrary PHP files.
+    severity: high
+    cvss_v3:
+      score: 8.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
+    category: Path Traversal / LFI
+    enabled: true
+    tags: [routing, lfi, path-traversal, owasp-a01-2021, codeigniter, cwe-22]
+    patterns:
+      - id: CI-ENT-003-P1
+        type: regex
+        target: config-files
+        description: "permitted_uri_chars contains dot-dot traversal characters"
+        pattern: '\$config\[''permitted_uri_chars''\]\s*=\s*[''"][^''"]*\.\.[^''"]*[''"]'
+        confidence: critical
+      - id: CI-ENT-003-P2
+        type: regex
+        target: config-files
+        description: "permitted_uri_chars allows unescaped dot character"
+        pattern: '\$config\[''permitted_uri_chars''\]\s*=\s*[''"][^''"]*[^\\]\.[^''"]*[''"]'
+        exclude_pattern: '(a-z|0-9|%\.|\\\.)'
+        confidence: medium
+    remediation: |
+      Use the safe default charset: `$config['permitted_uri_chars'] = 'a-z 0-9~%.:_\-';` and sanitize double dots.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI-ENT-004 | SQL Injection via Active Record Improper Usage
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: CI-ENT-004
+    title: "SQL Injection via CI3 Active Record Without Query Binding"
+    description: >
+      Using `$this->db->query()` with string concatenation, or passing raw strings
+      to `where()`, bypasses escaping entirely.
+    severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: SQL Injection
+    enabled: true
+    tags: [sqli, codeigniter, cwe-89, owasp-a03-2021]
+    patterns:
+      - id: CI-ENT-004-P1
+        type: regex
+        target: php-files
+        description: "Direct query() call with concatenated user variable"
+        pattern: '\$this->db->query\s*\(\s*["''].*\.\s*\$(?:_GET|_POST|_REQUEST|this->input->(?:get|post))'
+        confidence: critical
+      - id: CI-ENT-004-P2
+        type: regex
+        target: php-files
+        description: "where() call with raw string containing request variable"
+        pattern: '\$this->db->where\s*\(\s*["''][^''"]+\s*=\s*[^''"]*\.\s*\$'
+        confidence: high
+    remediation: |
+      Use query bindings or the Active Record array syntax.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI-ENT-005 | Insecure unserialize() Usage
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: CI-ENT-005
+    title: "Insecure unserialize() Custom Code"
+    description: >
+      Using `unserialize()` on user input allows Object Injection attacks.
+    severity: critical
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Deserialization
     enabled: true
-    tags: [rce, deserialization, session, owasp-a08, codeigniter, cwe-502]
+    tags: [php-object-injection, deserialization, codeigniter, cwe-502]
     patterns:
-      - type: regex
-        target: config-files
-        pattern: '\$config\[''sess_use_database''\]\s*=\s*FALSE;'
+      - id: CI-ENT-005-P1
+        type: regex
+        target: php-files
+        description: "unserialize on input data"
+        pattern: 'unserialize\s*\(\s*\$(?:this->input->(?:post|get|cookie)|_POST|_GET|_COOKIE)'
+        confidence: high
     remediation: |
-      Mandatory security update: For legacy CI, you MUST set `$config['sess_use_database'] = TRUE;` or upgrade to CI3 native PHP sessions (`sess_driver = 'database'`).
+      Use `json_decode()` instead of `unserialize()`.
 
-  - id: CI-ENT-002
-    title: "Weak or Predictable Encryption Key"
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI-ENT-006 | Path Traversal in $this->load->view()
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: CI-ENT-006
+    title: "Path Traversal in $this->load->view()"
     description: >
-      The CodeIgniter encryption key `$config['encryption_key']` is empty or left as a predictable dummy value. Since CI 2/3 relies heavily on this key for session HMACs, CSRF tokens, and the Encrypt class, a weak key grants attackers full impersonation and data-tampering capabilities.
-    severity: critical
-    category: Cryptography
-    enabled: true
-    tags: [crypto, owasp-a02, codeigniter, cwe-321]
-    patterns:
-      - type: regex
-        target: config-files
-        pattern: '\$config\[''encryption_key''\]\s*=\s*[''"]\s*[''"];'
-      - type: regex
-        target: config-files
-        pattern: '\$config\[''encryption_key''\]\s*=\s*[''"]YourSecretKey[''"];'
-    remediation: |
-      Generate a cryptographically secure 32-byte (256-bit) random string using `bin2hex(random_bytes(16))` and set it immediately in `config.php`.
-
-  - id: CI-ENT-003
-    title: "Routing Bypass via URI Traversal"
-    description: >
-      If URI protocols rely on `PATH_INFO` or `QUERY_STRING` without adequate sanitization, attackers can inject `../` transversals in the URL (e.g., `index.php?c=../../config/database`) to force the CI router to load arbitrary local PHP files as controllers.
+      Loading views using user-supplied parameters can lead to Local File Inclusion (LFI).
     severity: high
+    cvss_v3:
+      score: 8.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
     category: Path Traversal
     enabled: true
-    tags: [routing, lfi, owasp-a01, codeigniter, cwe-22]
+    tags: [lfi, codeigniter, cwe-22]
     patterns:
-      - type: regex
-        target: config-files
-        pattern: '\$config\[''permitted_uri_chars''\]\s*=\s*[''"][^''"]*\.\.[^''"]*[''"]'
+      - id: CI-ENT-006-P1
+        type: regex
+        target: php-files
+        description: "Loading view from user input"
+        pattern: '\$this->load->view\s*\(\s*\$(?:this->input->(?:post|get)|_POST|_GET)'
+        confidence: high
     remediation: |
-      Ensure the `$config['permitted_uri_chars']` strictly disallows dot-dot (`..`) patterns.
-      Safe value: `a-z 0-9~%.:_\-`
+      Validate view names against an allowlist before loading.

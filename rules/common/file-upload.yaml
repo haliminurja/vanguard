@@ -1,7 +1,12 @@
 meta:
   category: File Upload Security
-  version: "3.0.0"
-  updated: "2025"
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
 rules:
   - id: UPL-001
     title: "File disimpan di direktori public tanpa validasi"
@@ -203,3 +208,34 @@ rules:
         ],
     references:
       - "https://cwe.mitre.org/data/definitions/732.html"
+  - id: UPL-010
+    title: "Zip Slip — Ekstraksi arsip ZIP tanpa sanitasi path (RCE/File Overwrite)"
+    description: >
+      Aplikasi mengekstrak file ZIP menggunakan `ZipArchive::extractTo()` secara langsung. Jika file ZIP berbahaya berisi path traversal (seperti `../../../../var/www/html/shell.php`), ini dapat menimpa file sistem atau kode aplikasi web, menyebabkan eksekusi kode jarak jauh (RCE).
+    severity: critical
+    confidence: high
+    category: Archive Extraction Traversal
+    tags: [file-upload, zip-slip, path-traversal, cwe-22, rce]
+    cwe: "CWE-22"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->extractTo\s*\('
+    remediation: |
+      Jangan gunakan `extractTo()` secara langsung pada file yang diupload pengguna. Iterasi dan validasi/sanitasi nama file secara manual:
+        $zip = new ZipArchive;
+        if ($zip->open($upload) === TRUE) {
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $filename = $zip->getNameIndex($i);
+                // Cek apakah ada traversal berbahaya
+                if (strpos($filename, '../') !== false || strpos($filename, '..\\') !== false) {
+                    throw new Exception("Illegal path traversal in ZIP");
+                }
+                // Ekstrak file satu per satu dengan aman
+                $content = $zip->getFromIndex($i);
+                Storage::put('safe_dir/' . basename($filename), $content);
+            }
+        }
+    references:
+      - "https://cwe.mitre.org/data/definitions/22.html"
+      - "https://snyk.io/research/zip-slip-vulnerability"
