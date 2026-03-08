@@ -1,19 +1,31 @@
 # VANGUARD ⚔️
 
-**VANGUARD** adalah _Security Sentinel_ modern yang dirancang khusus untuk ekosistem **Laravel**. VANGUARD membantu pengembang mendeteksi kerentanan keamanan, kebocoran data (secrets), dan kesalahan konfigurasi secara otomatis di dalam kode sumber PHP, Blade, dan konfigurasi Laravel Anda.
+**VANGUARD** adalah _Enterprise-grade Security Sentinel_ berperforma tinggi yang dirancang untuk mengamankan ekosistem PHP modern. Meskipun berakar pada **Laravel**, VANGUARD kini mendukung berbagai framework besar dengan logika pemindaian cerdas yang menggabungkan aturan keamanan umum (OWASP) dan spesifik framework.
 
-Dibangun menggunakan bahasa pemrograman **Go** dengan antarmuka **Bubbletea TUI** yang interaktif dan _Defense Report_ bergaya _Glassmorphism_.
+Dibangun dengan **Go**, VANGUARD memanfaatkan mesin regex yang dipre-kompilasi untuk kecepatan maksimal, antarmuka **Bubbletea TUI** yang interaktif, dan laporan **Glassmorphism** yang premium.
 
 ---
 
-## 🚀 Fitur Khusus Laravel
+## 🏗️ Dukungan Multi-Framework
 
-- **Eloquent Security Audit:** Mendeteksi penggunaan `$guarded = []`, hilangnya `$hidden` pada field sensitif (seperti password), dan _mass assignment_ ilegal.
-- **Blade Protection Scan:** Memastikan setiap form non-GET memiliki direktif `@csrf` dan mendeteksi potensi XSS pada penggunaan `{!! !!}` yang tidak aman.
-- **Route & Controller Guard:** Identifikasi penggunaan `Route::any()`, validasi input yang terlewat pada queued jobs, dan masalah otorisasi pada broadcast channels.
-- **Sanctum & API Security:** Memeriksa konfigurasi token, CORS, dan header keamanan yang krusial untuk aplikasi modern.
-- **Integrasi Artisan:** Mudah dijalankan sebagai bagian dari workflow pengembangan Laravel Anda.
-- **Vanguard Defense Rating (VDR):** Skor profil risiko keamanan proyek Laravel Anda (0-100).
+VANGUARD secara otomatis mendeteksi framework proyek Anda dan menerapkan aturan keamanan yang relevan:
+
+- **Laravel & Lumen:** Audit komprehensif untuk Eloquent, Blade, Sanctum, dan Artisan.
+- **Symfony:** Keamanan ESI, serialisasi, konfigurasi Profiler, dan keamanan kernel.
+- **WordPress:** Deteksi `wpdb` yang tidak aman, validasi Nonce, dan proteksi AJAX.
+- **CodeIgniter (2, 3, 4):** Penanganan input, proteksi XSS bawaan, dan keamanan database.
+- **Yii2:** Deteksi eksposur Gii, validasi cookie, dan konfigurasi RBAC.
+- **CakePHP:** Audit SecurityComponent, proteksi Mass Assignment, dan Auth.
+
+---
+
+## ⚡ Fitur Utama
+
+- **Mesin Berperforma Tinggi:** Ditulis dalam Go dengan optimasi pre-kompilasi regex untuk pemindaian instan pada codebase besar.
+- **Audit Standar Industri:** Semua pola keamanan diaudit terhadap **OWASP Top 10**, **CWE**, dan **NIST**.
+- **Logika Aturan Berlapis:** Menggabungkan `Common Rules` (Injection, SSRF, Deserialization) dengan `Framework Specific Rules`.
+- **Vanguard Defense Rating (VDR):** Penilaian keamanan cerdas (0-100) berdasarkan profil risiko proyek Anda.
+- **Premium Reporting:** Output dalam format TUI (interaktif), HTML (modern), JSON, SARIF, dan Markdown.
 
 ---
 
@@ -27,100 +39,68 @@ go install github.com/haliminurja/vanguard@latest
 
 ---
 
-## 🏁 Alur Kerja Penggunaan
+## 🏁 Penggunaan Cepat
 
-### 1. Inisialisasi Proyek Laravel
+### 1. Inisialisasi
 
-Siapkan berkas konfigurasi `vanguard.yaml` di direktori utama proyek Laravel Anda.
+Buat konfigurasi awal `vanguard.yaml` di root proyek Anda.
 
 ```bash
 vanguard init
 ```
 
-Perintah ini akan membuat `vanguard.yaml` dengan aturan bawaan yang sudah dioptimalkan untuk struktur folder Laravel (`app`, `config`, `routes`, `resources/views`).
-
-### 2. Jalankan Pemindaian (Scan)
-
-VANGUARD mendukung berbagai parameter untuk menyesuaikan proses pemindaian pada folder proyek atau modul spesifik.
-
-#### Contoh Penggunaan
+### 2. Jalankan Pemindaian
 
 ```bash
-# Memindai seluruh proyek Laravel saat ini
+# Memindai seluruh proyek secara otomatis
 vanguard scan .
 
-# Memindai folder Controller saja
-vanguard scan ./app/Http/Controllers
-
-# Memindai view Blade untuk celah XSS/CSRF
-vanguard scan ./resources/views
-
-# Menghasilkan laporan HTML dengan skor VDR
+# Pemindaian spesifik dengan output HTML
 vanguard scan . --output html
+
+# Gagal otomatis di CI jika ditemukan celah 'high' atau 'critical'
+vanguard scan . --fail-on high
 ```
-
-#### Opsi Pemindaian (Flags)
-
-- **`--fail-on [severity]`**: Gagal proses (exit code 1) jika ada temuan tingkat `medium`, `high`, atau `critical`. Cocok untuk CI/CD pipeline.
-- **`-o`, `--output`**: Format laporan (`tui`, `html`, `json`, `sarif`, `markdown`).
-- **`-v`, `--verbose`**: Detail log proses pemindaian.
-
----
-
-### 3. Konfigurasi Lanjutan (`vanguard.yaml`)
-
-Sesuaikan perilaku VANGUARD melalui `vanguard.yaml`:
-
-```yaml
-# Tingkat keparahan minimum (info, low, medium, high, critical)
-severity: info
-
-scanners:
-  # Folder standar Laravel yang diabaikan (sudah include default)
-  ignore_dirs: ["vendor", "node_modules", "storage", "public", "tests"]
-
-ignore:
-  # Mengabaikan file hasil generate atau file test spesifik
-  paths:
-    - "database/factories/**"
-    - "**/mock_*.go"
-  # Mengabaikan Rule ID tertentu
-  rules:
-    - "LARAVEL-014" # Contoh: Abaikan cek Model::unguard()
-
-output:
-  formats: ["tui", "html", "markdown"]
-```
-
-### 4. Hasil Temuan & Laporan
-
-- **TUI (Interactive):** Navigasi temuan secara langsung di terminal Anda.
-- **HTML (Glassmorphism):** Laporan premium yang ramah untuk tim security atau manajemen.
-- **JSON/SARIF:** Integrasi dengan GitLab/GitHub Code Quality atau alat CI lainnya.
-- **Markdown:** Ringkasan cepat untuk dimasukkan ke dalam dokumentasi internal.
 
 ---
 
 ## 🤖 Integrasi CI/CD
 
-- **GitHub Actions:** `vanguard ci github`
-- **Git Hooks:** `vanguard init` otomatis memasang _pre-commit hook_ untuk mencegah commit kode yang tidak aman.
+VANGUARD dirancang untuk menjadi bagian integral dari pipeline Anda:
+
+- **GitHub Actions:** Gunakan output SARIF untuk integrasi langsung dengan GitHub Code Scanning.
+- **GitLab:** Integrasi mudah dengan format JSON.
+- **Pre-commit Hooks:** Jalankan VANGUARD sebelum setiap commit untuk mencegah kebocoran rahasia (secrets).
 
 ---
 
-## 📝 Konfigurasi
-
-Anda dapat menyesuaikan pemindaian melalui `vanguard.yaml`:
+## 📝 Konfigurasi (`vanguard.yaml`)
 
 ```yaml
-severity: info
+# Tingkat keparahan minimum (info, low, medium, high, critical)
+severity: medium
+
 scanners:
-  ignore_dirs: ["vendor", "node_modules", "tests"]
+  # Folder yang diabaikan dari pemindaian
+  ignore_dirs: ["vendor", "node_modules", "storage", "public", "tests"]
+
 ignore:
+  # Abaikan path spesifik
   paths:
-    - "tests/*"
+    - "database/factories/**"
+  # Abaikan Rule ID tertentu
+  rules:
+    - "COMMON-XSS-01"
 ```
 
 ---
 
-Dibuat dengan ❤️ oleh [Ahmad Halimi](https://github.com/haliminurja/vanguard)
+## 🌓 Laporan & Antarmuka
+
+- **TUI:** Pengalaman terminal interaktif dengan navigasi temuan real-time.
+- **HTML (Cyber-Glass):** Laporan statis premium dengan grafik responsif dan visualisasi ranking pertahanan.
+- **SARIF/JSON:** Standar industri untuk interoperabilitas tool keamanan.
+
+---
+
+Dibuat dengan ❤️ untuk keamanan web oleh [Ahmad Halimi](https://github.com/haliminurja/vanguard)
