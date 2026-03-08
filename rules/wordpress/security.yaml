@@ -1,11 +1,4 @@
-##############################################################################
-# ENTERPRISE SECURITY RULESET — WORDPRESS (Core + Plugin/Theme)
-# Version : 2.0.0
-# Last Updated : 2026-03-09
-# Maintainer : Enterprise AppSec Team
-# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
-##############################################################################
-
+﻿
 metadata:
   framework: wordpress
   version_range: ">=5.0 <=6.x"
@@ -21,9 +14,6 @@ metadata:
 
 rules:
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # WP-ENT-001 | Privilege Escalation via update_option() / update_user_meta()
-  # ─────────────────────────────────────────────────────────────────────────
   - id: WP-ENT-001
     title: "Privilege Escalation via Unguarded update_option() / update_user_meta()"
     description: >
@@ -59,9 +49,6 @@ rules:
       Always strictly whitelist which options can be updated and check capabilities/nonces:
       `if ($key === 'custom_plugin_settings') update_option($key, sanitize_text_field($value));`
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # WP-ENT-002 | SQL Injection via $wpdb Unprepared Queries
-  # ─────────────────────────────────────────────────────────────────────────
   - id: WP-ENT-002
     title: "SQL Injection via $wpdb Unprepared Operations"
     description: >
@@ -98,9 +85,6 @@ rules:
       Wrap all SQL strings containing dynamic variables inside `$wpdb->prepare()`:
       `$wpdb->query($wpdb->prepare("SELECT * FROM {$wpdb->prefix}table WHERE id = %d", $id));`
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # WP-ENT-003 | Unauthenticated Admin Ajax (nopriv) Sensitive Actions
-  # ─────────────────────────────────────────────────────────────────────────
   - id: WP-ENT-003
     title: "Unauthenticated Admin-Ajax Hooks Performing Privileged Actions"
     description: >
@@ -128,11 +112,8 @@ rules:
     remediation: |
       Ensure administrative or destructive tasks are only ever bound to `wp_ajax_` hooks (which require the user to be logged in) AND the handler function calls `current_user_can()`.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # WP-ENT-004 | State-Changing Requests Without wp_verify_nonce() (CSRF)
-  # ─────────────────────────────────────────────────────────────────────────
   - id: WP-ENT-004
-    title: "CSRF — State-Changing Request Without wp_verify_nonce() Validation"
+    title: "CSRF â€” State-Changing Request Without wp_verify_nonce() Validation"
     description: >
       Updates, Deletions, or Modifying endpoints are receiving raw data but the WordPress handler never validates `$_POST['_wpnonce']` via `wp_verify_nonce()` or `check_ajax_referer()`. This allows attackers to formulate CSRF payloads forcing a victim to unwittingly execute destructive behavior.
     severity: high
@@ -161,9 +142,6 @@ rules:
       Every destructive custom API or Plugin Options save block must verify its unique nonce:
       `if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'my_action')) { wp_die(); }`
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # WP-ENT-005 | Stored XSS via Missing Output Escaping in Plugin Templates
-  # ─────────────────────────────────────────────────────────────────────────
   - id: WP-ENT-005
     title: "Stored / Reflected XSS via Missing Output Escaping in Plugin Templates"
     description: >
@@ -193,9 +171,6 @@ rules:
     remediation: |
       Always escape at the point of output, not at the point of storage using functions like `esc_html()`, `esc_attr()`, `esc_url()`, or `wp_kses_post()`.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # WP-ENT-006 | Server-Side Request Forgery via wp_remote_get()
-  # ─────────────────────────────────────────────────────────────────────────
   - id: WP-ENT-006
     title: "Server-Side Request Forgery (SSRF) via Unvalidated wp_remote_get()"
     description: >
@@ -222,9 +197,6 @@ rules:
       Always use `wp_http_validate_url( $url )` which rejects local IP addresses,
       `127.0.0.1`, and validates hostnames before making the outbound request.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # WP-ENT-007 | XML-RPC Enabled Enabling Bruteforce and Pingback SSRF
-  # ─────────────────────────────────────────────────────────────────────────
   - id: WP-ENT-007
     title: "XML-RPC Enabled (Bruteforce & Pingback SSRF)"
     description: >

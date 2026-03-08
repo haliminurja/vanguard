@@ -1,11 +1,4 @@
-##############################################################################
-# ENTERPRISE SECURITY RULESET — SYMFONY FRAMEWORK
-# Version : 2.0.0
-# Last Updated : 2026-03-09
-# Maintainer : Enterprise AppSec Team
-# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
-##############################################################################
-
+﻿
 metadata:
   framework: symfony
   version_range: ">=4.4 <=7.x"
@@ -21,9 +14,6 @@ metadata:
 
 rules:
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # SYM-ENT-001 | ESI Injection → SSRF
-  # ─────────────────────────────────────────────────────────────────────────
   - id: SYM-ENT-001
     title: "ESI (Edge Side Includes) Injection leading to SSRF"
     description: >
@@ -60,9 +50,6 @@ rules:
     remediation: |
       NEVER construct ESI URIs dynamically from request parameters. Maintain a strict allowlist of internal route names.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # SYM-ENT-002 | Unsafe Deserialization via Serializer Component → RCE
-  # ─────────────────────────────────────────────────────────────────────────
   - id: SYM-ENT-002
     title: "Unsafe Object Deserialization via Symfony SerializerComponent"
     description: >
@@ -98,9 +85,6 @@ rules:
     remediation: |
       Always hardcode the deserialization target class. `deserialize($request->getContent(), UserDto::class, 'json');`
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # SYM-ENT-003 | Web Profiler Exposed in Production → Info Disclosure
-  # ─────────────────────────────────────────────────────────────────────────
   - id: SYM-ENT-003
     title: "Symfony Web Profiler / _profiler Route Exposed in Production"
     description: >
@@ -136,9 +120,6 @@ rules:
     remediation: |
       Ensure `WebProfilerBundle` is only registered for `dev` and `test` in `bundles.php`. Set `APP_ENV=prod`.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # SYM-ENT-004 | Open Redirect via $request->headers->get('Referer')
-  # ─────────────────────────────────────────────────────────────────────────
   - id: SYM-ENT-004
     title: "Open Redirect via Unvalidated Referer / Redirect URL"
     description: >
@@ -167,9 +148,6 @@ rules:
     remediation: |
       Always validate redirect targets against an allow-list of internal paths or use `generateUrl()`.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # SYM-ENT-005 | Missing CSRF Protection on State-Changing Forms
-  # ─────────────────────────────────────────────────────────────────────────
   - id: SYM-ENT-005
     title: "Missing CSRF Token Validation on State-Changing Endpoints"
     description: >
@@ -195,9 +173,6 @@ rules:
     remediation: |
       Always include and validate CSRF tokens in Symfony forms.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # SYM-ENT-006 | ExpressionLanguage Injection (RCE)
-  # ─────────────────────────────────────────────────────────────────────────
   - id: SYM-ENT-006
     title: "ExpressionLanguage Injection leading to RCE"
     description: >
@@ -221,9 +196,6 @@ rules:
     remediation: |
       Never allow users to provide the expression string. User input should only be passed as variables in the second argument dictionary.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # SYM-ENT-007 | Insecure Remember-Me Configuration
-  # ─────────────────────────────────────────────────────────────────────────
   - id: SYM-ENT-007
     title: "Insecure Remember-Me Configuration (Secret Re-use)"
     description: >

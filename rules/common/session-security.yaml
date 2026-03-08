@@ -1,9 +1,9 @@
-meta:
+﻿meta:
   category: Session Security
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10–12, PHP 8.0–8.4"
+  scope: "Laravel 10â€“12, PHP 8.0â€“8.4"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -11,7 +11,7 @@ rules:
   - id: SES-001
     title: "Session tidak di-regenerate setelah autentikasi"
     description: >
-      Auth::attempt() atau Auth::login() dipanggil tanpa memanggil $request->session()->regenerate() setelahnya. Tanpa regenerasi session, aplikasi rentan terhadap session fixation — penyerang yang mengetahui session ID dapat membajak session setelah pengguna mengautentikasi.
+      Auth::attempt() atau Auth::login() dipanggil tanpa memanggil $request->session()->regenerate() setelahnya. Tanpa regenerasi session, aplikasi rentan terhadap session fixation â€” penyerang yang mengetahui session ID dapat membajak session setelah pengguna mengautentikasi.
     severity: high
     confidence: medium
     category: Session Fixation
@@ -60,7 +60,7 @@ rules:
   - id: SES-003
     title: "Cookie dibuat tanpa flag Secure dan HttpOnly"
     description: >
-      Cookie dibuat dengan Secure atau HttpOnly secara eksplisit disetel ke false. Tanpa Secure, cookie dikirim melalui HTTP. Tanpa HttpOnly, JavaScript dapat mencurinya — mengaktifkan pencurian via XSS bahkan ketika HTTPS diterapkan.
+      Cookie dibuat dengan Secure atau HttpOnly secara eksplisit disetel ke false. Tanpa Secure, cookie dikirim melalui HTTP. Tanpa HttpOnly, JavaScript dapat mencurinya â€” mengaktifkan pencurian via XSS bahkan ketika HTTPS diterapkan.
     severity: high
     confidence: high
     category: Insecure Cookie
@@ -113,7 +113,7 @@ rules:
   - id: SES-005
     title: "Session lifetime terlalu panjang (>24 jam)"
     description: >
-      Session lifetime dikonfigurasi lebih dari 1440 menit (24 jam). Session yang terlalu panjang memperbesar window serangan jika session token dicuri — penyerang memiliki waktu lebih lama untuk mengeksploitasi session yang dibajak sebelum expired.
+      Session lifetime dikonfigurasi lebih dari 1440 menit (24 jam). Session yang terlalu panjang memperbesar window serangan jika session token dicuri â€” penyerang memiliki waktu lebih lama untuk mengeksploitasi session yang dibajak sebelum expired.
     severity: medium
     confidence: medium
     category: Session Misconfiguration
@@ -130,7 +130,7 @@ rules:
     remediation: |
       Set session lifetime yang wajar berdasarkan jenis aplikasi:
         // config/session.php
-        'lifetime' => 120,          // 2 jam — aplikasi umum
+        'lifetime' => 120,          // 2 jam â€” aplikasi umum
         'expire_on_close' => true,   // session berakhir saat browser ditutup
       Untuk aplikasi perbankan/keuangan, gunakan 15-30 menit dengan inactivity timeout.
     references:
@@ -139,7 +139,7 @@ rules:
   - id: SES-006
     title: "Session tidak di-invalidate saat logout"
     description: >
-      Aksi logout memanggil Auth::logout() tanpa menginvalidasi session ($request->session()->invalidate()) dan meregenerasi CSRF token ($request->session()->regenerateToken()). Session lama tetap valid di server — jika token dicuri sebelum logout, penyerang masih dapat menggunakannya.
+      Aksi logout memanggil Auth::logout() tanpa menginvalidasi session ($request->session()->invalidate()) dan meregenerasi CSRF token ($request->session()->regenerateToken()). Session lama tetap valid di server â€” jika token dicuri sebelum logout, penyerang masih dapat menggunakannya.
     severity: high
     confidence: medium
     category: Session Persistence
@@ -176,8 +176,8 @@ rules:
         pattern: 'SESSION_DRIVER\s*=\s*file'
     remediation: |
       Gunakan session driver yang lebih aman di production:
-        SESSION_DRIVER=redis       # Lebih cepat, mendukung TTL otomatis
-        SESSION_DRIVER=database    # Persisten, dapat diaudit
+        SESSION_DRIVER=redis       
+        SESSION_DRIVER=database    
     references:
       - "https://cwe.mitre.org/data/definitions/732.html"
       - "https://laravel.com/docs/session#configuration"
@@ -185,7 +185,7 @@ rules:
   - id: SES-008
     title: "Session ID dikirim via URL parameter (session hijacking risk)"
     description: >
-      PHP dikonfigurasi untuk mengirim session ID via URL (session.use_trans_sid = 1 atau session.use_only_cookies = 0). Session ID dalam URL muncul di server logs, browser history, Referer header, dan dapat dibagikan secara tidak sengaja — mengaktifkan session hijacking pasif.
+      PHP dikonfigurasi untuk mengirim session ID via URL (session.use_trans_sid = 1 atau session.use_only_cookies = 0). Session ID dalam URL muncul di server logs, browser history, Referer header, dan dapat dibagikan secara tidak sengaja â€” mengaktifkan session hijacking pasif.
     severity: critical
     confidence: high
     category: Session Exposure

@@ -1,20 +1,20 @@
-meta:
+﻿meta:
   category: Deserialization & Object Injection
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10–12, PHP 8.0–8.4"
+  scope: "Laravel 10â€“12, PHP 8.0â€“8.4"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
 rules:
   - id: DESER-001
-    title: "Insecure Deserialization — unserialize() dengan input pengguna"
+    title: "Insecure Deserialization â€” unserialize() dengan input pengguna"
     description: >
       unserialize() dipanggil dengan input yang dikontrol pengguna. PHP unserialize()
       dapat menginstansiasi objek arbitrer dan memicu method magic (__destruct, __wakeup,
       __toString), memungkinkan penyerang mengeksekusi kode arbitrer melalui POP chain
-      (Property-Oriented Programming) — ini adalah Remote Code Execution.
+      (Property-Oriented Programming) â€” ini adalah Remote Code Execution.
     severity: critical
     confidence: high
     category: Insecure Deserialization
@@ -31,7 +31,7 @@ rules:
         exclude_pattern: '(allowed_classes\s*=>\s*false|allowed_classes\s*=>\s*\[|test|Test|mock|Mock)'
     remediation: |
       JANGAN gunakan unserialize() untuk data dari pengguna. Gunakan JSON:
-        // ✅ BENAR — JSON aman dari object injection
+        // âœ… BENAR â€” JSON aman dari object injection
         $data = json_decode($input, true, 10, JSON_THROW_ON_ERROR);
 
         // Jika unserialize() tidak bisa dihindari, blokir pembuatan objek:
@@ -41,7 +41,7 @@ rules:
       - "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/16-Testing_for_HTTP_Incoming_Requests"
 
   - id: DESER-002
-    title: "Insecure Deserialization — unserialize() tanpa allowed_classes restriction"
+    title: "Insecure Deserialization â€” unserialize() tanpa allowed_classes restriction"
     description: >
       unserialize() dipanggil tanpa parameter allowed_classes. Sejak PHP 7.0, parameter
       ini memungkinkan pembatasan class yang boleh di-instantiasi. Tanpa restriction,
@@ -67,10 +67,10 @@ rules:
       - "https://cwe.mitre.org/data/definitions/502.html"
 
   - id: DESER-003
-    title: "Insecure Deserialization — cookie berisi data terserialisasi"
+    title: "Insecure Deserialization â€” cookie berisi data terserialisasi"
     description: >
       Aplikasi membaca dan melakukan unserialize pada data dari cookie. Cookie dikontrol
-      sepenuhnya oleh klien — even jika terenkripsi, jika encryption key bocor (via
+      sepenuhnya oleh klien â€” even jika terenkripsi, jika encryption key bocor (via
       APP_KEY leak), penyerang dapat membuat cookie dengan payload serialized arbitrer
       untuk RCE via POP chain.
     severity: critical
@@ -88,7 +88,7 @@ rules:
         pattern: 'unserialize\s*\(\s*(decrypt|Crypt::decrypt)\s*\(\s*(\$_COOKIE|\$request->cookie)'
     remediation: |
       Gunakan JSON untuk data cookie. Jangan serialize objek ke cookie:
-        // ✅ BENAR
+        // âœ… BENAR
         $preferences = json_decode($request->cookie('prefs', '{}'), true);
 
         // Set cookie
@@ -103,7 +103,7 @@ rules:
     description: >
       Class mendefinisikan method __wakeup() atau __destruct() yang melakukan operasi berbahaya
       (file operations, command execution, database queries). Class ini menjadi gadget dalam
-      POP chain — jika penyerang menemukan entry point unserialize(), class ini memungkinkan
+      POP chain â€” jika penyerang menemukan entry point unserialize(), class ini memungkinkan
       eskalasi dari deserialization ke RCE.
     severity: high
     confidence: medium
@@ -119,7 +119,7 @@ rules:
       Hindari operasi berbahaya di magic methods. Jika diperlukan, validasi state:
         public function __destruct()
         {
-            // ✅ Hanya operasi aman, non-destruktif
+            // âœ… Hanya operasi aman, non-destruktif
             if (isset($this->tempFile) && file_exists($this->tempFile)) {
                 // Validasi path sebelum operasi
                 $safePath = realpath($this->tempFile);
@@ -132,7 +132,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/502.html"
 
   - id: DESER-005
-    title: "Insecure Deserialization — Queue/Cache backend tanpa autentikasi"
+    title: "Insecure Deserialization â€” Queue/Cache backend tanpa autentikasi"
     description: >
       Laravel queue atau cache backend (Redis, Memcached) dikonfigurasi tanpa password authentication.
       Laravel menggunakan PHP serialize() untuk menyimpan job dan cache data. Jika backend
@@ -155,7 +155,7 @@ rules:
     remediation: |
       Selalu autentikasi koneksi Redis/Memcached:
         REDIS_PASSWORD=your_strong_random_password_here
-        REDIS_HOST=127.0.0.1  # Jangan bind ke 0.0.0.0
+        REDIS_HOST=127.0.0.1  
 
         // config/database.php
         'redis' => [

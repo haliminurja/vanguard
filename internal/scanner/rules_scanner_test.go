@@ -390,3 +390,50 @@ func TestSkipDir(t *testing.T) {
 		}
 	}
 }
+
+func TestRulesScanner_Entropy(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "app"), 0755)
+
+	// A standard string shouldn't trigger high entropy (e.g. low randomness)
+	os.WriteFile(filepath.Join(dir, "app", "Normal.php"), []byte(`<?php
+$token = "just_a_normal_token_string";
+`), 0644)
+
+	// A highly random base64/hex string should trigger the entropy scanner
+	os.WriteFile(filepath.Join(dir, "app", "HighEntropy.php"), []byte(`<?php
+$secret = "z8x9C2vB5nN1mQ7wW3eE4rR6tT8yY0uI5oO9pP3aA8sS7dD6fF4gG2hH1jJ5kK0lL";
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:       "TEST-ENT-01",
+			Title:    "High Entropy Secret Detected",
+			Severity: "high",
+			Enabled:  boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "entropy", Target: "php-files", Pattern: "4.5"},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+
+	var findings []models.Finding
+	_, err := s.Scan(context.Background(), pc, func(f models.Finding) {
+		findings = append(findings, f)
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding for high entropy, got %d", len(findings))
+	}
+
+	if filepath.Base(findings[0].File) != "HighEntropy.php" {
+		t.Errorf("expected finding in HighEntropy.php, got %s", findings[0].File)
+	}
+}

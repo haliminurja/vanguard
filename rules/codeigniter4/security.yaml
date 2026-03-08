@@ -1,11 +1,4 @@
-##############################################################################
-# ENTERPRISE SECURITY RULESET — CODEIGNITER 4
-# Version : 2.0.0
-# Last Updated : 2026-03-09
-# Maintainer : Enterprise AppSec Team
-# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
-##############################################################################
-
+﻿
 metadata:
   framework: codeigniter4
   version_range: ">=4.0.0"
@@ -21,9 +14,6 @@ metadata:
 
 rules:
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CI4-ENT-001 | Entity / Model Mass Assignment
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CI4-ENT-001
     title: "Entity / Model Mass Assignment ($allowedFields Misconfiguration)"
     description: >
@@ -52,9 +42,6 @@ rules:
       Explicitly define exactly which fields can be updated:
       `protected $allowedFields = ['name', 'email', 'bio'];` Ensure sensitive properties like `is_admin` are not in this array.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CI4-ENT-002 | Bypassed Validation on Model ->save()
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CI4-ENT-002
     title: "Bypassed Validation on Model ->save()"
     description: >
@@ -76,9 +63,6 @@ rules:
     remediation: |
       Avoid suppressing framework validation for user input. If it must be suppressed for internal logical updates, only supply safe, isolated constants.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CI4-ENT-003 | SQL Injection via CodeIgniter Query Builder ->query()
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CI4-ENT-003
     title: "SQL Injection via CodeIgniter Query Builder ->query()"
     description: >
@@ -100,9 +84,6 @@ rules:
     remediation: |
       Use proper query bindings: `$db->query('SELECT * FROM users WHERE status = ?', [$status]);`
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CI4-ENT-004 | CSRF Filter Missing Globally
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CI4-ENT-004
     title: "CSRF Filter Missing Globally"
     description: >
@@ -125,9 +106,6 @@ rules:
     remediation: |
       Include `csrf` in your `app/Config/Filters.php` global `before` hooks unless utilizing a pure stateless REST API (which should rely on OAuth2/JWT).
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CI4-ENT-005 | Insecure Database::connect() Configuration
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CI4-ENT-005
     title: "Insecure Database Connection Configuration"
     description: >

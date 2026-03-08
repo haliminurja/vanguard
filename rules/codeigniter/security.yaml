@@ -1,11 +1,4 @@
-##############################################################################
-# ENTERPRISE SECURITY RULESET — CODEIGNITER 3 (Legacy / CI < 3.2)
-# Version : 2.0.0
-# Last Updated : 2026-03-09
-# Maintainer : Enterprise AppSec Team
-# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
-##############################################################################
-
+﻿
 metadata:
   framework: codeigniter3
   version_range: ">=2.0 <4.0"
@@ -25,9 +18,6 @@ metadata:
 
 rules:
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CI-ENT-001 | Insecure Client-Side Session Storage → RCE via POP Chain
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CI-ENT-001
     title: "Insecure Client-Side Session Deserialization (CI 2.x / Early 3.x)"
     description: >
@@ -63,9 +53,6 @@ rules:
     remediation: |
       Set sessions to use the database driver: `$config['sess_driver'] = 'database';`
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CI-ENT-002 | Weak / Empty Encryption Key → Full Impersonation
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CI-ENT-002
     title: "Weak, Empty, or Default Encryption Key in CodeIgniter Config"
     description: >
@@ -100,9 +87,6 @@ rules:
     remediation: |
       Generate a 256-bit (32-byte) random key and store it via environment variables.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CI-ENT-003 | Path Traversal via permitted_uri_chars → LFI
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CI-ENT-003
     title: "Local File Inclusion via URI Traversal in permitted_uri_chars"
     description: >
@@ -131,9 +115,6 @@ rules:
     remediation: |
       Use the safe default charset: `$config['permitted_uri_chars'] = 'a-z 0-9~%.:_\-';` and sanitize double dots.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CI-ENT-004 | SQL Injection via Active Record Improper Usage
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CI-ENT-004
     title: "SQL Injection via CI3 Active Record Without Query Binding"
     description: >
@@ -162,9 +143,6 @@ rules:
     remediation: |
       Use query bindings or the Active Record array syntax.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CI-ENT-005 | Insecure unserialize() Usage
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CI-ENT-005
     title: "Insecure unserialize() Custom Code"
     description: >
@@ -186,9 +164,6 @@ rules:
     remediation: |
       Use `json_decode()` instead of `unserialize()`.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CI-ENT-006 | Path Traversal in $this->load->view()
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CI-ENT-006
     title: "Path Traversal in $this->load->view()"
     description: >

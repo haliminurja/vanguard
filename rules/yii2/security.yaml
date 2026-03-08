@@ -1,11 +1,4 @@
-##############################################################################
-# ENTERPRISE SECURITY RULESET — YII2 FRAMEWORK
-# Version : 2.0.0
-# Last Updated : 2026-03-09
-# Maintainer : Enterprise AppSec Team
-# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
-##############################################################################
-
+﻿
 metadata:
   framework: yii2
   version_range: ">=2.0.14"
@@ -21,9 +14,6 @@ metadata:
 
 rules:
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # YII-ENT-001 | Gii Code Generator Exposed in Production → RCE
-  # ─────────────────────────────────────────────────────────────────────────
   - id: YII-ENT-001
     title: "Yii2 Gii Code Generator Exposed in Production (Instant RCE)"
     description: >
@@ -55,9 +45,6 @@ rules:
     remediation: |
       Wrap Gii configuration inside an environment check `if (YII_ENV_DEV)`.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # YII-ENT-002 | Unsafe Caching → Object Deserialization RCE
-  # ─────────────────────────────────────────────────────────────────────────
   - id: YII-ENT-002
     title: "Unsafe Yii2 Cache Configuration Enabling Object Deserialization"
     description: >
@@ -88,11 +75,8 @@ rules:
     remediation: |
       Authenticate Redis/Memcached connections and avoid building cache keys from raw user input.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # YII-ENT-003 | Cookie Validation Disabled → Session Hijacking / CSRF
-  # ─────────────────────────────────────────────────────────────────────────
   - id: YII-ENT-003
-    title: "Cookie Validation Disabled — Session Hijacking and CSRF Bypass"
+    title: "Cookie Validation Disabled â€” Session Hijacking and CSRF Bypass"
     description: >
       When `enableCookieValidation` is set to false, session cookies can be forged
       without the HMAC signature, leading to session hijacking.
@@ -119,9 +103,6 @@ rules:
     remediation: |
       Never disable `enableCookieValidation` and provide a strong random key.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # YII-ENT-004 | SQL Injection via ActiveRecord findBySql / createCommand
-  # ─────────────────────────────────────────────────────────────────────────
   - id: YII-ENT-004
     title: "SQL Injection via Yii2 findBySql() / createCommand() Concatenation"
     description: >
@@ -150,9 +131,6 @@ rules:
     remediation: |
       Use parameterized queries exclusively.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # YII-ENT-005 | Server-Side Template Injection (SSTI) in Twig/Smarty ViewRenderer
-  # ─────────────────────────────────────────────────────────────────────────
   - id: YII-ENT-005
     title: "Server-Side Template Injection (SSTI) in Yii2 View Renderer"
     description: >

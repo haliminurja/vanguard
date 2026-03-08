@@ -1,4 +1,4 @@
-meta:
+﻿meta:
   category: Advanced Attack Vectors
   version: "4.0.0"
   maintainer: "Security Engineering Team"
@@ -9,7 +9,7 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: ADV-SSRF01
-    title: "SSRF — HTTP request keluar dengan URL dari input pengguna"
+    title: "SSRF â€” HTTP request keluar dengan URL dari input pengguna"
     description: >
       Laravel Http facade, Guzzle, atau cURL membuat request keluar menggunakan URL yang diambil langsung dari input pengguna tanpa validasi allowlist. Penyerang dapat mencapai layanan internal (Redis, RDS, metadata EC2 169.254.169.254), melakukan port scanning jaringan internal, membypass firewall, atau menyalahgunakan kredensial IAM dari instance metadata AWS. SSRF termasuk OWASP Top 10 #10 (A10:2021).
 
@@ -44,7 +44,7 @@ rules:
         $url    = $request->input('url');
         $parsed = parse_url($url);
 
-        // 1. Validasi skema — hanya HTTPS
+        // 1. Validasi skema â€” hanya HTTPS
         abort_unless(in_array($parsed['scheme'] ?? '', ['https'], true), 422, 'Skema tidak diizinkan');
 
         // 2. Allowlist host eksplisit
@@ -66,7 +66,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/918.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html"
   - id: ADV-SSRF02
-    title: "SSRF — file_get_contents() dengan URL dari pengguna"
+    title: "SSRF â€” file_get_contents() dengan URL dari pengguna"
     description: >
       file_get_contents() dipanggil dengan URL yang dikontrol pengguna dan allow_url_fopen aktif. Ini memungkinkan SSRF melalui HTTP wrapper dan eksposure resource internal seperti metadata cloud (169.254.169.254) atau layanan internal yang tidak terekspos ke internet.
 
@@ -87,7 +87,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/918.html"
   - id: ADV-PT01
-    title: "Path Traversal — operasi file dengan path dari input pengguna"
+    title: "Path Traversal â€” operasi file dengan path dari input pengguna"
     description: >
       Operasi file system (Storage, file_get_contents, fopen, readfile) menerima path yang berasal dari input pengguna tanpa sanitasi atau validasi realpath. Penyerang menggunakan sekuens ../ (atau URL-encoded %2e%2e%2f) untuk membaca file sensitif: .env, storage/oauth-private.key, config/*.php, private key, database backup.
 
@@ -106,14 +106,14 @@ rules:
         pattern: '(include|require|include_once|require_once)\s*\(\s*(\$request->|request\(|\$_GET|\$_POST)'
     remediation: |
       Jangan pernah menggunakan input pengguna langsung sebagai path file.
-      Gunakan whitelist ID → path:
+      Gunakan whitelist ID â†’ path:
 
-        // ✅ BENAR — lookup berdasarkan ID yang trusted
+        // âœ… BENAR â€” lookup berdasarkan ID yang trusted
         $file = UserFile::findOrFail($request->input('file_id'));
         $this->authorize('download', $file);
         return Storage::download($file->storage_path, $file->original_name);
 
-        // ✅ Jika path diperlukan, validasi dengan realpath
+        // âœ… Jika path diperlukan, validasi dengan realpath
         $base = realpath(storage_path('app/uploads')) . DIRECTORY_SEPARATOR;
         $path = realpath($base . basename($request->input('filename')));
         abort_unless($path && str_starts_with($path, $base), 403, 'Akses ditolak');
@@ -121,7 +121,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/22.html"
       - "https://owasp.org/www-community/attacks/Path_Traversal"
   - id: ADV-PT02
-    title: "Path Traversal — response()->download() dengan path dari pengguna"
+    title: "Path Traversal â€” response()->download() dengan path dari pengguna"
     description: >
       response()->download() atau Storage::download() dipanggil dengan path yang berasal langsung dari input request. Penyerang menggunakan sekuens ../ untuk mengunduh file .env, private key, database backup, atau kode sumber aplikasi dari disk server.
 
@@ -142,7 +142,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/22.html"
   - id: ADV-PT03
-    title: "Zip Slip — ekstraksi ZIP tanpa validasi path output"
+    title: "Zip Slip â€” ekstraksi ZIP tanpa validasi path output"
     description: >
       ZipArchive::extractTo() atau fungsi ekstraksi serupa digunakan tanpa memvalidasi path setiap entri terhadap direktori target. File ZIP yang dikrafting dapat berisi entri dengan path traversal (../../etc/cron.d/backdoor) yang menulis file di luar direktori ekstraksi yang dimaksud, memungkinkan remote code execution, privilege escalation, atau persistensi.
 
@@ -186,7 +186,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/22.html"
       - "https://snyk.io/research/zip-slip-vulnerability"
   - id: ADV-OR01
-    title: "Open Redirect — target redirect dari input pengguna"
+    title: "Open Redirect â€” target redirect dari input pengguna"
     description: >
       Aplikasi mengalihkan pengguna ke URL dari request input tanpa validasi. Penyerang membuat link phishing yang tampak berasal dari domain tepercaya Anda (https://yourapp.com/redirect?to=https://evil.com) untuk credential harvesting, session hijacking, atau distribusi malware. Serangan ini sangat efektif karena URL awal terlihat legitimate.
 
@@ -227,7 +227,7 @@ rules:
       - "https://cwe.mitre.org/data/definitions/601.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"
   - id: ADV-XXE01
-    title: "XXE — XML di-parse dari konten yang dikirim pengguna"
+    title: "XXE â€” XML di-parse dari konten yang dikirim pengguna"
     description: >
       simplexml_load_string(), DOMDocument::loadXML(), atau XMLReader menerima XML dari pengguna tanpa menonaktifkan pemuatan external entity. Penyerang dapat membaca file lokal (/etc/passwd, /proc/self/environ, .env), melakukan SSRF ke layanan internal, atau menyebabkan denial of service (Billion Laughs / Quadratic Blowup attack).
 
@@ -252,7 +252,7 @@ rules:
       Di PHP 8.0+ dengan libxml2 >= 2.9, external entity dinonaktifkan secara default.
       Untuk versi lama, nonaktifkan secara eksplisit:
 
-        // PHP < 8.0 — nonaktifkan external entity loader
+        // PHP < 8.0 â€” nonaktifkan external entity loader
         $prev = libxml_disable_entity_loader(true);
         $prev_errors = libxml_use_internal_errors(true);
 
@@ -271,9 +271,9 @@ rules:
       - "https://cwe.mitre.org/data/definitions/611.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html"
   - id: ADV-ID01
-    title: "IDOR — Model::update() dengan payload request tidak difilter"
+    title: "IDOR â€” Model::update() dengan payload request tidak difilter"
     description: >
-      update() dipanggil dengan $request->all() tanpa terlebih dahulu mengotorisasi bahwa pengguna yang terautentikasi memiliki record tersebut. Penyerang mengubah resource ID dalam URL atau request body untuk menimpa data pengguna lain — pola ini adalah salah satu kerentanan IDOR yang paling umum.
+      update() dipanggil dengan $request->all() tanpa terlebih dahulu mengotorisasi bahwa pengguna yang terautentikasi memiliki record tersebut. Penyerang mengubah resource ID dalam URL atau request body untuk menimpa data pengguna lain â€” pola ini adalah salah satu kerentanan IDOR yang paling umum.
 
     severity: high
     confidence: high
@@ -288,20 +288,20 @@ rules:
       Selalu otorisasi kepemilikan sebelum update, gunakan ->only() untuk
       batasan field yang ketat:
 
-        // ✅ BENAR
+        // âœ… BENAR
         $post = Post::findOrFail($id);
         $this->authorize('update', $post);  // Policy memverifikasi $user->id === $post->user_id
         $post->update($request->only(['title', 'body', 'category_id']));
 
-        // ❌ SALAH
+        // âŒ SALAH
         // Post::findOrFail($id)->update($request->all());
     references:
       - "https://cwe.mitre.org/data/definitions/639.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html"
   - id: ADV-VJ01
-    title: "Type Juggling — loose comparison pada nilai sensitif keamanan"
+    title: "Type Juggling â€” loose comparison pada nilai sensitif keamanan"
     description: >
-      Operator persamaan loose (==) membandingkan hash, token, atau key. PHP type juggling menyebabkan '0e123' == '0e456' (magic hash collision — keduanya dievaluasi sebagai 0 dalam notasi saintifik), yang memungkinkan bypass autentikasi token atau verifikasi hash. Kerentanan ini klasik dan sering terlewat di code review.
+      Operator persamaan loose (==) membandingkan hash, token, atau key. PHP type juggling menyebabkan '0e123' == '0e456' (magic hash collision â€” keduanya dievaluasi sebagai 0 dalam notasi saintifik), yang memungkinkan bypass autentikasi token atau verifikasi hash. Kerentanan ini klasik dan sering terlewat di code review.
 
     severity: high
     confidence: medium
@@ -317,11 +317,11 @@ rules:
       Gunakan perbandingan constant-time untuk semua token dan hash.
       JANGAN gunakan == atau !=:
 
-        // ✅ BENAR — constant-time, mencegah timing attack dan type juggling
+        // âœ… BENAR â€” constant-time, mencegah timing attack dan type juggling
         if (hash_equals($expectedToken, $receivedToken)) { ... }
         if (Hash::check($password, $user->password)) { ... }
 
-        // ❌ SALAH — rentan terhadap timing attack dan magic hash
+        // âŒ SALAH â€” rentan terhadap timing attack dan magic hash
         // if ($token == $userToken) { ... }
     references:
       - "https://cwe.mitre.org/data/definitions/697.html"
@@ -329,7 +329,7 @@ rules:
   - id: ADV-MA01
     title: "Model::unguard() menonaktifkan proteksi mass assignment secara global"
     description: >
-      Model::unguard() menonaktifkan proteksi mass assignment untuk SEMUA model Eloquent dalam proses yang sedang berjalan. Memanggil ini dalam kode request-handling (controller, middleware, job, listener) berarti setiap Model::create() atau update() berikutnya menerima field arbitrer dari pengguna — termasuk is_admin, role, email_verified_at, password.
+      Model::unguard() menonaktifkan proteksi mass assignment untuk SEMUA model Eloquent dalam proses yang sedang berjalan. Memanggil ini dalam kode request-handling (controller, middleware, job, listener) berarti setiap Model::create() atau update() berikutnya menerima field arbitrer dari pengguna â€” termasuk is_admin, role, email_verified_at, password.
 
     severity: critical
     confidence: high
@@ -345,17 +345,17 @@ rules:
       Jangan pernah memanggil Model::unguard() dalam kode request-handling.
       Dalam seeder, gunakan blok terbatas dengan re-guard segera:
 
-        // ✅ Di seeder saja
+        // âœ… Di seeder saja
         Model::unguard();
         User::create(['email' => 'admin@example.com', 'is_admin' => true]);
-        Model::reguard();  // ← WAJIB segera setelah blok seed
+        Model::reguard();  // â† WAJIB segera setelah blok seed
 
-        // ✅ Alternatif — gunakan forceCreate() per-model
+        // âœ… Alternatif â€” gunakan forceCreate() per-model
         User::forceCreate(['email' => 'admin@example.com']);
     references:
       - "https://cwe.mitre.org/data/definitions/915.html"
   - id: ADV-MA02
-    title: "Model dengan $guarded = [] — mass assignment sepenuhnya dinonaktifkan"
+    title: "Model dengan $guarded = [] â€” mass assignment sepenuhnya dinonaktifkan"
     description: >
       Model mendefinisikan $guarded = [] yang mengizinkan SETIAP atribut diset via Model::create() atau Model::update(). Input yang dikendalikan penyerang dapat mengeset is_admin, role, email_verified_at, balance, dan field terproteksi lainnya jika controller menggunakan $request->all() atau fill($request->all()).
 
@@ -372,17 +372,17 @@ rules:
     remediation: |
       Gunakan whitelist $fillable eksplisit untuk setiap model:
 
-        // ✅ BENAR — hanya field yang boleh diisi pengguna
+        // âœ… BENAR â€” hanya field yang boleh diisi pengguna
         protected $fillable = ['name', 'email', 'bio', 'avatar'];
 
-        // ✅ Atau proteksi field sensitif secara eksplisit
+        // âœ… Atau proteksi field sensitif secara eksplisit
         protected $guarded = ['id', 'is_admin', 'role', 'email_verified_at',
                               'password', 'remember_token', 'balance'];
     references:
       - "https://cwe.mitre.org/data/definitions/915.html"
       - "https://laravel.com/docs/eloquent#mass-assignment"
   - id: ADV-WS01
-    title: "Laravel Reverb/Broadcasting — channel private tanpa verifikasi kepemilikan"
+    title: "Laravel Reverb/Broadcasting â€” channel private tanpa verifikasi kepemilikan"
     description: >
       Channel Reverb (Laravel 11+) atau Pusher private/presence didefinisikan tanpa autentikasi channel yang memverifikasi kepemilikan pengguna. Subscription channel yang tidak terautentikasi mengekspos data real-time sensitif (pesan, notifikasi, update order, status pembayaran) ke subscriber yang tidak berwenang.
 
@@ -400,7 +400,7 @@ rules:
       Selalu verifikasi kepemilikan di callback channel private dan
       kembalikan false (bukan null) jika akses ditolak:
 
-        // ✅ BENAR
+        // âœ… BENAR
         Broadcast::channel('private-orders.{orderId}', function ($user, $orderId) {
             $order = Order::find($orderId);
             return $order && $user->id === $order->user_id;
@@ -453,7 +453,7 @@ rules:
       - "https://laravel.com/docs/csrf"
       - "https://cwe.mitre.org/data/definitions/352.html"
   - id: ADV-SSTI01
-    title: "SSTI — nama view/template dari input pengguna"
+    title: "SSTI â€” nama view/template dari input pengguna"
     description: >
       view() atau View::make() me-resolve template menggunakan nama yang berasal langsung dari input pengguna. Penyerang dapat me-load template admin, mengekspos data konfigurasi sensitif, atau mengeksekusi kode PHP arbitrer via direktif @php yang ada di template target.
 
@@ -467,7 +467,7 @@ rules:
         target: php-files
         pattern: '(View::make|view)\(\s*(\$request->|request\(|\$_GET|\$_POST)'
     remediation: |
-      Gunakan whitelist map yang ketat — jangan pernah teruskan input pengguna
+      Gunakan whitelist map yang ketat â€” jangan pernah teruskan input pengguna
       langsung ke view():
 
         $viewMap = [
@@ -503,10 +503,10 @@ rules:
       Hapus semua panggilan debug sebelum commit/deploy.
       Gunakan structured logging atau Laravel Telescope:
 
-        // ✅ Gunakan logging terstruktur
+        // âœ… Gunakan logging terstruktur
         Log::debug('Order state', ['order_id' => $order->id, 'status' => $order->status]);
 
-        // ✅ Gunakan Laravel Telescope untuk debugging development
+        // âœ… Gunakan Laravel Telescope untuk debugging development
         // telescope.laravel.com
     references:
       - "https://cwe.mitre.org/data/definitions/215.html"
@@ -527,21 +527,15 @@ rules:
     remediation: |
       Set APP_DEBUG=false di SEMUA environment non-development:
 
-        # .env.production
         APP_DEBUG=false
 
-        # Pantau error dengan tools yang aman
-        # - Laravel Telescope (development only, tidak di production)
-        # - Flare: flareapp.io
-        # - Sentry: sentry.io
-        # - Bugsnag: bugsnag.com
     references:
       - "https://laravel.com/docs/configuration#debug-mode"
       - "https://cwe.mitre.org/data/definitions/200.html"
   - id: ADV-EVAL01
-    title: "RCE — eval() atau fungsi exec dengan argumen dari input pengguna"
+    title: "RCE â€” eval() atau fungsi exec dengan argumen dari input pengguna"
     description: >
-      eval(), exec(), passthru(), system(), shell_exec(), atau proc_open() dipanggil dengan argumen yang berasal dari request atau variabel tidak tepercaya. Ini adalah kategori kerentanan paling serius — penyerang dapat mengeksekusi perintah OS arbitrer atau kode PHP di server.
+      eval(), exec(), passthru(), system(), shell_exec(), atau proc_open() dipanggil dengan argumen yang berasal dari request atau variabel tidak tepercaya. Ini adalah kategori kerentanan paling serius â€” penyerang dapat mengeksekusi perintah OS arbitrer atau kode PHP di server.
 
     severity: critical
     confidence: high
@@ -557,11 +551,11 @@ rules:
       Hindari semua fungsi exec/eval dengan input pengguna.
       Gunakan Symfony Process dengan array (tidak ada shell interpolation):
 
-        // ✅ BENAR — array argument, tidak ada shell
+        // âœ… BENAR â€” array argument, tidak ada shell
         $process = new Process(['convert', '-resize', '800x', $inputPath, $outputPath]);
         $process->setTimeout(30)->mustRun();
 
-        // ❌ SALAH
+        // âŒ SALAH
         // exec("convert {$request->input('file')} output.jpg");
     references:
       - "https://cwe.mitre.org/data/definitions/94.html"

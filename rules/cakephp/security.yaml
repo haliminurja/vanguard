@@ -1,11 +1,4 @@
-##############################################################################
-# ENTERPRISE SECURITY RULESET — CAKEPHP
-# Version : 2.0.0
-# Last Updated : 2026-03-09
-# Maintainer : Enterprise AppSec Team
-# Standard : OWASP Top-10 2021 | CWE/SANS Top-25 | NIST SP 800-53
-##############################################################################
-
+﻿
 metadata:
   framework: cakephp
   version_range: ">=3.0 <=5.x"
@@ -21,9 +14,6 @@ metadata:
 
 rules:
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CAKE-ENT-001 | SecurityComponent Form Tampering Ignored
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CAKE-ENT-001
     title: "SecurityComponent Form Tampering Ignored"
     description: >
@@ -45,9 +35,6 @@ rules:
     remediation: |
       Do not disable `validatePost` globally. Refactor actions that require non-standard tokens to specifically bypass only the required fields using `unlockedFields`.
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CAKE-ENT-002 | Mass Assignment Bypass via ORM $_accessible
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CAKE-ENT-002
     title: "Mass Assignment Bypass via ORM $_accessible"
     description: >
@@ -71,9 +58,6 @@ rules:
       If assigning `* => true`, explicitly set security-critical entity properties to false:
       `protected $_accessible = ['*' => true, 'is_admin' => false, 'role' => false];`
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CAKE-ENT-003 | AuthComponent Allow(*) Wide-Open Bypass
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CAKE-ENT-003
     title: "AuthComponent Allow(*) Wide-Open Bypass"
     description: >
@@ -96,9 +80,6 @@ rules:
       Pass only the explicit action boundaries that demand open entry:
       `$this->Auth->allow(['login', 'register', 'forgotPassword']);`
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # CAKE-ENT-004 | Insecure Object Deserialization via Cache/Cache Engine
-  # ─────────────────────────────────────────────────────────────────────────
   - id: CAKE-ENT-004
     title: "Insecure Object Deserialization via CakePHP Cache"
     description: >
