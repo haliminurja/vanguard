@@ -37,10 +37,6 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 
 	depscanner.SetExtraSkipDirs(o.cfg.Scanners.IgnoreDirs)
 
-	depscanner.SetExtraSkipDirs(o.cfg.Scanners.IgnoreDirs)
-
-	scanners = o.filterScanners(scanners)
-
 	scanners = o.filterScanners(scanners)
 
 	o.bus.Publish(eventbus.NewEvent(eventbus.EventScanStarted, eventbus.ScanStartedData{
@@ -101,9 +97,12 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	if rulesDir != "" {
 		var allRules []config.RuleDefinition
 
-		// 1. Generic PHP Rules
+		// 1. Generic PHP Rules (Common)
 		commonDir := filepath.Join(rulesDir, "common")
 		if commonRules, err := config.LoadRulesFromDir(commonDir); err == nil {
+			o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
+				Level: "info", Message: fmt.Sprintf("Loading common security rules: %d rules", len(commonRules)),
+			}))
 			allRules = append(allRules, commonRules...)
 		}
 
@@ -113,13 +112,19 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 			if frameworkKey == "codeigniter2" || frameworkKey == "codeigniter3" {
 				frameworkKey = "codeigniter"
 			}
+			if frameworkKey == "lumen" {
+				frameworkKey = "laravel"
+			}
 			fwDir := filepath.Join(rulesDir, frameworkKey)
 			if fwRules, err := config.LoadRulesFromDir(fwDir); err == nil {
+				o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
+					Level: "info", Message: fmt.Sprintf("Loading framework specific rules (%s): %d rules", frameworkKey, len(fwRules)),
+				}))
 				allRules = append(allRules, fwRules...)
 			}
 		}
 
-		// 3. Legacy rules in root (for custom rules)
+		// 3. Custom rules in project root
 		if rootRules, err := config.LoadRulesFromDir(rulesDir); err == nil {
 			allRules = append(allRules, rootRules...)
 		}

@@ -15,12 +15,49 @@ import (
 	"vanguard/internal/models"
 )
 
+type fileContent struct {
+	data  []byte
+	lines []string
+}
+
 type RulesScanner struct {
-	rules []config.RuleDefinition
+	rules      []config.RuleDefinition
+	fileCache  map[string]*fileContent
+	cacheMu    sync.RWMutex
+	targetList map[string][]string
+	reCache    map[string]*regexp.Regexp
 }
 
 func NewRulesScanner(rules []config.RuleDefinition) *RulesScanner {
-	return &RulesScanner{rules: rules}
+	scanner := &RulesScanner{
+		rules:      rules,
+		fileCache:  make(map[string]*fileContent),
+		targetList: make(map[string][]string),
+		reCache:    make(map[string]*regexp.Regexp),
+	}
+	scanner.precompile()
+	return scanner
+}
+
+func (s *RulesScanner) precompile() {
+	for _, rule := range s.rules {
+		for _, pat := range rule.Patterns {
+			if pat.Type == "regex" || pat.Type == "regex-multiline" {
+				if _, ok := s.reCache[pat.Pattern]; !ok {
+					if re, err := regexp.Compile(pat.Pattern); err == nil {
+						s.reCache[pat.Pattern] = re
+					}
+				}
+			}
+			if pat.ExcludePattern != "" {
+				if _, ok := s.reCache[pat.ExcludePattern]; !ok {
+					if re, err := regexp.Compile(pat.ExcludePattern); err == nil {
+						s.reCache[pat.ExcludePattern] = re
+					}
+				}
+			}
+		}
+	}
 }
 
 func (s *RulesScanner) Name() string        { return "rules-scanner" }
@@ -34,7 +71,6 @@ func (s *RulesScanner) Scan(ctx context.Context, project models.ProjectContext, 
 	errCh := make(chan error, 1)
 
 	for _, rule := range s.rules {
-
 		if rule.Enabled != nil && !*rule.Enabled {
 			continue
 		}
@@ -56,8 +92,8 @@ func (s *RulesScanner) Scan(ctx context.Context, project models.ProjectContext, 
 			rf := s.evaluateRule(r, project.RootPath)
 			if len(rf) > 0 {
 				mu.Lock()
+				findings = append(findings, rf...)
 				for _, f := range rf {
-					findings = append(findings, f)
 					emit(f)
 				}
 				mu.Unlock()
@@ -103,7 +139,6 @@ func (s *RulesScanner) evaluateRule(rule config.RuleDefinition, root string) []m
 
 		for _, patMap := range fileMatches {
 			if len(patMap) == len(rule.Patterns) {
-
 				for i := 0; i < len(rule.Patterns); i++ {
 					if fs, ok := patMap[i]; ok && len(fs) > 0 {
 						findings = append(findings, fs...)
@@ -113,7 +148,6 @@ func (s *RulesScanner) evaluateRule(rule config.RuleDefinition, root string) []m
 			}
 		}
 	} else {
-
 		for _, pat := range rule.Patterns {
 			pf := s.evaluatePattern(rule, pat, root)
 			findings = append(findings, pf...)
@@ -153,7 +187,7 @@ func (s *RulesScanner) checkFileExists(rule config.RuleDefinition, pat config.Pa
 		if found {
 			return nil
 		}
-		return []models.Finding{s.buildFinding(rule, pat.Pattern, 0, "", nil, nil)}
+		return []models.Finding{s.buildFinding(rule, pat.Pattern, 0, "[POLA TIDAK DITEMUKAN]", nil, nil)}
 	}
 
 	if !found {
@@ -163,43 +197,42 @@ func (s *RulesScanner) checkFileExists(rule config.RuleDefinition, pat config.Pa
 	var findings []models.Finding
 	for _, m := range matches {
 		rel, _ := filepath.Rel(root, m)
-		findings = append(findings, s.buildFinding(rule, rel, 0, "", nil, nil))
+		findings = append(findings, s.buildFinding(rule, rel, 0, "[FILE EXISTS]", nil, nil))
 	}
 	return findings
 }
 
 func (s *RulesScanner) checkFileContent(rule config.RuleDefinition, pat config.PatternDef, root string) []models.Finding {
-	files := resolveTarget(pat.Target, root)
+	files := s.getCachedTargetFiles(pat.Target, root)
 	if len(files) == 0 {
 		return nil
 	}
 
-	var re *regexp.Regexp
-	if pat.Type == "regex" || pat.Type == "regex-multiline" {
-		var err error
-		re, err = regexp.Compile(pat.Pattern)
-		if err != nil {
-			return nil
-		}
+	re := s.reCache[pat.Pattern]
+	if (pat.Type == "regex" || pat.Type == "regex-multiline") && re == nil {
+		return nil
 	}
 
 	var findings []models.Finding
 
 	for _, fpath := range files {
+		content, err := s.getFileContent(fpath)
+		if err != nil {
+			continue
+		}
+
 		var matches []match
 		if pat.Type == "regex-multiline" {
-
-			matches = scanFileMultiline(fpath, pat, re)
+			matches = s.scanContentMultiline(content, pat, re, fpath)
 		} else {
-			matches = scanFile(fpath, pat, re)
+			matches = s.scanContent(content, pat, re, fpath)
 		}
 
 		rel, _ := filepath.Rel(root, fpath)
 
 		if pat.Negative {
-
 			if len(matches) == 0 {
-				findings = append(findings, s.buildFinding(rule, rel, 0, "", nil, nil))
+				findings = append(findings, s.buildFinding(rule, rel, 0, "[POLA TIDAK DITEMUKAN]", nil, nil))
 			}
 		} else {
 			for _, m := range matches {
@@ -211,6 +244,45 @@ func (s *RulesScanner) checkFileContent(rule config.RuleDefinition, pat config.P
 	return findings
 }
 
+func (s *RulesScanner) getCachedTargetFiles(target, root string) []string {
+	s.cacheMu.RLock()
+	if list, ok := s.targetList[target]; ok {
+		s.cacheMu.RUnlock()
+		return list
+	}
+	s.cacheMu.RUnlock()
+
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+
+	list := resolveTarget(target, root)
+	s.targetList[target] = list
+	return list
+}
+
+func (s *RulesScanner) getFileContent(path string) (*fileContent, error) {
+	s.cacheMu.RLock()
+	if fc, ok := s.fileCache[path]; ok {
+		s.cacheMu.RUnlock()
+		return fc, nil
+	}
+	s.cacheMu.RUnlock()
+
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	strData := string(data)
+	lines := strings.Split(strData, "\n")
+	fc := &fileContent{data: data, lines: lines}
+	s.fileCache[path] = fc
+	return fc, nil
+}
+
 type match struct {
 	line          int
 	text          string
@@ -218,30 +290,21 @@ type match struct {
 	contextAfter  []string
 }
 
-func scanFile(path string, pat config.PatternDef, re *regexp.Regexp) []match {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-	strData := string(data)
-	lines := strings.Split(strData, "\n")
-
-	var excludeRe *regexp.Regexp
-	if pat.ExcludePattern != "" {
-		excludeRe, _ = regexp.Compile(pat.ExcludePattern)
-	}
+func (s *RulesScanner) scanContent(fc *fileContent, pat config.PatternDef, re *regexp.Regexp, path string) []match {
+	excludeRe := s.reCache[pat.ExcludePattern]
 
 	var matches []match
 
 	if pat.Type == "regex" && re != nil {
+		strData := string(fc.data)
 		indexes := re.FindAllStringIndex(strData, -1)
 		if len(indexes) == 0 {
 			return nil
 		}
 
-		lineStarts := make([]int, len(lines))
+		lineStarts := make([]int, len(fc.lines))
 		pos := 0
-		for i, l := range lines {
+		for i, l := range fc.lines {
 			lineStarts[i] = pos
 			pos += len(l) + 1
 		}
@@ -263,99 +326,98 @@ func scanFile(path string, pat config.PatternDef, re *regexp.Regexp) []match {
 			}
 			seenLines[lineIdx] = true
 
-			matched := true
 			if excludeRe != nil {
-				if excludeRe.MatchString(lines[lineIdx]) || excludeRe.MatchString(filepath.ToSlash(path)) {
-					matched = false
+				if excludeRe.MatchString(fc.lines[lineIdx]) || excludeRe.MatchString(filepath.ToSlash(path)) {
+					continue
 				}
 			}
 
-			if matched {
-				m := match{
-					line: lineIdx + 1,
-					text: strings.TrimSpace(lines[lineIdx]),
-				}
-				start := lineIdx - 2
-				if start < 0 {
-					start = 0
-				}
-				for j := start; j < lineIdx; j++ {
-					m.contextBefore = append(m.contextBefore, lines[j])
-				}
-				end := lineIdx + 3
-				if end > len(lines) {
-					end = len(lines)
-				}
-				for j := lineIdx + 1; j < end; j++ {
-					m.contextAfter = append(m.contextAfter, lines[j])
-				}
-				matches = append(matches, m)
+			m := match{
+				line: lineIdx + 1,
+				text: strings.TrimSpace(fc.lines[lineIdx]),
 			}
+			m.contextBefore = getContext(fc.lines, lineIdx, -3, -1)
+			m.contextAfter = getContext(fc.lines, lineIdx, 1, 3)
+			matches = append(matches, m)
 		}
 	} else {
-		for i, line := range lines {
-			trimmed := strings.TrimSpace(line)
-
-			matched := false
-			if pat.Type == "contains" {
-				matched = strings.Contains(line, pat.Pattern)
+		for i, line := range fc.lines {
+			if pat.Type == "contains" && !strings.Contains(line, pat.Pattern) {
+				continue
 			}
 
-			if matched && excludeRe != nil {
+			if excludeRe != nil {
 				if excludeRe.MatchString(line) || excludeRe.MatchString(filepath.ToSlash(path)) {
-					matched = false
+					continue
 				}
 			}
 
-			if matched {
-				m := match{
-					line: i + 1,
-					text: trimmed,
-				}
-				start := i - 2
-				if start < 0 {
-					start = 0
-				}
-				for j := start; j < i; j++ {
-					m.contextBefore = append(m.contextBefore, lines[j])
-				}
-				end := i + 3
-				if end > len(lines) {
-					end = len(lines)
-				}
-				for j := i + 1; j < end; j++ {
-					m.contextAfter = append(m.contextAfter, lines[j])
-				}
-				matches = append(matches, m)
-			}
+			matches = append(matches, match{
+				line:          i + 1,
+				text:          strings.TrimSpace(line),
+				contextBefore: getContext(fc.lines, i, -3, -1),
+				contextAfter:  getContext(fc.lines, i, 1, 3),
+			})
 		}
 	}
 
 	return matches
 }
 
-func scanFileMultiline(path string, pat config.PatternDef, re *regexp.Regexp) []match {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-
-	if pat.ExcludePattern != "" {
-		exRe, _ := regexp.Compile(pat.ExcludePattern)
-		if exRe.Match(data) || exRe.MatchString(filepath.ToSlash(path)) {
-			return nil
-		}
-	}
-
+func (s *RulesScanner) scanContentMultiline(fc *fileContent, pat config.PatternDef, re *regexp.Regexp, path string) []match {
 	if re == nil {
 		return nil
 	}
 
-	if re.Match(data) {
-
-		return []match{{line: 1, text: ""}}
+	exRe := s.reCache[pat.ExcludePattern]
+	if exRe != nil {
+		if exRe.Match(fc.data) || exRe.MatchString(filepath.ToSlash(path)) {
+			return nil
+		}
 	}
-	return nil
+
+	indexes := re.FindAllStringIndex(string(fc.data), -1)
+	if len(indexes) == 0 {
+		return nil
+	}
+
+	var matches []match
+	for _, loc := range indexes {
+		start := loc[0]
+		lineNum := 1 + strings.Count(string(fc.data[:start]), "\n")
+
+		m := match{
+			line: lineNum,
+			text: "[MULTI-LINE MATCH]",
+		}
+		if lineNum-1 < len(fc.lines) {
+			m.text = strings.TrimSpace(fc.lines[lineNum-1])
+		}
+		m.contextBefore = getContext(fc.lines, lineNum-1, -3, -1)
+		m.contextAfter = getContext(fc.lines, lineNum-1, 1, 3)
+		matches = append(matches, m)
+	}
+
+	return matches
+}
+
+func getContext(lines []string, center, startRel, endRel int) []string {
+	var ctx []string
+	start := center + startRel
+	end := center + endRel
+	if start < 0 {
+		start = 0
+	}
+	if end >= len(lines) {
+		end = len(lines) - 1
+	}
+	for i := start; i <= end; i++ {
+		if i == center {
+			continue
+		}
+		ctx = append(ctx, lines[i])
+	}
+	return ctx
 }
 
 func resolveTarget(target, root string) []string {
@@ -380,7 +442,7 @@ func resolveTarget(target, root string) []string {
 	}
 
 	if needsWalk(target) {
-		ext := targetExt(target)
+		exts := targetExts(target)
 		var walkRoots []string
 
 		switch target {
@@ -388,10 +450,16 @@ func resolveTarget(target, root string) []string {
 			walkRoots = []string{root}
 		case "blade-files":
 			walkRoots = []string{filepath.Join(root, "resources", "views")}
+		case "twig-files":
+			walkRoots = []string{filepath.Join(root, "templates")}
 		case "js-files":
 			walkRoots = []string{filepath.Join(root, "resources", "js")}
 		case "config-files":
-			walkRoots = []string{filepath.Join(root, "config")}
+			walkRoots = []string{
+				filepath.Join(root, "config"),
+				filepath.Join(root, "application", "config"),
+				filepath.Join(root, "app", "Config"),
+			}
 		case "routes-files":
 			walkRoots = []string{filepath.Join(root, "routes")}
 		case "migration-files":
@@ -410,7 +478,10 @@ func resolveTarget(target, root string) []string {
 			walkRoots = []string{root}
 		}
 
-		if ext != "" {
+		for _, ext := range exts {
+			if ext == "" {
+				continue
+			}
 			for _, wRoot := range walkRoots {
 				_ = filepath.Walk(wRoot, func(path string, info os.FileInfo, err error) error {
 					if err != nil {
@@ -442,8 +513,16 @@ func targetGlobs(target, root string) []string {
 		return []string{filepath.Join(root, "*.php"), filepath.Join(root, "app", "*.php")}
 	case "blade-files":
 		return []string{filepath.Join(root, "resources", "views", "*.blade.php")}
+	case "twig-files":
+		return []string{filepath.Join(root, "templates", "*.twig")}
 	case "config-files":
-		return []string{filepath.Join(root, "config", "*.php")}
+		return []string{
+			filepath.Join(root, "config", "*.php"),
+			filepath.Join(root, "config", "*.yml"),
+			filepath.Join(root, "config", "*.yaml"),
+			filepath.Join(root, "application", "config", "*.php"),
+			filepath.Join(root, "app", "Config", "*.php"),
+		}
 	case "env-files":
 		return []string{filepath.Join(root, ".env"), filepath.Join(root, ".env.*")}
 	case "routes-files":
@@ -475,23 +554,27 @@ func targetGlobs(target, root string) []string {
 
 func needsWalk(target string) bool {
 	switch target {
-	case "php-files", "blade-files", "js-files", "config-files", "routes-files", "migration-files", "model-files", "service-files", "middleware-files", "controller-files", "request-files":
+	case "php-files", "blade-files", "twig-files", "js-files", "config-files", "routes-files", "migration-files", "model-files", "service-files", "middleware-files", "controller-files", "request-files":
 		return true
 	default:
 		return false
 	}
 }
 
-func targetExt(target string) string {
+func targetExts(target string) []string {
 	switch target {
-	case "php-files", "config-files", "routes-files", "migration-files", "model-files", "service-files", "middleware-files", "controller-files", "request-files":
-		return ".php"
+	case "php-files", "routes-files", "migration-files", "model-files", "service-files", "middleware-files", "controller-files", "request-files":
+		return []string{".php"}
 	case "blade-files":
-		return ".blade.php"
+		return []string{".blade.php"}
 	case "js-files":
-		return ".js"
+		return []string{".js"}
+	case "twig-files":
+		return []string{".twig"}
+	case "config-files":
+		return []string{".php", ".yaml", ".yml", ".xml"}
 	default:
-		return ""
+		return nil
 	}
 }
 
@@ -529,20 +612,24 @@ func skipDir(name string) bool {
 }
 
 func (s *RulesScanner) checkEntropy(rule config.RuleDefinition, pat config.PatternDef, root string) []models.Finding {
-	files := resolveTarget(pat.Target, root)
+	files := s.getCachedTargetFiles(pat.Target, root)
 	if len(files) == 0 {
 		return nil
 	}
 
 	threshold := 4.5
 	if pat.Pattern != "" {
-
 		fmt.Sscanf(pat.Pattern, "%f", &threshold)
 	}
 
 	var findings []models.Finding
 	for _, fpath := range files {
-		matches := scanFileEntropy(fpath, threshold)
+		fc, err := s.getFileContent(fpath)
+		if err != nil {
+			continue
+		}
+
+		matches := scanContentEntropy(fc, threshold)
 		rel, _ := filepath.Rel(root, fpath)
 		for _, m := range matches {
 			findings = append(findings, s.buildFinding(rule, rel, m.line, m.text, m.contextBefore, m.contextAfter))
@@ -551,40 +638,21 @@ func (s *RulesScanner) checkEntropy(rule config.RuleDefinition, pat config.Patte
 	return findings
 }
 
-func scanFileEntropy(path string, threshold float64) []match {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-	lines := strings.Split(string(data), "\n")
+func scanContentEntropy(fc *fileContent, threshold float64) []match {
 	var matches []match
 
-	for i, line := range lines {
+	for i, line := range fc.lines {
 		words := strings.FieldsFunc(line, func(r rune) bool {
 			return r == '"' || r == '\'' || r == ' ' || r == '=' || r == ':'
 		})
 		for _, word := range words {
 			if len(word) > 16 && calculateEntropy(word) > threshold {
-				m := match{
-					line: i + 1,
-					text: strings.TrimSpace(line),
-				}
-
-				start := i - 2
-				if start < 0 {
-					start = 0
-				}
-				for j := start; j < i; j++ {
-					m.contextBefore = append(m.contextBefore, lines[j])
-				}
-				end := i + 3
-				if end > len(lines) {
-					end = len(lines)
-				}
-				for j := i + 1; j < end; j++ {
-					m.contextAfter = append(m.contextAfter, lines[j])
-				}
-				matches = append(matches, m)
+				matches = append(matches, match{
+					line:          i + 1,
+					text:          strings.TrimSpace(line),
+					contextBefore: getContext(fc.lines, i, -3, -1),
+					contextAfter:  getContext(fc.lines, i, 1, 3),
+				})
 				break
 			}
 		}
