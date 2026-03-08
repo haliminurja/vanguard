@@ -65,7 +65,7 @@ func (ip *IgnoreProcessor) hasIgnoreComment(f models.Finding) bool {
 		if currentLine == f.Line {
 			lineText := scanner.Text()
 
-			if strings.Contains(lineText, "@ward-ignore") {
+			if strings.Contains(lineText, "@vanguard-ignore") {
 				return true
 			}
 

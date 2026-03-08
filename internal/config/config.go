@@ -117,8 +117,8 @@ func Load(projectRoot string) (*Config, error) {
 	}
 
 	projectConfigs := []string{
-		filepath.Join(projectRoot, "ward.yaml"),
-		filepath.Join(projectRoot, ".ward.yaml"),
+		filepath.Join(projectRoot, "vanguard.yaml"),
+		filepath.Join(projectRoot, ".vanguard.yaml"),
 	}
 
 	for _, p := range projectConfigs {
@@ -152,6 +152,6 @@ func Save(cfg *Config) error {
 		return fmt.Errorf("marshalling config: %w", err)
 	}
 
-	header := []byte("# Ward Configuration\n")
+	header := []byte("# Vanguard Configuration\n")
 	return os.WriteFile(path, append(header, data...), 0600)
 }

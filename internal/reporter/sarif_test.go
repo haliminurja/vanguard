@@ -18,7 +18,7 @@ func TestSARIFReporter_Generate_ValidatesOutput(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	content, err := os.ReadFile(filepath.Join(dir, "ward-report.sarif"))
+	content, err := os.ReadFile(filepath.Join(dir, "vanguard-report.sarif"))
 	if err != nil {
 		t.Fatalf("failed to read generated report: %v", err)
 	}
@@ -37,8 +37,8 @@ func TestSARIFReporter_Generate_ValidatesOutput(t *testing.T) {
 	}
 
 	run := doc.Runs[0]
-	if run.Tool.Driver.Name != "Ward" {
-		t.Errorf("Tool.Driver.Name = %q, want Ward", run.Tool.Driver.Name)
+	if run.Tool.Driver.Name != "vanguard" {
+		t.Errorf("Tool.Driver.Name = %q, want Vanguard", run.Tool.Driver.Name)
 	}
 
 	if len(run.Results) == 0 {

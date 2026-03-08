@@ -117,8 +117,8 @@ func (r *SARIFReporter) Generate(_ context.Context, report *models.ScanReport) e
 			{
 				Tool: sarifTool{
 					Driver: sarifDriver{
-						Name:            "Ward",
-						InformationURI:  "https://github.com/your-repo/ward",
+						Name:            "vanguard",
+						InformationURI:  "https://github.com/your-repo/vanguard",
 						Version:         r.Version,
 						SemanticVersion: r.Version,
 						Rules:           rules,
@@ -134,7 +134,7 @@ func (r *SARIFReporter) Generate(_ context.Context, report *models.ScanReport) e
 		return fmt.Errorf("marshalling SARIF report: %w", err)
 	}
 
-	outPath := filepath.Join(r.OutputDir, "ward-report.sarif")
+	outPath := filepath.Join(r.OutputDir, "vanguard-report.sarif")
 	if err := os.WriteFile(outPath, data, 0644); err != nil {
 		return fmt.Errorf("writing SARIF report to %s: %w", outPath, err)
 	}

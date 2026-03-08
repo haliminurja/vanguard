@@ -6,14 +6,14 @@ import (
 	"path/filepath"
 )
 
-const wardDir = ".ward"
+const vanguardDir = ".vanguard"
 
 func Dir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolving home directory: %w", err)
 	}
-	return filepath.Join(home, wardDir), nil
+	return filepath.Join(home, vanguardDir), nil
 }
 func FilePath(name string) (string, error) {
 	dir, err := Dir()

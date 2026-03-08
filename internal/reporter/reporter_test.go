@@ -63,7 +63,7 @@ func TestJSONReporter(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "ward-report.json"))
+	data, err := os.ReadFile(filepath.Join(dir, "vanguard-report.json"))
 	if err != nil {
 		t.Fatalf("report file not created: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestSARIFReporter(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "ward-report.sarif"))
+	data, err := os.ReadFile(filepath.Join(dir, "vanguard-report.sarif"))
 	if err != nil {
 		t.Fatalf("SARIF file not created: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestSARIFReporter(t *testing.T) {
 	if !strings.Contains(content, "TEST-001") {
 		t.Error("SARIF report should contain rule ID")
 	}
-	if !strings.Contains(content, "Ward") {
+	if !strings.Contains(content, "vanguard") {
 		t.Error("SARIF report should contain tool name")
 	}
 }
@@ -116,7 +116,7 @@ func TestHTMLReporter(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "ward-report.html"))
+	data, err := os.ReadFile(filepath.Join(dir, "vanguard-report.html"))
 	if err != nil {
 		t.Fatalf("HTML file not created: %v", err)
 	}
@@ -142,13 +142,13 @@ func TestMarkdownReporter(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "ward-report.md"))
+	data, err := os.ReadFile(filepath.Join(dir, "vanguard-report.md"))
 	if err != nil {
 		t.Fatalf("Markdown file not created: %v", err)
 	}
 
 	content := string(data)
-	if !strings.Contains(content, "# Ward Security Report") {
+	if !strings.Contains(content, "# Vanguard Security Report") {
 		t.Error("Markdown report should contain title")
 	}
 	if !strings.Contains(content, "TEST-001") {

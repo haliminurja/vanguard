@@ -41,29 +41,91 @@ Perintah ini akan:
 
 ### 2. Jalankan Pemindaian (Scan)
 
-Setelah diinisialisasi, Anda dapat mulai memindai proyek untuk mencari celah keamanan.
+Setelah diinisialisasi, Anda dapat mulai memindai proyek untuk mencari celah keamanan. VANGUARD mendukung berbagai parameter untuk menyesuaikan proses pemindaian.
+
+#### Contoh Penggunaan Dasar
 
 ```bash
+# Memindai direktori saat ini
 vanguard scan .
 ```
 
-Anda juga dapat mengatur tingkat keparahan minimum atau format keluaran:
+#### Opsi Pemindaian (Flags)
 
-```bash
-# Scan dengan format HTML
-vanguard scan . --output html
+Anda dapat menyesuaikan pemindaian menggunakan flags berikut:
 
-# Scan dan gagal proses jika ada temuan tingkat 'high'
-vanguard scan . --fail-on high
+- **Target Path:** Tentukan folder, file lokal, atau repositori remote yang ingin dipindai.
+
+  ```bash
+  # Scan path relatif
+  vanguard scan ./internal/api
+
+  # Scan path absolut
+  vanguard scan "C:\Projects\my-awesome-app"
+
+  # Scan repositori Git remote
+  vanguard scan https://github.com/username/repository.git
+  ```
+
+- **Output Mode (`-o`, `--output`):** Pilih format laporan (default: `tui`). Gunakan koma untuk beberapa format sekaligus.
+
+  ```bash
+  # Tampilan interaktif (TUI)
+  vanguard scan . --output tui
+
+  # Menghasilkan berbagai file laporan (HTML, JSON, Markdown, SARIF)
+  vanguard scan . --output html,json,markdown
+  ```
+
+- **Severity Filtering (`--fail-on`):** Gagal proses (exit code 1) jika ditemukan kerentanan dengan tingkat keparahan tertentu ke atas.
+  ```bash
+  # Gagal jika ada temuan 'high' atau 'critical'
+  vanguard scan . --fail-on high
+  ```
+- **Verbose Output (`-v`, `--verbose`):** Menampilkan log detail proses pemindaian.
+  ```bash
+  vanguard scan . --verbose
+  ```
+
+---
+
+### 3. Konfigurasi Lanjutan (`vanguard.yaml`)
+
+Gunakan berkas `vanguard.yaml` untuk kontrol yang lebih presisi.
+
+```yaml
+# Tingkat keparahan minimum yang dilaporkan (info, low, medium, high, critical)
+severity: info
+
+scanners:
+  # Mengabaikan folder tertentu secara global
+  ignore_dirs: ["vendor", "node_modules", "tests"]
+  # Mematikan scanner tertentu (misal: rules-scanner, dependency-scanner)
+  # disable: ["dependency-scanner"]
+
+ignore:
+  # Mengabaikan path file tertentu (mendukung glob pattern)
+  paths:
+    - "tests/**"
+    - "**/mock_*.go"
+  # Mengabaikan Rule ID tertentu secara global
+  rules:
+    - "VND-FL-001"
+
+output:
+  # Lokasi penyimpanan laporan (default: direktori saat ini)
+  # dir: "./security-reports"
+  formats: ["tui", "html", "markdown"]
 ```
 
-### 3. Hasil Temuan (Akhir)
+### 4. Hasil Temuan (Laporan)
 
-Setelah pemindaian selesai, VANGUARD akan menampilkan ringkasan temuan. Jika Anda menggunakan format laporan lain, berkas laporan akan dihasilkan di direktori proyek Anda.
+Setelah pemindaian selesai, VANGUARD akan menampilkan ringkasan temuan. Jika format file laporan dipilih, berkas akan dihasilkan di direktori proyek Anda.
 
-- **TUI:** Tampilan interaktif langsung di terminal.
-- **HTML/Markdown:** Cocok untuk dokumentasi atau tinjauan tim.
-- **JSON/SARIF:** Ideal untuk integrasi dengan alat analisis statis lainnya.
+- **TUI (Interactive):** Antarmuka terminal bergaya modern untuk navigasi temuan secara langsung.
+- **HTML:** Laporan statis dengan desain _Glassmorphism_ yang cocok untuk presentasi.
+- **JSON/SARIF:** Format standar untuk integrasi dengan alat audit keamanan atau IDE.
+- **Markdown:** Ringkasan temuan yang ramah untuk dokumentasi GitHub/GitLab.
 
 ---
 

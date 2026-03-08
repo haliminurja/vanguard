@@ -190,7 +190,7 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 			}))
 		} else {
 			o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
-				Level: "info", Message: fmt.Sprintf("Report written to ward-report.%s", rep.Format()),
+				Level: "info", Message: fmt.Sprintf("Report written to vanguard-report.%s", rep.Format()),
 			}))
 		}
 	}
@@ -373,8 +373,8 @@ func (o *Orchestrator) getRulesDirectory() string {
 
 	candidates := []string{
 		filepath.Join(o.target, "rules"),
-		filepath.Join(o.target, "ward-rules"),
-		filepath.Join(o.target, ".ward-rules"),
+		filepath.Join(o.target, "vanguard-rules"),
+		filepath.Join(o.target, ".vanguard-rules"),
 	}
 
 	exe, err := os.Executable()
@@ -382,7 +382,7 @@ func (o *Orchestrator) getRulesDirectory() string {
 		exeDir := filepath.Dir(exe)
 		candidates = append(candidates,
 			filepath.Join(exeDir, "rules"),
-			filepath.Join(exeDir, "ward-rules"),
+			filepath.Join(exeDir, "vanguard-rules"),
 		)
 	}
 
@@ -390,7 +390,7 @@ func (o *Orchestrator) getRulesDirectory() string {
 	if err == nil {
 		candidates = append(candidates,
 			filepath.Join(cwd, "rules"),
-			filepath.Join(cwd, "ward-rules"),
+			filepath.Join(cwd, "vanguard-rules"),
 		)
 	}
 

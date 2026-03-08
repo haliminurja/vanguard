@@ -107,7 +107,7 @@ func (r *JSONReporter) Generate(_ context.Context, report *models.ScanReport) er
 		return fmt.Errorf("marshalling report: %w", err)
 	}
 
-	outPath := filepath.Join(r.OutputDir, "ward-report.json")
+	outPath := filepath.Join(r.OutputDir, "vanguard-report.json")
 	if err := os.WriteFile(outPath, data, 0644); err != nil {
 		return fmt.Errorf("writing report to %s: %w", outPath, err)
 	}

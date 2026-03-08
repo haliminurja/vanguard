@@ -65,7 +65,7 @@ func TestLocalProvider_NonExistentPath(t *testing.T) {
 }
 
 func TestLocalProvider_FilePath(t *testing.T) {
-	f, err := os.CreateTemp("", "ward-test-*")
+	f, err := os.CreateTemp("", "vanguard-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}

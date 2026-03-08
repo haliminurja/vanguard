@@ -33,7 +33,7 @@ func (p *GitProvider) Acquire(ctx context.Context, repoURL string) (*SourceResul
 		return nil, fmt.Errorf("invalid repository URL starts with dash: %q", repoURL)
 	}
 
-	tmpDir, err := os.MkdirTemp("", "ward-scan-*")
+	tmpDir, err := os.MkdirTemp("", "vanguard-scan-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating temp directory: %w", err)
 	}

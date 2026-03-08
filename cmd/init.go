@@ -75,7 +75,7 @@ output:
 # VANGUARD Pre-commit Hook
 # Prevents committing security vulnerabilities
 
-vanguard scan . --severity high --output-format tui
+vanguard scan . --fail-on high --output tui
 if [ $? -ne 0 ]; then
   echo "\033[31m❌ VANGUARD found high-severity vulnerabilities. Commit aborted.\033[0m"
   exit 1
