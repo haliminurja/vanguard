@@ -68,6 +68,24 @@ rules:
 	if rules[0].ID != "TEST-002" {
 		t.Errorf("expected rule ID TEST-002, got: %s", rules[0].ID)
 	}
+
+	emptyWrappedYaml := `
+meta:
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
+rules:
+`
+	emptyWrappedPath := filepath.Join(tempDir, "empty-wrapped.yaml")
+	if err := os.WriteFile(emptyWrappedPath, []byte(emptyWrappedYaml), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	rules, err = LoadRulesFromFile(emptyWrappedPath)
+	if err != nil {
+		t.Fatalf("expected no error loading empty wrapped yaml, got: %v", err)
+	}
+	if len(rules) != 0 {
+		t.Fatalf("expected 0 rule from empty wrapped yaml, got: %d", len(rules))
+	}
 }
 
 type ruleWithFile struct {
@@ -140,6 +158,60 @@ func TestCommonRulesDoNotUseFrameworkOnlyTargets(t *testing.T) {
 			target := strings.ToLower(strings.TrimSpace(p.Target))
 			if target == "blade-files" || target == "twig-files" {
 				t.Errorf("common rule %s must not use framework-only target %q", r.ID, p.Target)
+			}
+		}
+	}
+}
+
+func TestCommonRulesArePHPNativeOnly(t *testing.T) {
+	commonDir := filepath.Join("..", "..", "rules", "common")
+	rules, err := LoadRulesFromDir(commonDir)
+	if err != nil {
+		t.Fatalf("failed to load common rules: %v", err)
+	}
+
+	disallowedTargets := map[string]bool{
+		"routes-files":     true,
+		"controller-files": true,
+		"middleware-files": true,
+		"model-files":      true,
+		"request-files":    true,
+		"service-files":    true,
+		"blade-files":      true,
+		"twig-files":       true,
+	}
+	disallowedTerms := []string{
+		"laravel", "symfony", "wordpress", "codeigniter", "yii", "cakephp", "lumen",
+		"eloquent", "artisan", "sanctum", "passport", "route::", "auth::", "gate::", "broadcast::", "resource::",
+		"blade", "twig", "abort_unless", "abort_if", "abort(", "hash::", "view(", "view::", "db::",
+	}
+
+	for _, r := range rules {
+		for _, p := range r.Patterns {
+			target := strings.ToLower(strings.TrimSpace(p.Target))
+			if disallowedTargets[target] {
+				t.Errorf("common rule %s uses framework target %q", r.ID, p.Target)
+			}
+
+			patternBlob := strings.ToLower(p.Pattern + " " + p.ExcludePattern)
+			for _, term := range disallowedTerms {
+				if strings.Contains(patternBlob, term) {
+					t.Errorf("common rule %s contains framework-specific pattern term %q", r.ID, term)
+				}
+			}
+		}
+
+		textBlob := strings.ToLower(strings.Join([]string{
+			r.Title,
+			r.Description,
+			r.Remediation,
+			strings.Join(r.Tags, " "),
+			strings.Join(r.References, " "),
+		}, " "))
+
+		for _, term := range disallowedTerms {
+			if strings.Contains(textBlob, term) {
+				t.Errorf("common rule %s contains framework-specific text term %q", r.ID, term)
 			}
 		}
 	}

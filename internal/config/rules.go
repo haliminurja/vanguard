@@ -88,8 +88,13 @@ func LoadRulesFromFile(filePath string) ([]RuleDefinition, error) {
 	}
 
 	var wrapped rulesFile
-	if err := yaml.Unmarshal(data, &wrapped); err == nil && len(wrapped.Rules) > 0 {
-		return normalizeAndValidateRules(wrapped.Rules, filePath)
+	if err := yaml.Unmarshal(data, &wrapped); err == nil {
+		var topLevel map[string]any
+		if err := yaml.Unmarshal(data, &topLevel); err == nil {
+			if _, ok := topLevel["rules"]; ok {
+				return normalizeAndValidateRules(wrapped.Rules, filePath)
+			}
+		}
 	}
 
 	var rules []RuleDefinition

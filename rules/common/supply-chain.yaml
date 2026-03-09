@@ -9,34 +9,6 @@ meta:
     - CWE-SANS-Top25
     - NIST-SP-800-53
 rules:
-  - id: SUPPLY-001
-    title: "Composer - dependensi dengan versi wildcard (*) tanpa lock file"
-    description: >
-      composer.json mendefinisikan dependensi dengan constraint versi wildcard (*) atau terlalu luas. Tanpa composer.lock yang di-commit, setiap install atau update dapat menarik versi yang berbeda, termasuk versi yang mungkin mengandung backdoor atau vulnerability baru.
-
-    severity: high
-    confidence: medium
-    category: Dependency Management
-    tags: [supply-chain, composer, owasp-a06, cwe-829]
-    cwe: "CWE-829"
-    owasp: "A06:2021"
-    patterns:
-      - type: regex
-        target: any
-        scope: project
-        pattern: '"require"[^}]*"\\*"'
-    remediation: |
-      Gunakan constraint versi yang spesifik dan commit composer.lock:
-        // composer.json
-        "require": {
-            "laravel/framework": "^11.0",     // Bukan "*"
-            "stripe/stripe-php": "^13.0"
-        }
-      Selalu commit composer.lock ke version control:
-        git add composer.lock
-    references:
-      - "https://cwe.mitre.org/data/definitions/829.html"
-      - "https://getcomposer.org/doc/01-basic-usage.md#commit-your-composer-lock-file-to-version-control"
   - id: SUPPLY-002
     title: "Composer - minimum-stability disetel ke 'dev'"
     description: >
@@ -83,33 +55,5 @@ rules:
     remediation: |
       JANGAN PERNAH memuat dan mengeksekusi kode dari URL eksternal saat runtime.
       Semua dependensi harus dikelola melalui Composer dan di-review sebelum instalasi.
-    references:
-      - "https://cwe.mitre.org/data/definitions/829.html"
-  - id: SUPPLY-004
-    title: "Composer post-install/post-update script menjalankan command arbitrary"
-    description: >
-      composer.json mendefinisikan post-install-cmd atau post-update-cmd script yang menjalankan command shell arbitrer. Jika package dependency yang terkompromi memodifikasi script ini, command berbahaya akan dieksekusi secara otomatis saat developer menjalankan composer install atau composer update.
-
-    severity: high
-    confidence: medium
-    category: Build Pipeline
-    tags: [supply-chain, composer, build-security, owasp-a08, cwe-829]
-    cwe: "CWE-829"
-    owasp: "A08:2021"
-    patterns:
-      - type: regex
-        target: any
-        scope: project
-        pattern: '"(post-install-cmd|post-update-cmd)"[^}]*(curl|wget|bash|sh\s+-c|exec|system)'
-    remediation: |
-      Review semua Composer script dan batasi ke command yang dikenal:
-        "scripts": {
-            "post-install-cmd": [
-                "@php artisan package:discover"
-            ],
-            "post-update-cmd": [
-                "@php artisan vendor:publish -tag=laravel-assets -ansi -force"
-            ]
-        }
     references:
       - "https://cwe.mitre.org/data/definitions/829.html"

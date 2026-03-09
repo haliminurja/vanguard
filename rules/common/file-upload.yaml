@@ -169,36 +169,6 @@ rules:
         'document' => 'required|file|mimes:pdf,docx,xlsx|max:10240',        // 10MB
     references:
       - "https://cwe.mitre.org/data/definitions/770.html"
-  - id: UPL-008
-    title: "Upload file di controller tanpa FormRequest validation"
-    description: >
-      Aksi controller menangani upload file menggunakan $request->file() tetapi parameter method diketik sebagai Request generik bukan FormRequest. Tanpa class FormRequest khusus, aturan validasi file mungkin hilang atau diterapkan secara tidak konsisten.
-
-    severity: medium
-    confidence: medium
-    category: Missing Validation
-    tags: [file-upload, input-validation, owasp-a04, cwe-434]
-    owasp: "A04:2021"
-    cwe: "CWE-434"
-    patterns:
-      - type: regex
-        target: controller-files
-        pattern: '\$request->file\s*\('
-        exclude_pattern: '(FormRequest|validate\s*\(|Validator::make|validateWith)'
-    remediation: |
-      Buat FormRequest dengan validasi file:
-        class UploadPhotoRequest extends FormRequest {
-            public function rules(): array {
-                return [
-                    'photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
-                ];
-            }
-        }
-      Lalu type-hint di controller:
-        public function store(UploadPhotoRequest $request): RedirectResponse { ... }
-    references:
-      - "https://cwe.mitre.org/data/definitions/434.html"
-      - "https://laravel.com/docs/validation#form-request-validation"
   - id: UPL-009
     title: "Konfigurasi visibilitas disk hilang untuk file yang diupload"
     description: >
