@@ -9,9 +9,9 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: AUTH-Z03
-    title: "Model::update() dengan payload request tidak difilter (IDOR)"
+    title: "Model::update() with unfiltered request payload (IDOR)"
     description: >
-      update() dipanggil dengan $request->all() tanpa terlebih dahulu mengotorisasi bahwa pengguna yang terautentikasi memiliki record tersebut. Penyerang mengubah resource ID untuk menimpa data pengguna lain.
+      update() is called with $request->all() without first authorizing that the authenticated user owns that record. Attackers change the resource ID to overwrite other users' data.
 
     severity: high
     confidence: high
@@ -24,7 +24,7 @@ rules:
         target: php-files
         pattern: '->update\(\s*(\$request->all\(\)|request\(\)->all\(\))'
     remediation: |
-      Otorisasi kepemilikan sebelum update, gunakan ->only() untuk batasan field:
+      Authorize ownership before updating, use ->only() for field limitations:
         $post = Post::findOrFail($id);
         $this->authorize('update', $post);
         $post->update($request->only(['title', 'body']));

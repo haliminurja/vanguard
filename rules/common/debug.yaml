@@ -9,9 +9,9 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: DBG-003
-    title: "var_dump() / print_r() / var_export() dalam source code"
+    title: "var_dump() / print_r() / var_export() in source code"
     description: >
-      var_dump(), print_r(), atau var_export() mengeluarkan konten variabel PHP mentah langsung ke HTTP response. Dalam konteks API ini mengotori response JSON/XML. Dalam konteks web ini mengekspos struktur data internal dan record database ke pengguna.
+      var_dump(), print_r(), or var_export() output raw PHP variable contents directly to the HTTP response. In an API context, this pollutes JSON/XML responses. In a web context, it exposes internal data structures and database records to the user.
 
     severity: medium
     confidence: high
@@ -25,14 +25,14 @@ rules:
         pattern: '\b(var_dump|print_r|var_export)\s*\('
         exclude_pattern: '(//|#\s|/\*|test|Test|spec)'
     remediation: |
-      Ganti dengan structured logging:
+      Replace with structured logging:
         Log::debug('Variable state', ['data' => $variable]);
     references:
       - "https://cwe.mitre.org/data/definitions/215.html"
   - id: DBG-004
-    title: "phpinfo() terekspos dalam kode yang dapat diakses web"
+    title: "phpinfo() exposed in web-accessible code"
     description: >
-      phpinfo() mengeluarkan konfigurasi PHP lengkap, extension yang dimuat, semua variabel $_SERVER, dan path yang dikompilasi. Satu pemanggilan fungsi ini mengekspos lebih banyak internal server daripada hampir kerentanan information disclosure lainnya.
+      phpinfo() outputs complete PHP configuration, loaded extensions, all $_SERVER variables, and compiled paths. A single call to this function exposes more server internals than almost any other information disclosure vulnerability.
 
     severity: critical
     confidence: high
@@ -46,7 +46,7 @@ rules:
         pattern: '\bphpinfo\s*\('
         exclude_pattern: '(//|#\s|/\*|test|Test)'
     remediation: |
-      Hapus phpinfo() sepenuhnya. Gunakan php -i di command line untuk
-      diagnostik selama provisioning jika diperlukan.
+      Remove phpinfo() entirely. Use php -i on the command line for
+      diagnostics during provisioning if needed.
     references:
       - "https://cwe.mitre.org/data/definitions/200.html"

@@ -9,9 +9,9 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: UPL-001
-    title: "File disimpan di direktori public tanpa validasi"
+    title: "File Stored in Public Directory Without Validation"
     description: >
-      File yang diupload disimpan langsung di direktori public tanpa validasi yang terlihat. File di public/ dapat diakses langsung via web server, yang dapat menyebabkan penyajian konten berbahaya atau script yang dapat dieksekusi.
+      Uploaded files are stored directly in the public directory without apparent validation. Files in public/ can be accessed directly via the web server, which can lead to the serving of malicious content or executable scripts.
 
     severity: high
     confidence: medium
@@ -25,17 +25,17 @@ rules:
         pattern: '(storeAs|move|store)\s*\(\s*["'']?public'
         exclude_pattern: '(validate|mimes|mime_type|extension|image|max:)'
     remediation: |
-      Simpan file upload di luar public/ dan sajikan melalui controller:
+      Store uploaded files outside of public/ and serve them through a controller:
         $path = $request->file('document')->store('uploads', 'private');
-      Jika file harus public, validasi secara menyeluruh terlebih dahulu:
+      If a file must be public, validate it thoroughly first:
         $request->validate(['file' => 'required|mimes:jpg,png,gif,webp|max:2048']);
     references:
       - "https://cwe.mitre.org/data/definitions/434.html"
       - "https://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload"
   - id: UPL-002
-    title: "Nama file original digunakan untuk penyimpanan"
+    title: "Original Filename Used for Storage"
     description: >
-      getClientOriginalName() atau getClientOriginalExtension() digunakan untuk menentukan nama file yang disimpan. Penyerang dapat memanipulasi nama file original untuk menyertakan sekuens path traversal (../../), null byte, atau ekstensi berbahaya.
+      getClientOriginalName() or getClientOriginalExtension() is used to determine the stored filename. An attacker can manipulate the original filename to include path traversal sequences (../../), null bytes, or dangerous extensions.
 
     severity: high
     confidence: high
@@ -51,17 +51,17 @@ rules:
         target: php-files
         pattern: 'getClientOriginalExtension\s*\(\s*\)'
     remediation: |
-      Buat nama file yang aman daripada menggunakan nama original:
-        $filename = Str::uuid() . '.' . $file->extension();   // ekstensi dari MIME type
+      Generate a secure filename instead of using the original one:
+        $filename = Str::uuid() . '.' . $file->extension();   // extension from MIME type
         $file->storeAs('uploads', $filename);
-        // Atau gunakan hashName() yang menghasilkan nama unik:
+        // Or use hashName() which generates a unique name:
         $file->storeAs('uploads', $file->hashName());
     references:
       - "https://cwe.mitre.org/data/definitions/73.html"
   - id: UPL-003
-    title: "Tidak ada validasi MIME type pada file upload"
+    title: "No MIME Type Validation on File Upload"
     description: >
-      Upload file diproses menggunakan store(), storeAs(), atau move() tanpa validasi MIME type yang terlihat. Tanpa pemeriksaan tipe file, pengguna dapat mengupload file executable (PHP, HTML dengan script) yang mungkin dieksekusi atau disajikan sebagai konten aktif oleh server.
+      File upload is processed using store(), storeAs(), or move() without apparent MIME type validation. Without file type checks, users can upload executable files (PHP, HTML with scripts) that may be executed or served as active content by the server.
 
     severity: high
     confidence: medium
@@ -75,7 +75,7 @@ rules:
         pattern: '\$request->file\([^)]+\)->(store|storeAs|move)\s*\('
         exclude_pattern: '(validate|mimes|mimetypes|extensions|image|FormRequest)'
     remediation: |
-      Selalu validasi MIME type sebelum menyimpan:
+      Always validate the MIME type before storing:
         $request->validate([
             'file' => 'required|file|mimes:jpg,jpeg,png,gif,pdf|max:10240',
         ]);
@@ -83,9 +83,9 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/434.html"
   - id: UPL-004
-    title: "File yang diupload di-include atau di-require (RCE)"
+    title: "Uploaded File Included or Required (RCE)"
     description: >
-      Path file yang diupload diteruskan ke include, require, include_once, atau require_once. Ini adalah pola yang sangat berbahaya yang mengizinkan remote code execution melalui file upload.
+      The path of an uploaded file is passed to include, require, include_once, or require_once. This is an extremely dangerous pattern that allows remote code execution through file uploads.
 
     severity: critical
     confidence: high
@@ -98,15 +98,15 @@ rules:
         target: php-files
         pattern: '(include|require|include_once|require_once)\s*\(?\s*\$.*\b(upload|file|tmp|temp|storage)\b'
     remediation: |
-      Jangan pernah meng-include file yang diupload. Proses terpisah:
+      Never include uploaded files. Process them separately:
         $content = Storage::get($uploadedFilePath);
-        // Parse dan validasi konten sebelum digunakan
+        // Parse and validate content before use
     references:
       - "https://cwe.mitre.org/data/definitions/98.html"
   - id: UPL-005
-    title: "Ekstensi file executable diizinkan dalam validasi upload"
+    title: "Executable File Extensions Allowed in Upload Validation"
     description: >
-      Validasi upload memasukkan ekstensi executable (php, phtml, phar, sh, exe, bat) dalam whitelist. File dengan ekstensi ini yang mencapai path yang disajikan web dapat mencapai remote code execution.
+      Upload validation includes executable extensions (php, phtml, phar, sh, exe, bat) in the whitelist. Files with these extensions reaching a web-served path can lead to remote code execution.
 
     severity: critical
     confidence: high
@@ -119,14 +119,14 @@ rules:
         target: php-files
         pattern: 'mimes\s*:\s*[^"''`,\]]*\b(php[0-9]?|phtml|phar|sh|bash|exe|bat|cmd|cgi|pl|py|rb)\b'
     remediation: |
-      Izinkan hanya MIME type yang aman secara eksplisit dan simpan di luar web root:
+      Allow only explicitly safe MIME types and store outside the web root:
         'file' => 'required|mimes:jpg,jpeg,png,gif,webp,pdf,docx,xlsx|max:10240',
     references:
       - "https://cwe.mitre.org/data/definitions/434.html"
   - id: UPL-006
-    title: "Upload file SVG diizinkan (risiko XSS)"
+    title: "SVG File Upload Allowed (XSS Risk)"
     description: >
-      File SVG diizinkan dalam validasi upload. SVG adalah format XML yang dapat mengandung JavaScript inline, event handler, dan bahkan HTML tertanam. Ketika disajikan dari domain Anda, ini menciptakan kerentanan stored XSS.
+      SVG files are allowed in upload validation. SVG is an XML format that can contain inline JavaScript, event handlers, and even embedded HTML. When served from your domain, this creates a stored XSS vulnerability.
 
     severity: high
     confidence: high
@@ -139,18 +139,18 @@ rules:
         target: php-files
         pattern: 'mimes\s*:[^"'']*\bsvg\b'
     remediation: |
-      Jangan izinkan upload SVG, atau sanitasi secara ketat:
-        - Hapus SVG dari MIME type yang diizinkan
-        - Jika SVG diperlukan, gunakan library SVG Sanitizer
-        - Sajikan SVG dengan header Content-Disposition: attachment
-        - Gunakan Content-Security-Policy untuk mencegah eksekusi script inline
+      Do not allow SVG uploads, or sanitize them strictly:
+        - Remove SVG from the allowed MIME types
+        - If SVG is required, use the SVG Sanitizer library
+        - Serve SVGs with a Content-Disposition: attachment header
+        - Use Content-Security-Policy to prevent inline script execution
     references:
       - "https://cwe.mitre.org/data/definitions/79.html"
       - "https://github.com/darylldoyle/svg-sanitizer"
   - id: UPL-007
-    title: "Tidak ada batasan ukuran file pada upload"
+    title: "No File Size Limit on Upload"
     description: >
-      Aturan validasi file upload tidak menyertakan batasan ukuran maksimum. Tanpa batas ukuran, penyerang dapat menghabiskan ruang disk atau memori dengan upload yang sangat besar, menyebabkan denial of service.
+      File upload validation rules do not include a maximum size limit. Without size limits, an attacker can exhaust disk space or memory with extremely large uploads, causing a denial of service.
 
     severity: medium
     confidence: medium
@@ -164,15 +164,15 @@ rules:
         pattern: "'(file|image|document)'\\s*=>\\s*'required\\|(file|image)(\\|mimes:[^']*)?'"
         exclude_pattern: 'max:'
     remediation: |
-      Selalu set ukuran file maksimum dalam validasi:
+      Always set a maximum file size in validation:
         'avatar'   => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',    // 2MB
         'document' => 'required|file|mimes:pdf,docx,xlsx|max:10240',        // 10MB
     references:
       - "https://cwe.mitre.org/data/definitions/770.html"
   - id: UPL-009
-    title: "Konfigurasi visibilitas disk hilang untuk file yang diupload"
+    title: "Missing Disk Visibility Configuration for Uploaded Files"
     description: >
-      File diupload menggunakan store() atau storeAs() tanpa menentukan disk atau visibility secara eksplisit. Jika disk default dikonfigurasi ke 'public', file yang diupload menjadi dapat diakses langsung via web.
+      Files are uploaded using store() or storeAs() without explicitly specifying the disk or visibility. If the default disk is configured as 'public', uploaded files become directly accessible via the web.
 
     severity: medium
     confidence: low
@@ -183,12 +183,12 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: '->store\s*\(\s*["''][^"'')]+["'']\s*\)$'
+        pattern: '->store\s*\(\s*["''][^"'']+["'']\s*\)$'
         exclude_pattern: '(public|private|s3|local|minio|gcs)'
     remediation: |
-      Tentukan disk dan visibility secara eksplisit:
+      Specify disk and visibility explicitly:
         $path = $file->store('uploads', 'private');
-      Atau konfigurasi di config/filesystems.php:
+      Or configure in config/filesystems.php:
         'uploads' => [
             'driver'     => 'local',
             'root'       => storage_path('app/uploads'),
@@ -197,9 +197,9 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/732.html"
   - id: UPL-010
-    title: "Zip Slip - Ekstraksi arsip ZIP tanpa sanitasi path (RCE/File Overwrite)"
+    title: "Zip Slip - Archive Extraction Without Path Sanitization (RCE/File Overwrite)"
     description: >
-      Aplikasi mengekstrak file ZIP menggunakan `ZipArchive::extractTo()` secara langsung. Jika file ZIP berbahaya berisi path traversal (seperti `../../../../var/www/html/shell.php`), ini dapat menimpa file sistem atau kode aplikasi web, menyebabkan eksekusi kode jarak jauh (RCE).
+      The application extracts ZIP files using `ZipArchive::extractTo()` directly. If a malicious ZIP file contains path traversal sequences (such as `../../../../var/www/html/shell.php`), it can overwrite system files or web application code, leading to remote code execution (RCE).
     severity: critical
     confidence: high
     category: Archive Extraction Traversal
@@ -211,16 +211,16 @@ rules:
         target: php-files
         pattern: '->extractTo\s*\('
     remediation: |
-      Jangan gunakan `extractTo()` secara langsung pada file yang diupload pengguna. Iterasi dan validasi/sanitasi nama file secara manual:
+      Do not use `extractTo()` directly on user-uploaded files. Iterate and manually validate/sanitize filenames:
         $zip = new ZipArchive;
         if ($zip->open($upload) === TRUE) {
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $filename = $zip->getNameIndex($i);
-                // Cek apakah ada traversal berbahaya
+                // Check for dangerous traversal
                 if (strpos($filename, '../') !== false || strpos($filename, '..\\') !== false) {
                     throw new Exception("Illegal path traversal in ZIP");
                 }
-                // Ekstrak file satu per satu dengan aman
+                // Extract files one by one safely
                 $content = $zip->getFromIndex($i);
                 Storage::put('safe_dir/' . basename($filename), $content);
             }

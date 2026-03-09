@@ -9,9 +9,9 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: LOG-001
-    title: "Data sensitif diteruskan ke Log facade"
+    title: "Sensitive data passed to Log facade"
     description: >
-      Pemanggilan Log::* menyertakan variabel bernama password, secret, token, credit_card, atau serupa. File log sering kurang terlindungi dibandingkan database dan dapat diakses oleh staf support, log aggregator, dan penyerang dengan akses filesystem. Kredensial dalam log bertahan selama periode retensi log penuh.
+      Log::* calls include variables named password, secret, token, credit_card, or similar. Log files are often less protected than databases and can be accessed by support staff, log aggregators, and attackers with filesystem access. Credentials in logs persist for the full log retention period.
     severity: high
     confidence: high
     category: Sensitive Data in Logs
@@ -23,21 +23,21 @@ rules:
         target: php-files
         pattern: 'Log::(info|debug|warning|error|critical|notice|alert)\s*\([^;]*\$(password|passwd|secret|token|credit_card|ssn|cvv|card_number|api_key|private_key|pin|otp)'
     remediation: |
-      Redact atau hilangkan field sensitif sebelum logging:
+      Redact or remove sensitive fields before logging:
         Log::info('User authenticated', [
             'email'    => $email,
             'password' => '[REDACTED]',
         ]);
-        // Atau gunakan helper redact:
+        // Or use redact helper:
         Log::info('Payment', Arr::except($data, ['card_number', 'cvv']));
     references:
       - "https://cwe.mitre.org/data/definitions/532.html"
       - "https://owasp.org/www-project-logging-vocabulary/"
 
   - id: LOG-002
-    title: "Input pengguna mentah dicatat tanpa sanitasi"
+    title: "Raw user input logged without sanitization"
     description: >
-      Input pengguna dari $request->all() atau $request->getContent() diteruskan langsung ke Log facade. Entri log yang tidak disanitasi mengaktifkan log injection (baris log palsu via CRLF) dan XSS dalam log viewer berbasis web.
+      User input from $request->all() or $request->getContent() is passed directly to the Log facade. Unsanitized log entries enable log injection (fake log lines via CRLF) and XSS in web-based log viewers.
     severity: medium
     confidence: high
     category: Log Injection
@@ -49,7 +49,7 @@ rules:
         target: php-files
         pattern: 'Log::(info|debug|warning|error)\s*\(\s*[^,]*,\s*\[?\s*[^\]]*\$request->(all|getContent)\(\)'
     remediation: |
-      Log hanya field yang disanitasi dan dibatasi:
+      Log only sanitized and limited fields:
         Log::info('Request', [
             'path'  => $request->path(),
             'query' => Str::limit(strip_tags($request->query('q', '')), 200),
@@ -59,9 +59,9 @@ rules:
       - "https://cwe.mitre.org/data/definitions/117.html"
 
   - id: LOG-006
-    title: "Exception handler menampilkan detail error ke user alih-alih logging"
+    title: "Exception handler displays detailed error to user instead of logging"
     description: >
-      Exception handler mengembalikan pesan error detail ($e->getMessage()) atau stack trace ke HTTP response alih-alih melakukan logging ke server. Ini mengekspos informasi internal ke pengguna dan gagal menyimpan informasi yang diperlukan untuk debugging dan monitoring.
+      Exception handler returns detailed error messages ($e->getMessage()) or stack traces to HTTP responses instead of logging to the server. This exposes internal information to users and fails to store information necessary for debugging and monitoring.
     severity: high
     confidence: high
     category: Error Handling
@@ -74,22 +74,22 @@ rules:
         pattern: 'catch\s*\([^)]*\$e\s*\)\s*\{[^}]*return\s+.*\$e->getMessage\(\)'
         exclude_pattern: '(Log::|logger\(|report\()'
     remediation: |
-      Log error detail di server dan kembalikan pesan generik ke klien:
+      Log detailed errors on the server and return generic messages to the client:
         catch (\Throwable $e) {
             Log::error('Operation failed', [
                 'exception' => $e->getMessage(),
                 'trace'     => $e->getTraceAsString(),
                 'user_id'   => auth()->id(),
             ]);
-            return response()->json(['error' => 'Terjadi kesalahan internal.'], 500);
+            return response()->json(['error' => 'An internal error occurred.'], 500);
         }
     references:
       - "https://cwe.mitre.org/data/definitions/209.html"
 
   - id: LOG-007
-    title: "Perubahan pada data keuangan/pembayaran tidak dicatat"
+    title: "Changes to financial/payment data not logged"
     description: >
-      Operasi yang mengubah data keuangan (refund, penyesuaian saldo, perubahan harga, modifikasi order) tidak memiliki audit logging. Tanpa pencatatan, penipuan internal, serangan yang berhasil, dan kesalahan operasional pada data keuangan tidak terdeteksi.
+      Operations that modify financial data (refunds, balance adjustments, price changes, order modifications) lack audit logging. Without logging, internal fraud, successful attacks, and operational errors on financial data go undetected.
     severity: high
     confidence: medium
     category: Financial Audit Trail
@@ -102,7 +102,7 @@ rules:
         pattern: '(->refund|->adjustBalance|->credit|->debit|->withdraw|->transfer|->payout)\s*\('
         exclude_pattern: '(Log::|event\(|audit|activity|ActivityLog|dispatch\(.*Audit)'
     remediation: |
-      Log semua operasi keuangan dengan detail yang lengkap:
+      Log all financial operations with complete details:
         Log::info('Financial operation', [
             'type'       => 'refund',
             'amount'     => $amount,

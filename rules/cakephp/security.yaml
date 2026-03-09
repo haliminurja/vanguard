@@ -122,9 +122,9 @@ rules:
       - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
       - "https://cwe.mitre.org/data/definitions/502.html"
   - id: CAKE-ENT-005
-    title: "Security.salt Lemah atau Default"
+    title: "Weak or Default Security.salt"
     description: >
-      `'salt' => env('SECURITY_SALT', '...')` di `app.php`. Jika salt dibiarkan default atau diset ke string pendek/lemah, penyerang dapat memalsukan token CSRF, cookie sesi (jika dienkripsi), dan hashing data internal lainnya.
+      `'salt' => env('SECURITY_SALT', '...')` in `app.php`. If the salt is left as default or set to a short/weak string, an attacker can forge CSRF tokens, session cookies (if encrypted), and other internal data hashes.
     severity: critical
     confidence: high
     category: Cryptographic Failure
@@ -136,15 +136,15 @@ rules:
         target: config-files
         pattern: "['\"]salt['\"]\\s*=>\\s*env\\(\\s*['\"]SECURITY_SALT['\"]\\s*,\\s*['\"]([^'\"]{1,31}|__SALT__)['\"]\\s*\\)"
     remediation: |
-      Ganti salt dengan string acak panjang (minimal 64 karakter) di file `.env`.
+      Replace the salt with a long random string (minimum 64 characters) in the `.env` file.
 
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/326.html"
   - id: CAKE-ENT-006
-    title: "Debug Mode Aktif di Production (CakePHP)"
+    title: "Debug Mode Enabled in Production (CakePHP)"
     description: >
-      `'debug' => filter_var(env('DEBUG', true), FILTER_VALIDATE_BOOLEAN)` di `app.php`. Jika debug aktif di production, CakePHP akan menampilkan detail error yang sangat teknis termasuk query SQL dan variabel lingkungan, yang membocorkan rahasia infrastruktur.
+      `'debug' => filter_var(env('DEBUG', true), FILTER_VALIDATE_BOOLEAN)` in `app.php`. If debug mode is enabled in production, CakePHP will display highly technical error details including SQL queries and environment variables, leaking infrastructure secrets.
     severity: high
     confidence: high
     category: Information Disclosure
@@ -156,7 +156,7 @@ rules:
         target: config-files
         pattern: "['\"]debug['\"]\\s*=>\\s*(true|1|filter_var\\(env\\(['\"]DEBUG['\"]\\s*,\\s*true\\))"
     remediation: |
-      Pastikan environment variable `DEBUG` diset ke `false` di lingkungan production.
+      Ensure the `DEBUG` environment variable is set to `false` in the production environment.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/489.html"
@@ -184,8 +184,8 @@ rules:
         pattern: 'CsrfProtectionMiddleware'
         negative: true
     remediation: |
-      Tambahkan `CsrfProtectionMiddleware` pada middleware queue aplikasi.
-      Pastikan semua endpoint state-changing tervalidasi token CSRF.
+      Add `CsrfProtectionMiddleware` to the application's middleware queue.
+      Ensure all state-changing endpoints are validated with a CSRF token.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/352.html"
@@ -214,8 +214,8 @@ rules:
         target: php-files
         pattern: 'allowCredentials\s*\(\s*true\s*\)'
     remediation: |
-      Gunakan daftar origin yang eksplisit dan nonaktifkan credentials untuk wildcard.
-      Review ulang seluruh endpoint CORS-exposed.
+      Use an explicit list of origins and disable credentials for wildcards.
+      Review all CORS-exposed endpoints.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/346.html"
@@ -240,9 +240,10 @@ rules:
         target: config-files
         pattern: "['\"]className['\"]\\s*=>\\s*['\"](Legacy|WeakPasswordHasher)['\"]|['\"]hashType['\"]\\s*=>\\s*['\"](md5|sha1)['\"]"
     remediation: |
-      Gunakan hasher modern (bcrypt/argon2id) dengan cost yang sesuai dan kebijakan rotasi.
-      Rehash password legacy saat user login.
+      Use modern hashers (bcrypt/argon2id) with appropriate cost and rotation policies.
+      Rehash legacy passwords when users log in.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/327.html"
       - "https://book.cakephp.org/4/en/controllers/components/authentication.html"
+

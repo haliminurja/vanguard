@@ -10,9 +10,9 @@ meta:
     - NIST-SP-800-53
 rules:
   - id: SUPPLY-002
-    title: "Composer - minimum-stability disetel ke 'dev'"
+    title: "Composer - minimum-stability set to 'dev'"
     description: >
-      composer.json menyetel minimum-stability ke 'dev', mengizinkan instalasi package yang belum di-review atau di-tag secara resmi. Package dev sering kali kurang teruji dan mungkin mengandung kerentanan yang belum diperbaiki.
+      composer.json sets minimum-stability to 'dev', allowing the installation of packages that have not been officially reviewed or tagged. Dev packages are often less tested and may contain unpatched vulnerabilities.
 
     severity: medium
     confidence: high
@@ -27,7 +27,7 @@ rules:
         pattern: '"minimum-stability"\s*:\s*"dev"'
         exclude_pattern: '"prefer-stable"\s*:\s*true'
     remediation: |
-      Gunakan minimum-stability 'stable' untuk production:
+      Use minimum-stability 'stable' for production:
         {
             "minimum-stability": "stable",
             "prefer-stable": true
@@ -35,9 +35,9 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/829.html"
   - id: SUPPLY-003
-    title: "Package menggunakan source code yang di-load dari URL eksternal saat runtime"
+    title: "Package uses source code loaded from external URL at runtime"
     description: >
-      Kode PHP melakukan file_get_contents() atau cURL request ke URL eksternal dan kemudian men-evaluate hasilnya via eval(), include, atau preg_replace() dengan flag /e. Ini adalah pattern command & control (C2) - kode dari server eksternal dieksekusi langsung di server aplikasi tanpa review atau validasi.
+      PHP code performs file_get_contents() or cURL requests to an external URL and then evaluates the results via eval(), include, or preg_replace() with the /e flag. This is a command & control (C2) pattern - code from an external server is executed directly on the application server without review or validation.
 
     severity: critical
     confidence: high
@@ -53,7 +53,7 @@ rules:
         target: php-files
         pattern: '(include|require|include_once|require_once)\s*\(\s*["''](https?://|ftp://)'
     remediation: |
-      JANGAN PERNAH memuat dan mengeksekusi kode dari URL eksternal saat runtime.
-      Semua dependensi harus dikelola melalui Composer dan di-review sebelum instalasi.
+      NEVER load and execute code from an external URL at runtime.
+      All dependencies must be managed through Composer and reviewed before installation.
     references:
       - "https://cwe.mitre.org/data/definitions/829.html"

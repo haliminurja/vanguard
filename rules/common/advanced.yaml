@@ -9,9 +9,9 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: ADV-PT03
-    title: "Zip Slip - ekstraksi ZIP tanpa validasi path output"
+    title: "Zip Slip - ZIP extraction without output path validation"
     description: >
-      ZipArchive::extractTo() atau fungsi ekstraksi serupa digunakan tanpa memvalidasi path setiap entri terhadap direktori target. File ZIP yang dikrafting dapat berisi entri dengan path traversal (../../etc/cron.d/backdoor) yang menulis file di luar direktori ekstraksi yang dimaksud, memungkinkan remote code execution, privilege escalation, atau persistensi.
+      ZipArchive::extractTo() or similar extraction functions are used without validating the path of each entry against the target directory. A crafted ZIP file can contain entries with path traversal (../../etc/cron.d/backdoor) that write files outside the intended extraction directory, allowing remote code execution, privilege escalation, or persistence.
 
     severity: critical
     confidence: high
@@ -25,8 +25,8 @@ rules:
         pattern: '(ZipArchive|zip_open|->extractTo)\s*\('
         exclude_pattern: '(realpath|str_starts_with|basename|sanitize|validate|checkEntry)'
     remediation: |
-      Validasi setiap entri sebelum ekstraksi. Tolak seluruh archive jika ada
-      satu entri yang mencurigakan:
+      Validate each entry before extraction. Reject the entire archive if any
+      entry is suspicious:
 
         function safeExtract(string $zipPath, string $destDir): void
         {
@@ -34,7 +34,7 @@ rules:
             $destDir = rtrim(realpath($destDir), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
             if ($zip->open($zipPath) !== true) {
-                throw new RuntimeException('Gagal membuka ZIP');
+                throw new RuntimeException('Failed to open ZIP');
             }
 
             for ($i = 0; $i < $zip->numFiles; $i++) {
@@ -43,7 +43,7 @@ rules:
 
                 if (!str_starts_with($fullPath, $destDir)) {
                     $zip->close();
-                    throw new SecurityException("Zip Slip terdeteksi: {$entry}");
+                    throw new SecurityException("Zip Slip detected: {$entry}");
                 }
             }
 
@@ -54,9 +54,9 @@ rules:
       - "https://cwe.mitre.org/data/definitions/22.html"
       - "https://snyk.io/research/zip-slip-vulnerability"
   - id: ADV-XXE01
-    title: "XXE - XML di-parse dari konten yang dikirim pengguna"
+    title: "XXE - XML parsed from user-supplied content"
     description: >
-      simplexml_load_string(), DOMDocument::loadXML(), atau XMLReader menerima XML dari pengguna tanpa menonaktifkan pemuatan external entity. Penyerang dapat membaca file lokal (/etc/passwd, /proc/self/environ, .env), melakukan SSRF ke layanan internal, atau menyebabkan denial of service (Billion Laughs / Quadratic Blowup attack).
+      simplexml_load_string(), DOMDocument::loadXML(), or XMLReader accept XML from users without disabling external entity loading. Attackers can read local files (/etc/passwd, /proc/self/environ, .env), perform SSRF to internal services, or cause a denial of service (Billion Laughs / Quadratic Blowup attack).
 
     severity: critical
     confidence: high
@@ -77,31 +77,31 @@ rules:
         pattern: 'new\s+DOMDocument\s*\([^)]*\)'
         exclude_pattern: '(LIBXML_NONET|libxml_disable_entity_loader|preserveWhiteSpace)'
     remediation: |
-      Di PHP 8.0+ dengan libxml2 >= 2.9, external entity dinonaktifkan secara default.
-      Untuk versi lama, nonaktifkan secara eksplisit:
+      In PHP 8.0+ with libxml2 >= 2.9, external entities are disabled by default.
+      For older versions, disable them explicitly:
 
-        // PHP < 8.0 - nonaktifkan external entity loader
+        // PHP < 8.0 - disable external entity loader
         $prev = libxml_disable_entity_loader(true);
         $prev_errors = libxml_use_internal_errors(true);
 
         $xml = simplexml_load_string(
             $input,
             'SimpleXMLElement',
-            LIBXML_NONET | LIBXML_NOERR   // Tidak ada network, tidak ada error message
+            LIBXML_NONET | LIBXML_NOERR   // No network, no error messages
         );
 
         libxml_disable_entity_loader($prev);
         libxml_use_internal_errors($prev_errors);
 
-        // Jangan pernah gunakan LIBXML_NOENT (merekurs entity) atau
-        // LIBXML_DTDLOAD (memuat DTD eksternal) dengan input tidak tepercaya
+        // Never use LIBXML_NOENT (recursive entity) or
+        // LIBXML_DTDLOAD (load external DTD) with untrusted input
     references:
       - "https://cwe.mitre.org/data/definitions/611.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html"
   - id: ADV-ID01
-    title: "IDOR - Model::update() dengan payload request tidak difilter"
+    title: "IDOR - Model::update() with unfiltered request payload"
     description: >
-      update() dipanggil dengan $request->all() tanpa terlebih dahulu mengotorisasi bahwa pengguna yang terautentikasi memiliki record tersebut. Penyerang mengubah resource ID dalam URL atau request body untuk menimpa data pengguna lain - pola ini adalah salah satu kerentanan IDOR yang paling umum.
+      update() is called with $request->all() without first authorizing that the authenticated user owns that record. Attackers change the resource ID in the URL or request body to overwrite other users' data - this pattern is one of the most common IDOR vulnerabilities.
 
     severity: high
     confidence: high
@@ -114,15 +114,15 @@ rules:
         target: php-files
         pattern: '->update\(\s*(\$request->all\(\)|request\(\)->all\(\))'
     remediation: |
-      Selalu otorisasi kepemilikan sebelum update, gunakan ->only() untuk
-      batasan field yang ketat:
+      Always authorize ownership before updating, use ->only() for
+      strict field limitations:
 
-        // - BENAR
+        // - CORRECT
         $post = Post::findOrFail($id);
-        $this->authorize('update', $post);  // Policy memverifikasi $user->id === $post->user_id
+        $this->authorize('update', $post);  // Policy verifies $user->id === $post->user_id
         $post->update($request->only(['title', 'body', 'category_id']));
 
-        // - SALAH
+        // - INCORRECT
         // Post::findOrFail($id)->update($request->all());
     references:
       - "https://cwe.mitre.org/data/definitions/639.html"

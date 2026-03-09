@@ -10,9 +10,9 @@ meta:
 rules:
 
   - id: SES-002
-    title: "Data sensitif disimpan langsung dalam session"
+    title: "Sensitive data stored directly in session"
     description: >
-      Password mentah, token, atau data kartu pembayaran disimpan langsung dalam session via session()->put(). Bahkan dengan session terenkripsi, menyimpan secret mentah memperluas attack surface dan mungkin melanggar PCI-DSS, GDPR, atau HIPAA.
+      Raw passwords, tokens, or payment card data are stored directly in the session via session()->put(). Even with encrypted sessions, storing raw secrets expands the attack surface and may violate PCI-DSS, GDPR, or HIPAA.
     severity: high
     confidence: high
     category: Sensitive Data in Session
@@ -27,16 +27,16 @@ rules:
         target: php-files
         pattern: '\$request->session\(\)->put\s*\(\s*["'']?(password|passwd|credit_card|cvv|card_number|ssn)'
     remediation: |
-      Jangan menyimpan secret mentah dalam session. Untuk nilai temporary
-      jangka pendek gunakan cache terenkripsi dengan TTL singkat:
+      Do not store raw secrets in the session. For short-term temporary values,
+      use an encrypted cache with a short TTL:
         Cache::put("payment:{$userId}", encrypt($token), now()->addMinutes(5));
     references:
       - "https://cwe.mitre.org/data/definitions/312.html"
 
   - id: SES-003
-    title: "Cookie dibuat tanpa flag Secure dan HttpOnly"
+    title: "Cookie created without Secure and HttpOnly flags"
     description: >
-      Cookie dibuat dengan Secure atau HttpOnly secara eksplisit disetel ke false. Tanpa Secure, cookie dikirim melalui HTTP. Tanpa HttpOnly, JavaScript dapat mencurinya - mengaktifkan pencurian via XSS bahkan ketika HTTPS diterapkan.
+      Cookie created with Secure or HttpOnly explicitly set to false. Without Secure, the cookie is sent over HTTP. Without HttpOnly, JavaScript can steal it - enabling theft via XSS even when HTTPS is implemented.
     severity: high
     confidence: high
     category: Insecure Cookie
@@ -51,9 +51,9 @@ rules:
         target: php-files
         pattern: 'Cookie::(make|queue)\s*\([^,]+,[^,]+,[^,]+,[^,]+,[^,]+,\s*(false|null)'
     remediation: |
-      Set kedua flag pada semua cookie sensitif:
+      Set both flags on all sensitive cookies:
         cookie('name', 'value', $minutes, '/', null, true, true, false, 'Strict');
-      Konfigurasi global di config/session.php:
+      Global configuration in config/session.php:
         'secure'    => env('SESSION_SECURE_COOKIE', true),
         'http_only' => true,
         'same_site' => 'lax',
@@ -62,9 +62,9 @@ rules:
       - "https://owasp.org/www-community/controls/SecureCookieAttribute"
 
   - id: SES-004
-    title: "Session cookie SameSite tidak dikonfigurasi atau disetel ke 'none'"
+    title: "Session cookie SameSite not configured or set to 'none'"
     description: >
-      Konfigurasi session cookie tidak menyetel atribut SameSite atau menyetelnya ke 'none'. Tanpa SameSite restriction, cookie session dikirim pada semua cross-site requests, memungkinkan serangan CSRF bahkan tanpa exploit khusus. SameSite=none secara eksplisit mengizinkan pengiriman cookies lintas situs.
+      Session cookie configuration does not set the SameSite attribute or sets it to 'none'. Without SameSite restriction, the session cookie is sent on all cross-site requests, enabling CSRF attacks even without a specific exploit. SameSite=none explicitly allows cross-site cookie transmission.
     severity: high
     confidence: high
     category: CSRF via Cookie
@@ -79,7 +79,7 @@ rules:
         target: env-files
         pattern: 'SESSION_SAME_SITE\s*=\s*(none|null)'
     remediation: |
-      Set SameSite ke 'lax' (kompatibilitas baik) atau 'strict' (lebih aman):
+      Set SameSite to 'lax' (good compatibility) or 'strict' (more secure):
         // config/session.php
         'same_site' => 'lax',
     references:
@@ -87,9 +87,9 @@ rules:
       - "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite"
 
   - id: SES-005
-    title: "Session lifetime terlalu panjang (>24 jam)"
+    title: "Session lifetime too long (>24 hours)"
     description: >
-      Session lifetime dikonfigurasi lebih dari 1440 menit (24 jam). Session yang terlalu panjang memperbesar window serangan jika session token dicuri - penyerang memiliki waktu lebih lama untuk mengeksploitasi session yang dibajak sebelum expired.
+      Session lifetime is configured for more than 1440 minutes (24 hours). An excessively long session lifetime increases the attack window if a session token is stolen - the attacker has more time to exploit the hijacked session before it expires.
     severity: medium
     confidence: medium
     category: Session Misconfiguration
@@ -104,10 +104,10 @@ rules:
         target: env-files
         pattern: 'SESSION_LIFETIME\s*=\s*(1[5-9][0-9]{2}|[2-9][0-9]{3}|[0-9]{5,})'
     remediation: |
-      Set session lifetime yang wajar berdasarkan jenis aplikasi:
+      Set a reasonable session lifetime based on the application type:
         // config/session.php
-        'lifetime' => 120,          // 2 jam - aplikasi umum
-        'expire_on_close' => true,   // session berakhir saat browser ditutup
-      Untuk aplikasi perbankan/keuangan, gunakan 15-30 menit dengan inactivity timeout.
+        'lifetime' => 120,          // 2 hours - general application
+        'expire_on_close' => true,   // session ends when browser is closed
+      For banking/financial applications, use 15-30 minutes with an inactivity timeout.
     references:
       - "https://cwe.mitre.org/data/definitions/613.html"

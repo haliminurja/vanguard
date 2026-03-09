@@ -9,12 +9,12 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: DESER-001
-    title: "Insecure Deserialization - unserialize() dengan input pengguna"
+    title: "Insecure Deserialization - unserialize() with user input"
     description: >
-      unserialize() dipanggil dengan input yang dikontrol pengguna. PHP unserialize()
-      dapat menginstansiasi objek arbitrer dan memicu method magic (__destruct, __wakeup,
-      __toString), memungkinkan penyerang mengeksekusi kode arbitrer melalui POP chain
-      (Property-Oriented Programming) - ini adalah Remote Code Execution.
+      unserialize() is called with user-controlled input. PHP unserialize()
+      can instantiate arbitrary objects and trigger magic methods (__destruct, __wakeup,
+      __toString), allowing an attacker to execute arbitrary code via POP chains
+      (Property-Oriented Programming) - this is Remote Code Execution.
     severity: critical
     confidence: high
     category: Insecure Deserialization
@@ -30,22 +30,22 @@ rules:
         pattern: 'unserialize\s*\(\s*\$\w*(data|input|payload|body|content|value|param)\w*'
         exclude_pattern: '(allowed_classes\s*=>\s*false|allowed_classes\s*=>\s*\[|test|Test|mock|Mock)'
     remediation: |
-      JANGAN gunakan unserialize() untuk data dari pengguna. Gunakan JSON:
-        // - BENAR - JSON aman dari object injection
+      DO NOT use unserialize() for data from users. Use JSON:
+        // - CORRECT - JSON is safe from object injection
         $data = json_decode($input, true, 10, JSON_THROW_ON_ERROR);
 
-        // Jika unserialize() tidak bisa dihindari, blokir pembuatan objek:
+        // If unserialize() cannot be avoided, block object creation:
         $data = unserialize($input, ['allowed_classes' => false]);
     references:
       - "https://cwe.mitre.org/data/definitions/502.html"
       - "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/16-Testing_for_HTTP_Incoming_Requests"
 
   - id: DESER-002
-    title: "Insecure Deserialization - unserialize() tanpa allowed_classes restriction"
+    title: "Insecure Deserialization - unserialize() without allowed_classes restriction"
     description: >
-      unserialize() dipanggil tanpa parameter allowed_classes. Sejak PHP 7.0, parameter
-      ini memungkinkan pembatasan class yang boleh di-instantiasi. Tanpa restriction,
-      semua class dalam autoloader tersedia untuk POP chain attack.
+      unserialize() is called without the allowed_classes parameter. Since PHP 7.0, this
+      parameter allows restricting which classes can be instantiated. Without restriction,
+      all classes in the autoloader are available for POP chain attacks.
     severity: high
     confidence: high
     category: Insecure Deserialization
@@ -58,21 +58,21 @@ rules:
         pattern: 'unserialize\s*\(\s*\$[^,)]+\s*\)'
         exclude_pattern: '(allowed_classes|json_decode|test|Test|mock|Mock|\$this->serializer)'
     remediation: |
-      Jika unserialize() harus digunakan, batasi allowed_classes:
-        // Blokir semua class
+      If unserialize() must be used, restrict allowed_classes:
+        // Block all classes
         $data = unserialize($input, ['allowed_classes' => false]);
-        // Atau whitelist class tertentu
+        // Or whitelist specific classes
         $data = unserialize($input, ['allowed_classes' => [UserDTO::class]]);
     references:
       - "https://cwe.mitre.org/data/definitions/502.html"
 
   - id: DESER-003
-    title: "Insecure Deserialization - cookie berisi data terserialisasi"
+    title: "Insecure Deserialization - cookie contains serialized data"
     description: >
-      Aplikasi membaca dan melakukan unserialize pada data dari cookie. Cookie dikontrol
-      sepenuhnya oleh klien - even jika terenkripsi, jika encryption key bocor (via
-      APP_KEY leak), penyerang dapat membuat cookie dengan payload serialized arbitrer
-      untuk RCE via POP chain.
+      The application reads and unserializes data from a cookie. Cookies are fully
+      client-controlled - even if encrypted, if the encryption key is leaked (via
+      APP_KEY leak), an attacker can craft a cookie with arbitrary serialized payload
+      for RCE via POP chains.
     severity: critical
     confidence: high
     category: Insecure Deserialization
@@ -87,8 +87,8 @@ rules:
         target: php-files
         pattern: 'unserialize\s*\(\s*(decrypt|Crypt::decrypt)\s*\(\s*(\$_COOKIE|\$request->cookie)'
     remediation: |
-      Gunakan JSON untuk data cookie. Jangan serialize objek ke cookie:
-        // - BENAR
+      Use JSON for cookie data. Do not serialize objects to cookies:
+        // - CORRECT
         $preferences = json_decode($request->cookie('prefs', '{}'), true);
 
         // Set cookie
@@ -99,12 +99,12 @@ rules:
       - "https://cwe.mitre.org/data/definitions/502.html"
 
   - id: DESER-004
-    title: "PHP Object Injection via __wakeup() atau __destruct() yang berbahaya"
+    title: "PHP Object Injection via dangerous __wakeup() or __destruct()"
     description: >
-      Class mendefinisikan method __wakeup() atau __destruct() yang melakukan operasi berbahaya
-      (file operations, command execution, database queries). Class ini menjadi gadget dalam
-      POP chain - jika penyerang menemukan entry point unserialize(), class ini memungkinkan
-      eskalasi dari deserialization ke RCE.
+      A class defines a __wakeup() or __destruct() method that performs dangerous operations
+      (file operations, command execution, database queries). This class becomes a gadget in
+      a POP chain - if an attacker finds an unserialize() entry point, this class enables
+      escalation from deserialization to RCE.
     severity: high
     confidence: medium
     category: POP Chain Gadget
@@ -116,12 +116,12 @@ rules:
         target: php-files
         pattern: 'function\s+__(wakeup|destruct)\s*\(\s*\)\s*\{[^}]*(exec|system|passthru|shell_exec|file_put_contents|unlink|fwrite|include|require|eval)'
     remediation: |
-      Hindari operasi berbahaya di magic methods. Jika diperlukan, validasi state:
+      Avoid dangerous operations in magic methods. If necessary, validate state:
         public function __destruct()
         {
-            // - Hanya operasi aman, non-destruktif
+            // - Only safe, non-destructive operations
             if (isset($this->tempFile) && file_exists($this->tempFile)) {
-                // Validasi path sebelum operasi
+                // Validate path before operation
                 $safePath = realpath($this->tempFile);
                 if ($safePath && str_starts_with($safePath, sys_get_temp_dir())) {
                     unlink($safePath);

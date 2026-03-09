@@ -9,9 +9,9 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: INJ-E02
-    title: "Code Injection - preg_replace() dengan modifier /e (dihapus PHP 7.0+)"
+    title: "Code Injection - preg_replace() with /e modifier (removed in PHP 7.0+)"
     description: >
-      preg_replace() menggunakan modifier /e yang mengevaluasi penggantian sebagai kode PHP. Modifier ini dihapus sejak PHP 7.0 - penggunaan yang tersisa menyebabkan fatal error di PHP 7.0+ dan selalu merupakan vektor RCE pada versi PHP yang lebih lama.
+      preg_replace() uses the /e modifier which evaluates the replacement as PHP code. This modifier was removed in PHP 7.0 - remaining usage causes a fatal error in PHP 7.0+ and is always an RCE vector in older PHP versions.
 
     severity: critical
     confidence: high
@@ -24,21 +24,21 @@ rules:
         target: php-files
         pattern: 'preg_replace\s*\(\s*["''][^"'']*\/[a-z]*e[a-z]*["'']'
     remediation: |
-      Ganti dengan preg_replace_callback():
+      Replace with preg_replace_callback():
 
-        // - SALAH (PHP 7.0 ke bawah - vektor RCE)
+        // - INCORRECT (PHP < 7.0 - RCE vector)
         // $result = preg_replace('/(\w+)/e', 'strtoupper("$1")', $subject);
 
-        // - BENAR
+        // - CORRECT
         $result = preg_replace_callback('/(\w+)/', function ($matches) {
             return strtoupper($matches[0]);
         }, $subject);
     references:
       - "https://cwe.mitre.org/data/definitions/95.html"
   - id: INJ-E03
-    title: "Code Injection - create_function() dihapus di PHP 8.0 (vektor RCE)"
+    title: "Code Injection - create_function() removed in PHP 8.0 (RCE vector)"
     description: >
-      create_function() dihapus di PHP 8.0. Secara internal menggunakan eval() untuk membuat closure dinamis, menjadikannya vektor remote code execution. Penggunaan yang tersisa menyebabkan fatal error di PHP 8.0+ dan berpotensi mengekspos RCE di PHP < 8.0 jika argumen berasal dari pengguna.
+      create_function() was removed in PHP 8.0. Internally it uses eval() to create dynamic closures, making it a remote code execution vector. Remaining usage causes a fatal error in PHP 8.0+ and potentially exposes RCE in PHP < 8.0 if arguments originate from users.
 
     severity: critical
     confidence: high
@@ -51,23 +51,23 @@ rules:
         target: php-files
         pattern: '\bcreate_function\s*\('
     remediation: |
-      Ganti dengan arrow function atau anonymous function:
+      Replace with arrow functions or anonymous functions:
 
-        // - SALAH (dihapus di PHP 8.0)
+        // - INCORRECT (removed in PHP 8.0)
         // $fn = create_function('$a, $b', 'return $a + $b;');
 
-        // - BENAR - arrow function (PHP 7.4+)
+        // - CORRECT - arrow function (PHP 7.4+)
         $fn = fn($a, $b) => $a + $b;
 
-        // - BENAR - anonymous function
+        // - CORRECT - anonymous function
         $fn = function ($a, $b) { return $a + $b; };
     references:
       - "https://cwe.mitre.org/data/definitions/95.html"
       - "https://www.php.net/manual/en/migration80.incompatible.php"
   - id: INJ-D01
-    title: "Unsafe Deserialization - unserialize() pada data tidak tepercaya"
+    title: "Unsafe Deserialization - unserialize() on untrusted data"
     description: >
-      unserialize() dipanggil dengan data yang mungkin dikontrol pengguna. Mendeserialkan payload yang dimanipulasi penyerang memicu magic methods (__wakeup, __destruct, __toString) via rantai POP (Property-Oriented Programming), yang dapat menyebabkan RCE, arbitrary file deletion, SSRF, atau privilege escalation tergantung kelas yang tersedia di autoloader.
+      unserialize() is called with data that may be user-controlled. Deserializing attacker-manipulated payloads triggers magic methods (__wakeup, __destruct, __toString) via POP (Property-Oriented Programming) chains, which can lead to RCE, arbitrary file deletion, SSRF, or privilege escalation depending on the classes available in the autoloader.
 
     severity: critical
     confidence: high
@@ -81,16 +81,16 @@ rules:
         pattern: '\bunserialize\s*\(\s*\$'
         exclude_pattern: '(config\(|env\(|test|Test|allowed_classes\s*=>)'
     remediation: |
-      Gunakan JSON untuk pertukaran data - tidak ada magic method yang dipanggil:
+      Use JSON for data exchange - no magic methods are called:
 
-        // - BENAR - JSON aman dari deserialization attack
+        // - CORRECT - JSON is safe from deserialization attacks
         $data = json_decode($input, true, 512, JSON_THROW_ON_ERROR);
 
-        // - Jika unserialize() mutlak diperlukan (cache legacy),
-        //    batasi kelas yang diizinkan:
+        // - If unserialize() is absolutely necessary (legacy cache),
+        //    restrict allowed classes:
         $obj = unserialize($data, ['allowed_classes' => [SafeValueObject::class]]);
 
-        // - SALAH
+        // - INCORRECT
         // $obj = unserialize($_POST['data']);
         // $obj = unserialize(base64_decode($request->input('payload')));
     references:
@@ -98,9 +98,9 @@ rules:
       - "https://cwe.mitre.org/data/definitions/502.html"
       - "https://www.php.net/manual/en/function.unserialize.php"
   - id: INJ-V01
-    title: "Variable Injection - extract() dengan input pengguna"
+    title: "Variable Injection - extract() with User Input"
     description: >
-      extract() mengimpor kunci array sebagai variabel PHP ke scope saat ini. Ketika dipanggil dengan $_GET, $_POST, atau $request->all(), penyerang dapat menimpa variabel apapun dalam scope: $isAdmin, $user, $authenticated, $config, bahkan variabel yang digunakan untuk kontrol flow keamanan.
+      extract() imports array keys as PHP variables into the current scope. When called with $_GET, $_POST, or $request->all(), an attacker can overwrite any variable within the scope: $isAdmin, $user, $authenticated, $config, or even variables used for security flow control.
 
     severity: high
     confidence: high
@@ -113,21 +113,21 @@ rules:
         target: php-files
         pattern: '\bextract\s*\(\s*(\$_GET|\$_POST|\$_REQUEST|\$request->all)'
     remediation: |
-      Jangan pernah gunakan extract() pada input pengguna.
-      Akses nilai secara eksplisit dan validasi satu per satu:
+      Never use extract() on user input.
+      Access values explicitly and validate them one by one:
 
-        // - BENAR
+        // - CORRECT
         $name  = $request->string('name')->trim()->limit(100)->value();
         $email = $request->string('email')->lower()->value();
 
-        // - SALAH
-        // extract($request->all());  // $isAdmin sekarang bisa diset dari luar!
+        // - INCORRECT
+        // extract($request->all());  // $isAdmin could now be set from the outside!
     references:
       - "https://cwe.mitre.org/data/definitions/621.html"
   - id: INJ-V02
-    title: "Variable Injection - parse_str() tanpa output array"
+    title: "Variable Injection - parse_str() without Output Array"
     description: >
-      parse_str() tanpa parameter kedua mengimpor kunci yang diparse langsung ke scope PHP saat ini - setara dengan register_globals yang sudah lama dihapus. Penyerang dapat menimpa variabel apapun dalam scope saat ini dengan memanipulasi query string atau request body.
+      parse_str() without a second parameter imports parsed keys directly into the current PHP scope - equivalent to the long-deprecated register_globals. An attacker can overwrite any variable within the current scope by manipulating the query string or request body.
 
     severity: critical
     confidence: high
@@ -140,20 +140,20 @@ rules:
         target: php-files
         pattern: '\bparse_str\s*\(\s*\$\w+\s*\)\s*;'
     remediation: |
-      Selalu sediakan output array sebagai parameter kedua:
+      Always provide an output array as the second parameter:
 
-        // - BENAR
+        // - CORRECT
         parse_str($queryString, $params);
         $name = filter_var($params['name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS);
 
-        // - SALAH
-        // parse_str($queryString);  // Mengimpor ke scope saat ini!
+        // - INCORRECT
+        // parse_str($queryString);  // Imports into the current scope!
     references:
       - "https://cwe.mitre.org/data/definitions/621.html"
   - id: INJ-M02
-    title: "CSV Formula Injection dalam data yang diekspor"
+    title: "CSV Formula Injection in Exported Data"
     description: >
-      Data dari pengguna ditulis ke CSV atau XLSX tanpa sanitasi karakter formula (=, +, -, @, TAB, CR). Sel yang dimulai karakter ini dieksekusi sebagai formula oleh Excel/LibreOffice/Google Sheets. Penyerang dapat mengeksfiltrasi data via DDE, membuat link ke resource eksternal, atau mengeksekusi makro saat file dibuka oleh penerima.
+      User data is written to CSV or XLSX without sanitization of formula characters (=, +, -, @, TAB, CR). Cells starting with these characters are executed as formulas by Excel/LibreOffice/Google Sheets. An attacker can exfiltrate data via DDE, create links to external resources, or execute macros when the file is opened by the recipient.
 
     severity: medium
     confidence: medium
@@ -167,15 +167,15 @@ rules:
         pattern: '\bfputcsv\s*\('
         exclude_pattern: '(sanitize|escapeFormula|preg_replace|ltrim.*[=+\-@])'
     remediation: |
-      Prefix karakter pemicu formula dengan tanda kutip tunggal sebelum
-      menulis ke CSV. Lakukan ini pada SEMUA field dari pengguna:
+      Prefix formula trigger characters with a single quote before
+      writing to CSV. Do this for ALL user fields:
 
         function sanitizeCsvCell(mixed $value): string
         {
             $str = (string) $value;
-            // Prefix jika dimulai dengan karakter formula
+            // Prefix if starts with a formula character
             if (preg_match('/^[=+\-@\t\r\|%]/', $str)) {
-                return "'" . $str;  // Excel/LibreOffice memperlakukan ini sebagai text
+                return "'" . $str;  // Excel/LibreOffice treats this as text
             }
             return $str;
         }
@@ -186,9 +186,9 @@ rules:
       - "https://cwe.mitre.org/data/definitions/1236.html"
       - "https://owasp.org/www-community/attacks/CSV_Injection"
   - id: INJ-F01
-    title: "RFI - PHP protocol wrapper dalam include/require atau file functions"
+    title: "RFI - PHP Protocol Wrapper in include/require or File Functions"
     description: >
-      include, require, file_get_contents, atau fopen menggunakan PHP stream wrapper (php://input, php://filter, data://, phar://, expect://). PHP filter chains memungkinkan eksekusi kode via base64-decode + phar bahkan ketika allow_url_include dinonaktifkan. Phar wrapper mengaktifkan deserialization gadget chain.
+      include, require, file_get_contents, or fopen use PHP stream wrappers (php://input, php://filter, data://, phar://, expect://). PHP filter chains allow code execution via base64-decode + phar even when allow_url_include is disabled. The Phar wrapper enables deserialization gadget chains.
 
     severity: critical
     confidence: high
@@ -201,14 +201,14 @@ rules:
         target: php-files
         pattern: '(include|require|include_once|require_once|file_get_contents|fopen)\s*\(?[^;]*(php://|data://|phar://|expect://|zip://|glob://)'
     remediation: |
-      Nonaktifkan stream wrapper berbahaya di php.ini:
+      Disable dangerous stream wrappers in php.ini:
 
         ; php.ini - production
         allow_url_include = Off
-        allow_url_fopen   = Off   ; jika tidak dibutuhkan untuk download eksternal
+        allow_url_fopen   = Off   ; if not needed for external downloads
 
-      Jangan pernah membuat path include dari input pengguna atau sumber eksternal.
-      Validasi path dengan realpath() dan pastikan berada dalam direktori yang diizinkan.
+      Never construct include paths from user input or external sources.
+      Validate paths with realpath() and ensure they reside within allowed directories.
     references:
       - "https://cwe.mitre.org/data/definitions/98.html"
       - "https://www.php.net/manual/en/wrappers.php"

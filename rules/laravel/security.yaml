@@ -16,9 +16,9 @@ meta:
     - SOC2-Trust-Services-Criteria
 rules:
   - id: LAR-ENT-001
-    title: "Eloquent Mass Assignment — $guarded = [] mengizinkan semua field"
+    title: "Eloquent Mass Assignment — $guarded = [] allows all fields"
     description: >
-      Model Eloquent mendefinisikan $guarded = [] yang mengizinkan SETIAP atribut diset via create() atau update(). Penyerang dapat menyetel is_admin, role, email_verified_at, password, atau field sensitif lainnya melalui input request jika controller menggunakan $request->all().
+      The Eloquent model defines $guarded = [] which allows EVERY attribute to be set via create() or update(). An attacker can set is_admin, role, email_verified_at, password, or other sensitive fields via request input if the controller uses $request->all().
 
     severity: critical
     confidence: high
@@ -36,17 +36,17 @@ rules:
         pattern: 'protected\s+\$guarded\s*=\s*\[\s*\]'
         exclude_pattern: '(seed|Seed|test|Test|factory|Factory)'
     remediation: |
-      Gunakan whitelist $fillable eksplisit:
+      Use an explicit $fillable whitelist:
         protected $fillable = ['name', 'email', 'bio', 'avatar'];
-        // ATAU proteksi field sensitif
+        // OR protect sensitive fields
         protected $guarded = ['id', 'is_admin', 'role', 'email_verified_at', 'password'];
     references:
       - "https://cwe.mitre.org/data/definitions/915.html"
       - "https://laravel.com/docs/eloquent#mass-assignment"
   - id: LAR-ENT-002
-    title: "SQL Injection — DB::raw() / whereRaw() dengan interpolasi variabel"
+    title: "SQL Injection — DB::raw() / whereRaw() with variable interpolation"
     description: >
-      Query builder menggunakan DB::raw(), whereRaw(), selectRaw(), orderByRaw(), havingRaw(), atau DB::statement() dengan interpolasi variabel langsung dari request. Query parameterized Laravel di-bypass, mengekspos database ke SQL Injection penuh.
+      The query builder uses DB::raw(), whereRaw(), selectRaw(), orderByRaw(), havingRaw(), or DB::statement() with direct variable interpolation from the request. Laravel's parameterized queries are bypassed, exposing the database to full SQL Injection.
 
     severity: critical
     confidence: high
@@ -64,20 +64,20 @@ rules:
         pattern: '(DB::raw|whereRaw|selectRaw|orderByRaw|havingRaw|groupByRaw|DB::statement)\s*\(\s*["''][^"'']*\$'
         exclude_pattern: '(\?\s*,|bindings|->addBinding|escapeString|intval|->integer)'
     remediation: |
-      Gunakan query binding untuk semua input:
-        // BENAR — parameter binding
+      Use query bindings for all input:
+        // CORRECT — parameter binding
         $users = DB::table('users')
             ->whereRaw('email = ?', [$request->input('email')])
             ->get();
-        // SALAH — interpolasi langsung
+        // INCORRECT — direct interpolation
         // DB::raw("SELECT * FROM users WHERE email = '{$email}'");
     references:
       - "https://cwe.mitre.org/data/definitions/89.html"
       - "https://laravel.com/docs/queries#raw-expressions"
   - id: LAR-ENT-003
-    title: "Auth Bypass — Auth::loginUsingId() dengan user ID dari request"
+    title: "Auth Bypass — Auth::loginUsingId() with user ID from request"
     description: >
-      Auth::loginUsingId() dipanggil dengan ID yang berasal dari request input tanpa verifikasi kepemilikan. Penyerang mengganti ID untuk login sebagai user lain, termasuk admin.
+      Auth::loginUsingId() is called with an ID originating from a request input without ownership verification. An attacker can replace the ID to log in as another user, including an admin.
 
     severity: critical
     confidence: high
@@ -94,17 +94,17 @@ rules:
         target: php-files
         pattern: 'Auth::(loginUsingId|onceUsingId)\s*\(\s*(\$request->|request\(|$_GET|$_POST)'
     remediation: |
-      loginUsingId() hanya boleh digunakan dalam konteks terkontrol (seeder, testing, admin impersonation dengan audit):
-        // ✅ Admin impersonation dengan audit trail
+      loginUsingId() should only be used in controlled contexts (seeder, testing, admin impersonation with audit):
+        // ✅ Admin impersonation with audit trail
         $this->authorize('impersonate', $targetUser);
         Log::warning('Admin impersonation', ['admin_id' => auth()->id(), 'target_id' => $targetUser->id]);
         Auth::loginUsingId($targetUser->id);
     references:
       - "https://cwe.mitre.org/data/definitions/287.html"
   - id: LAR-ENT-004
-    title: "File Upload — tanpa validasi MIME type dan ekstensi"
+    title: "File Upload — without MIME type and extension validation"
     description: >
-      File upload menggunakan storeAs() atau putFile() tanpa validasi mime type, ukuran, dan ekstensi di dalam request validation rules. Penyerang dapat mengupload shell PHP, web backdoor, atau malware yang dieksekusi di server.
+      File upload uses storeAs() or putFile() without validation of mime type, size, and extension within the request validation rules. An attacker can upload PHP shells, web backdoors, or malware that is executed on the server.
 
     severity: critical
     confidence: high
@@ -122,20 +122,20 @@ rules:
         pattern: '(\$request->file\(|\$file\s*=\s*\$request->|UploadedFile)[^;]*->(store|storeAs|storePublicly|putFile|putFileAs|move)\s*\('
         exclude_pattern: '(validate|mimes:|mimetypes:|max:|file\|image|->validate\()'
     remediation: |
-      Selalu validasi file upload dengan aturan ketat:
+      Always validate file uploads with strict rules:
         $request->validate([
             'document' => 'required|file|mimes:pdf,doc,docx|max:10240',
             'avatar'   => 'required|image|mimes:jpg,png,webp|max:2048|dimensions:max_width=2000',
         ]);
-        // Simpan dengan nama acak, BUKAN nama asli
+        // Store with a random name, NOT the original name
         $path = $request->file('document')->store('documents', 's3');
     references:
       - "https://cwe.mitre.org/data/definitions/434.html"
       - "https://laravel.com/docs/validation#rule-mimes"
   - id: LAR-ENT-005
-    title: "XSS — Blade raw output {!! !!} dengan data tidak tepercaya"
+    title: "XSS — Blade raw output {!! !!} with untrusted data"
     description: >
-      Blade meng-output variabel mentah via {!! !!} tanpa escaping. Jika variabel berasal dari input pengguna, database tanpa sanitasi, atau API eksternal, penyerang menyisipkan JavaScript yang dijalankan di browser korban — memungkinkan session hijacking, keylogging, dan data theft.
+      Blade outputs raw variables via {!! !!} without escaping. If the variable comes from user input, an unsanitized database, or an external API, an attacker can insert JavaScript that runs in the victim's browser — enabling session hijacking, keylogging, and data theft.
 
     severity: high
     confidence: high
@@ -153,18 +153,18 @@ rules:
         pattern: '\{!!\s*\$[a-zA-Z]'
         exclude_pattern: '(Purifier|clean|strip_tags|htmlspecialchars|e\(|sanitize|markdown|trusted_html)'
     remediation: |
-      Gunakan {{ }} (auto-escaped) daripada {!! !!}:
-        <!- ✅ BENAR — auto-escaped ->
+      Use {{ }} (auto-escaped) instead of {!! !!}:
+        <!- ✅ CORRECT — auto-escaped ->
         <p>{{ $user->bio }}</p>
-        <!- Jika HTML diperlukan, gunakan HTMLPurifier ->
+        <!- If HTML is required, use HTMLPurifier ->
         {!! clean($user->bio) !!}
     references:
       - "https://cwe.mitre.org/data/definitions/79.html"
       - "https://laravel.com/docs/blade#displaying-data"
   - id: LAR-ENT-006
-    title: "API Token — Sanctum/Passport token tanpa expiration"
+    title: "API Token — Sanctum/Passport token without expiration"
     description: >
-      Token Sanctum atau Passport dibuat tanpa menyetel masa kedaluwarsa. Token tanpa expiration berlaku selamanya — jika dicuri, penyerang memiliki akses API permanen ke akun pengguna.
+      Sanctum or Passport tokens are created without setting an expiration time. Tokens without expiration valid forever — if stolen, the attacker has permanent API access to the user's account.
 
     severity: high
     confidence: high
@@ -185,9 +185,9 @@ rules:
         target: config-files
         pattern: "'expiration'\\s*=>\\s*(null|0)"
     remediation: |
-      Selalu setel expiration pada API tokens:
+      Always set an expiration on API tokens:
         // Sanctum — global config
-        'expiration' => 60 * 24,  // 24 jam dalam menit
+        'expiration' => 60 * 24,  // 24 hours in minutes
 
         // Sanctum — per-token (Laravel 11+)
         $token = $user->createToken('api', ['*'], now()->addHours(24));
@@ -199,9 +199,9 @@ rules:
       - "https://cwe.mitre.org/data/definitions/613.html"
       - "https://laravel.com/docs/sanctum#token-expiration"
   - id: LAR-ENT-007
-    title: "Route sensitif tanpa middleware autentikasi"
+    title: "Sensitive route without authentication middleware"
     description: >
-      Route yang menangani operasi sensitif (admin panel, pengaturan akun, CRUD resources) didefinisikan tanpa middleware 'auth', 'auth:sanctum', atau guard lainnya. Pengguna yang tidak terautentikasi dapat mengakses endpoint tersebut.
+      Routes handling sensitive operations (admin panel, account settings, CRUD resources) are defined without 'auth', 'auth:sanctum', or other guard middleware. Unauthenticated users can access these endpoints.
 
     severity: critical
     confidence: high
@@ -219,7 +219,7 @@ rules:
         pattern: "Route::(post|put|patch|delete)\\s*\\(\\s*[\"'][^\"']*(admin|dashboard|settings|account|profile|user|payment|order|invoice)[^\"']*[\"']"
         exclude_pattern: '(middleware\s*\(\s*["\x27][^\x27"]*auth|->middleware|group.*auth)'
     remediation: |
-      Gunakan middleware group untuk semua route sensitif:
+      Use middleware groups for all sensitive routes:
         Route::middleware(['auth', 'verified'])->group(function () {
             Route::resource('orders', OrderController::class);
             Route::resource('payments', PaymentController::class);
@@ -232,9 +232,9 @@ rules:
       - "https://cwe.mitre.org/data/definitions/306.html"
       - "https://laravel.com/docs/middleware"
   - id: LAR-ENT-008
-    title: "Artisan Command Injection — argumen dari user input"
+    title: "Artisan Command Injection — arguments from user input"
     description: >
-      Artisan::call() atau Artisan::queue() dipanggil dengan argumen yang berasal dari request. Beberapa Artisan commands dapat membaca file, menghapus data, atau mengeksekusi kode arbitrer.
+      Artisan::call() or Artisan::queue() is called with arguments originating from a request. Some Artisan commands can read files, delete data, or execute arbitrary code.
 
     severity: critical
     confidence: high
@@ -251,7 +251,7 @@ rules:
         target: php-files
         pattern: 'Artisan::(call|queue)\s*\(\s*(\$request->|request\(|\$_GET|\$_POST)'
     remediation: |
-      Jangan izinkan user memilih Artisan command. Gunakan whitelist:
+      Do not allow users to choose Artisan commands. Use a whitelist:
         $allowedCommands = ['cache:clear', 'queue:restart'];
         $command = $request->input('command');
         abort_unless(in_array($command, $allowedCommands, true), 422);
@@ -259,9 +259,9 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/78.html"
   - id: LAR-ENT-009
-    title: "APP_KEY lemah, default, atau placeholder"
+    title: "APP_KEY weak, default, or placeholder"
     description: >
-      APP_KEY disetel ke nilai placeholder ('base64:...short...', 'SomeRandomString', atau kosong). APP_KEY adalah root of trust untuk enkripsi cookies, session, signed URLs, dan semua data terenkripsi via Crypt facade. Key lemah = semua enkripsi dapat di-break.
+      APP_KEY is set to a placeholder value ('base64:...short...', 'SomeRandomString', or empty). APP_KEY is the root of trust for encrypting cookies, sessions, signed URLs, and all data encrypted via the Crypt facade. A weak key means all encryption can be broken.
 
     severity: critical
     confidence: high
@@ -281,17 +281,17 @@ rules:
         target: env-files
         pattern: "APP_KEY\\s*=\\s*(SomeRandomString|YourAppKey|changeme|secret|base64:[A-Za-z0-9+/=]{1,20}$)"
     remediation: |
-      Generate key yang kuat dengan Artisan:
+      Generate a strong key with Artisan:
         php artisan key:generate
-      Key harus berupa base64-encoded 256-bit random value.
-      Jangan share APP_KEY antar environment.
+      The key must be a base64-encoded 256-bit random value.
+      Do not share APP_KEY between environments.
     references:
       - "https://cwe.mitre.org/data/definitions/321.html"
       - "https://laravel.com/docs/encryption"
   - id: LAR-ENT-010
-    title: "Queue Job — user input langsung di-dispatch tanpa validasi"
+    title: "Queue Job — direct user input dispatched without validation"
     description: >
-      Job yang di-dispatch ke queue menerima $request->all() atau data mentah dari request tanpa validasi. Data job diserialisasi dan tersimpan di queue backend (Redis/database). Jika queue backend terekspos, penyerang dapat memodifikasi payload job untuk mengeksekusi kode arbitrer saat job diproses.
+      Jobs dispatched to the queue receive $request->all() or raw request data without validation. Job data is serialized and stored in the queue backend (Redis/database). If the queue backend is exposed, an attacker can modify the job payload to execute arbitrary code when the job is processed.
 
     severity: high
     confidence: high
@@ -309,7 +309,7 @@ rules:
         pattern: 'dispatch\s*\(\s*new\s+\w+\s*\(\s*\$request->(all|input|getContent)\s*\(\s*\)'
         exclude_pattern: '(validate|validated|only\(|specific_field)'
     remediation: |
-      Validasi dan filter input sebelum dispatch:
+      Validate and filter input before dispatching:
         $data = $request->validate([
             'email'   => 'required|email',
             'message' => 'required|string|max:1000',
@@ -318,9 +318,9 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/502.html"
   - id: LAR-ENT-011
-    title: "Signed URL — route menerima signed URL tanpa middleware verifikasi"
+    title: "Signed URL — route receives signed URL without verification middleware"
     description: >
-      URL::signedRoute() atau URL::temporarySignedRoute() digunakan untuk membuat URL yang ditandatangani, tetapi route target tidak menggunakan middleware 'signed' untuk memverifikasi tanda tangan. Tanpa verifikasi, URL dapat dimanipulasi oleh penyerang.
+      URL::signedRoute() or URL::temporarySignedRoute() is used to create a signed URL, but the target route does not use the 'signed' middleware to verify the signature. Without verification, the URL can be manipulated by an attacker.
 
     severity: high
     confidence: high
@@ -338,7 +338,7 @@ rules:
         pattern: "(signedRoute|temporarySignedRoute)"
         exclude_pattern: '(middleware.*signed|->middleware\s*\(\s*["\x27]signed)'
     remediation: |
-      Tambahkan middleware 'signed' pada route yang menerima signed URL:
+      Add the 'signed' middleware to the route that receives the signed URL:
         Route::get('/unsubscribe/{user}', [SubscriptionController::class, 'unsubscribe'])
             ->name('unsubscribe')
             ->middleware('signed');
@@ -346,9 +346,9 @@ rules:
       - "https://cwe.mitre.org/data/definitions/345.html"
       - "https://laravel.com/docs/urls#signed-urls"
   - id: LAR-ENT-012
-    title: "Controller CRUD tanpa authorization check"
+    title: "Controller CRUD without authorization check"
     description: >
-      Method update/delete/store di controller Resource mengakses model tanpa memanggil $this->authorize(), Gate::allows(), atau Policy. Tanpa authorization, setiap user yang terautentikasi dapat memodifikasi data milik user lain.
+      The update/delete/store method in a Resource controller accesses a model without calling $this->authorize(), Gate::allows(), or using a Policy. Without authorization, any authenticated user can modify data belonging to other users.
 
     severity: high
     confidence: high
@@ -366,19 +366,19 @@ rules:
         pattern: 'public\s+function\s+(update|destroy|delete|edit|store)\s*\([^)]*\$\w+\s*\)\s*\{[^}]*->update\s*\('
         exclude_pattern: '(authorize|Gate::|can\(|policy|abort_unless|abort_if|middleware.*can:)'
     remediation: |
-      Gunakan Policy Laravel untuk setiap operasi CRUD:
+      Use Laravel Policies for every CRUD operation:
         public function update(Request $request, Post $post)
         {
             $this->authorize('update', $post);
-            // ... logic update
+            // ... update logic
         }
     references:
       - "https://cwe.mitre.org/data/definitions/862.html"
       - "https://laravel.com/docs/authorization"
   - id: LAR-ENT-013
-    title: "Scheduled task menjalankan command dengan secret di arguments"
+    title: "Scheduled task running command with secret in arguments"
     description: >
-      Laravel Task Scheduler (Kernel.php atau console.php) mendefinisikan scheduled command dengan API key, password, atau secret di-hardcode sebagai argumen. Nilai ini terekspos di process list, Telescope, dan log scheduler.
+      The Laravel Task Scheduler (Kernel.php or console.php) defines a scheduled command with an API key, password, or secret hardcoded as an argument. This value is exposed in the process list, Telescope, and scheduler logs.
 
     severity: high
     confidence: high
@@ -396,14 +396,14 @@ rules:
         pattern: '(->command|Artisan::call)\s*\(\s*[''"][^''"]*(password|secret|api_key|token|key)\s*=\s*[^$]'
         exclude_pattern: '(env\(|config\(|getenv)'
     remediation: |
-      Gunakan environment variables untuk semua secrets:
-        $schedule->command('sync:data -api-key=' . config('services.api.key'))->daily();
+      Use environment variables for all secrets:
+        $schedule->command('sync:data --api-key=' . config('services.api.key'))->daily();
     references:
       - "https://cwe.mitre.org/data/definitions/798.html"
   - id: LAR-ENT-014
-    title: "Event Listener menangani data sensitif tanpa validasi"
+    title: "Event Listener handling sensitive data without validation"
     description: >
-      Event listener menerima event payload dan melakukan operasi database atau API call tanpa memvalidasi data event. Event dari sumber yang tidak dipercaya (webhook, queue) dapat berisi payload yang dimanipulasi untuk SQL injection atau privilege escalation.
+      The event listener receives an event payload and performs database operations or API calls without validating the event data. Events from untrusted sources (webhooks, queues) can contain payloads manipulated for SQL injection or privilege escalation.
 
     severity: medium
     confidence: medium
@@ -421,19 +421,19 @@ rules:
         pattern: 'function\s+handle\s*\(\s*\w+Event\s+\$event\s*\)\s*\{[^}]*DB::'
         exclude_pattern: '(validate|validator|sanitize|filter_var|intval)'
     remediation: |
-      Validasi data event sebelum operasi:
+      Validate event data before any operation:
         public function handle(OrderEvent $event): void
         {
             $orderId = (int) $event->orderId;
             abort_if($orderId <= 0, 422);
-            // ... proses order
+            // ... process order
         }
     references:
       - "https://cwe.mitre.org/data/definitions/20.html"
   - id: LAR-ENT-015
-    title: "Laravel Telescope/Horizon tidak dilindungi autentikasi di production"
+    title: "Laravel Telescope/Horizon not protected by authentication in production"
     description: >
-      Laravel Telescope atau Horizon dashboard diakses tanpa gate authorization yang memadai. Dashboard ini mengekspos query database, request payload, queue job, exception, dan log — informasi yang sangat berharga bagi penyerang untuk merencanakan serangan targeted.
+      Laravel Telescope or Horizon dashboards are accessed without adequate gate authorization. These dashboards expose database queries, request payloads, queue jobs, exceptions, and logs — information that is very valuable for attackers to plan targeted attacks.
 
     severity: critical
     confidence: high
@@ -454,21 +454,21 @@ rules:
         pattern: "'enabled'\\s*=>\\s*(true|env\\s*\\(\\s*'TELESCOPE_ENABLED')"
         exclude_pattern: '(app\(\)->isLocal|app\(\)->environment\(\s*["\x27]local|APP_ENV|isProduction)'
     remediation: |
-      Lindungi dashboard dengan gate authorization yang ketat:
+      Protect the dashboard with strict gate authorization:
         // TelescopeServiceProvider.php
         Telescope::auth(function ($request) {
             return $request->user()?->isAdmin() ?? false;
         });
 
-        // Di production, pertimbangkan untuk menonaktifkan sepenuhnya:
+        // In production, consider disabling it entirely:
         TELESCOPE_ENABLED=false
     references:
       - "https://cwe.mitre.org/data/definitions/200.html"
       - "https://laravel.com/docs/telescope#authorization"
   - id: CFG-CSRF02
-    title: "Blade form tanpa direktif @csrf"
+    title: "Blade form without @csrf directive"
     description: >
-      Tag <form> dengan method non-GET dalam template Blade tidak menyertakan @csrf. Tanpa validasi CSRF token, form rentan terhadap cross-site request forgery dari origin manapun yang dapat mengelabui pengguna yang login.
+      A <form> tag with a non-GET method in a Blade template does not include @csrf. Without CSRF token validation, the form is vulnerable to cross-site request forgery from any origin that can trick a logged-in user.
 
     severity: high
     confidence: high
@@ -486,19 +486,19 @@ rules:
         pattern: "@csrf"
         negative: true
     remediation: |
-      Tambahkan @csrf di dalam setiap Blade form non-GET:
+      Add @csrf inside every non-GET Blade form:
         <form method="POST" action="{{ route('profile.update') }}">
             @csrf
             @method('PUT')
-            <!- field form ->
+            <!- form fields ->
         </form>
     references:
       - "https://cwe.mitre.org/data/definitions/352.html"
       - "https://laravel.com/docs/csrf"
   - id: SUPPLY-005
-    title: "NPM/Node dependency di-load dari CDN tanpa Subresource Integrity (SRI)"
+    title: "NPM/Node dependency loaded from CDN without Subresource Integrity (SRI)"
     description: >
-      Script atau stylesheet di-load dari CDN eksternal (cdnjs, jsdelivr, unpkg, googleapis) tanpa atribut integrity (Subresource Integrity). Jika CDN dikompromikan, penyerang dapat menyisipkan malicious JavaScript yang dieksekusi di browser semua pengguna.
+      A script or stylesheet is loaded from an external CDN (cdnjs, jsdelivr, unpkg, googleapis) without an integrity attribute (Subresource Integrity). If the CDN is compromised, an attacker can insert malicious JavaScript that is executed in the browsers of all users.
 
     severity: high
     confidence: high
@@ -516,20 +516,20 @@ rules:
         pattern: '<link[^>]+href\s*=\s*["'']https?://(cdn|cdnjs|unpkg|jsdelivr|googleapis)'
         exclude_pattern: 'integrity\s*='
     remediation: |
-      Tambahkan Subresource Integrity (SRI) hash pada semua resource CDN:
+      Add Subresource Integrity (SRI) hashes to all CDN resources:
         <script
             src="https://cdn.jsdelivr.net/npm/axios@1.6/dist/axios.min.js"
             integrity="sha384-REAL_HASH_HERE"
             crossorigin="anonymous">
         </script>
-      Generate SRI hash: https://www.srihash.org/
+      Generate SRI hashes: https://www.srihash.org/
     references:
       - "https://cwe.mitre.org/data/definitions/829.html"
       - "https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity"
   - id: XSS-B01
-    title: "Blade raw output {!! !!} dengan variabel tidak terpercaya"
+    title: "Blade raw output {!! !!} with untrusted variable"
     description: >
-      Direktif output mentah Blade {!! !!} melewati HTML escaping. Konten apapun yang dikendalikan pengguna yang dirender dengan cara ini menciptakan vektor XSS tersimpan atau tercermin yang dieksekusi di browser korban.
+      The Blade raw output directive {!! !!} bypasses HTML escaping. Any user-controlled content rendered this way creates a stored or reflected XSS vector that executes in the victim's browser.
 
     severity: high
     confidence: medium
@@ -543,17 +543,17 @@ rules:
         pattern: '\{!!\s*\$'
         exclude_pattern: '(config|asset|Purifier|purify|clean\(|sanitize|strip_tags|e\(|htmlspecialchars)'
     remediation: |
-      Gunakan output Blade yang di-escape untuk semua konten pengguna:
+      Use escaped Blade output for all user content:
         {{ $userContent }}
-      Cadangkan {!! !!} hanya untuk HTML statis tepercaya atau konten yang disanitasi:
+      Reserve {!! !!} only for trusted static HTML or sanitized content:
         {!! Purifier::clean($richText) !!}
     references:
       - "https://cwe.mitre.org/data/definitions/79.html"
       - "https://laravel.com/docs/blade#displaying-data"
   - id: XSS-B02
-    title: "Blade raw output dari data request (old/request/Input)"
+    title: "Blade raw output from request data (old/request/Input)"
     description: >
-      Direktif {!! !!} merender data langsung dari HTTP request (old(), request(), Input::). Data request selalu dikendalikan penyerang dan tidak boleh pernah dirender tanpa escaping.
+      The directive {!! !!} renders data directly from an HTTP request (old(), request(), Input::). Request data is always attacker-controlled and should never be rendered without escaping.
 
     severity: critical
     confidence: high
@@ -566,15 +566,15 @@ rules:
         target: blade-files
         pattern: '\{!!\s*(old\(|request\(|Input::|\$_GET|\$_POST|\$_REQUEST)'
     remediation: |
-      Gunakan sintaks double-brace yang mengescaping output secara otomatis:
+      Use double-brace syntax which automatically escapes output:
         {{ old('name') }}
         {{ request('query') }}
     references:
       - "https://cwe.mitre.org/data/definitions/79.html"
   - id: XSS-B03
-    title: "Blade @php echo - output variabel tanpa escaping"
+    title: "Blade @php echo - outputting variables without escaping"
     description: >
-      Blok @php/@endphp menggunakan echo/print untuk output variabel tanpa melewatinya melalui htmlspecialchars() atau e(). Output @php tidak diproses oleh pipeline auto-escaping Blade.
+      An @php/@endphp block uses echo/print to output a variable without passing it through htmlspecialchars() or e(). @php output is not processed by Blade's auto-escaping pipeline.
 
     severity: high
     confidence: medium
@@ -591,16 +591,16 @@ rules:
         target: blade-files
         pattern: '@php.*echo\s+\$(_GET|_POST|_REQUEST|request)'
     remediation: |
-      Gunakan output Blade yang di-escape daripada echo di dalam @php:
+      Use escaped Blade output instead of echo inside @php:
         {{ $variable }}
-      Jika @php diperlukan, selalu escape:
+      If @php is required, always escape:
         @php echo e($variable); @endphp
     references:
       - "https://cwe.mitre.org/data/definitions/79.html"
   - id: XSS-H01
-    title: "Inline event handler dengan data yang dikendalikan pengguna"
+    title: "Inline event handler with user-controlled data"
     description: >
-      Template Blade berisi atribut event handler inline (onclick, onerror, onload, dll.) yang nilainya menyertakan data dari pengguna. Bahkan dengan HTML attribute encoding, menempatkan data pengguna di dalam event handler menciptakan vektor JavaScript injection.
+      The Blade template contains inline event handler attributes (onclick, onerror, onload, etc.) whose values include user data. Even with HTML attribute encoding, placing user data inside an event handler creates a JavaScript injection vector.
 
     severity: high
     confidence: high
@@ -613,8 +613,8 @@ rules:
         target: blade-files
         pattern: 'on(click|error|load|mouseover|submit|focus|blur|change|keyup|keydown)\s*=\s*["''][^"'']*\{\{'
     remediation: |
-      Jangan pernah mencampur data pengguna dengan event handler inline.
-      Gunakan atribut data dan event listener JavaScript:
+      Never mix user data with inline event handlers.
+      Use data attributes and JavaScript event listeners instead:
         <button data-id="{{ $id }}" class="js-action">Click</button>
         <script>
         document.querySelectorAll('.js-action').forEach(b =>
@@ -624,9 +624,9 @@ rules:
       - "https://cheatsheetseries.owasp.org/cheatsheets/DOM_based_XSS_Prevention_Cheat_Sheet.html"
       - "https://cwe.mitre.org/data/definitions/79.html"
   - id: XSS-H02
-    title: "href dengan data pengguna berpotensi javascript: URI"
+    title: "href with user data potentially a javascript: URI"
     description: >
-      Template Blade menghasilkan atribut href menggunakan data dari pengguna tanpa validasi skema. Penyerang menyisipkan URI javascript: yang dieksekusi di browser saat tautan diklik.
+      The Blade template generates an href attribute using user data without schema validation. An attacker could insert a javascript: URI that executes in the browser when the link is clicked.
 
     severity: high
     confidence: medium
@@ -640,7 +640,7 @@ rules:
         pattern: 'href\s*=\s*["'']?\{\{[^}]*(request|old|input|url|link|param)[^}]*\}\}'
         exclude_pattern: '(route\(|url\(|asset\(|secure_url\(|Str::startsWith)'
     remediation: |
-      Validasi URL sebelum menggunakannya dalam atribut href:
+      Validate the URL before using it in an href attribute:
         @php
             $url = Str::startsWith($link, ['https://', '/']) ? $link : '#';
         @endphp
@@ -648,9 +648,9 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/79.html"
   - id: XSS-H03
-    title: "Data JSON inline di <script> tanpa direktif @json"
+    title: "Inline JSON data in <script> without @json directive"
     description: >
-      Data PHP ditanamkan di dalam tag <script> menggunakan echo atau interpolasi string tanpa melalui direktif @json Blade atau json_encode() dengan JSON_HEX_TAG. JSON mentah dapat berisi sekuens </script> yang keluar dari konteks script.
+      PHP data is embedded inside a <script> tag using echo or string interpolation without using Blade's @json directive or json_encode() with JSON_HEX_TAG. Raw JSON can contain </script> sequences that break out of the script context.
 
     severity: high
     confidence: high
@@ -664,18 +664,18 @@ rules:
         pattern: '<script[^>]*>[\s\S]*?\{\{[\s\S]*?\}\}[\s\S]*?<\/script>'
         exclude_pattern: '(@json|JSON_HEX_TAG|json_encode)'
     remediation: |
-      Gunakan direktif @json Blade yang mengatur flag yang benar secara otomatis:
+      Use Blade's @json directive which automatically sets the correct flags:
         <script>const config = @json($config);</script>
-      Atau gunakan json_encode() dengan flag HTML-safe:
+      Alternatively, use json_encode() with HTML-safe flags:
         <?= json_encode($data, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>
     references:
       - "https://cwe.mitre.org/data/definitions/79.html"
   - id: ADV-CSRF01
-    title: "Form Blade tanpa direktif @csrf"
+    title: "Blade form without @csrf directive"
     description: >
-      Template Blade mengandung elemen <form> dengan method non-GET tetapi tidak menyertakan
-      direktif @csrf. Tanpa token CSRF, setiap website pihak ketiga dapat membuat form yang
-      secara diam-diam mengirimkan request ke aplikasi Anda atas nama pengguna yang sedang login.
+      The Blade template contains a <form> element with a non-GET method but does not include the 
+      @csrf directive. Without a CSRF token, any third-party website can create a form that 
+      silently sends requests to your application on behalf of the logged-in user.
     severity: high
     confidence: high
     category: CSRF
@@ -692,7 +692,7 @@ rules:
         pattern: "@csrf"
         negative: true
     remediation: |
-      Tambahkan @csrf sebagai elemen pertama di dalam setiap form non-GET:
+      Add @csrf as the first element inside every non-GET form:
         <form method="POST" action="{{ route('orders.store') }}">
             @csrf
             @method('POST')
@@ -702,10 +702,10 @@ rules:
       - "https://laravel.com/docs/csrf"
       - "https://cwe.mitre.org/data/definitions/352.html"
   - id: ADV-DBG01
-    title: "Kode debug (dd, dump, var_dump) tertinggal dalam kode production"
+    title: "Debug code (dd, dump, var_dump) left in production code"
     description: >
-      Pemanggilan dd(), dump(), atau var_dump() yang tertinggal dapat mengekspos data sensitif
-      langsung ke browser, dan dd() juga menghentikan eksekusi request yang dapat menyebabkan DoS.
+      Leftover calls to dd(), dump(), or var_dump() can expose sensitive data 
+      directly to the browser, and dd() also terminates request execution which can cause a DoS.
     severity: high
     confidence: high
     category: Debug Exposure
@@ -721,15 +721,15 @@ rules:
         target: blade-files
         pattern: '@(dd|dump)\s*\('
     remediation: |
-      Hapus semua panggilan debug sebelum commit/deploy. Gunakan logging terstruktur:
+      Remove all debug calls before commit/deploy. Use structured logging:
         Log::debug('Order state', ['order_id' => $order->id, 'status' => $order->status]);
     references:
       - "https://cwe.mitre.org/data/definitions/215.html"
   - id: BIZ-002
-    title: "Insecure Password Reset - Token reset dikirim sebagai parameter GET HTTP"
+    title: "Insecure Password Reset - Reset token sent as HTTP GET parameter"
     description: >
-      Aplikasi mengirimkan password reset token via GET query string atau template Blade.
-      Parameter GET rentan terekam di server log, proxy, dan browser history.
+      The application sends the password reset token via a GET query string or a Blade template. 
+      GET parameters are vulnerable to being recorded in server logs, proxies, and browser history.
     severity: high
     confidence: medium
     category: Info Disclosure
@@ -744,15 +744,15 @@ rules:
         target: blade-files
         pattern: "action=[\"']\\s*\\{\\{\\s*route\\s*\\(.*(token)=\\$"
     remediation: |
-      Gunakan mekanisme reset bawaan framework dengan POST flow dan token handling aman
-      (contoh: Password::broker()).
+      Use the framework's built-in reset mechanism with a POST flow and secure token handling 
+      (e.g., Password::broker()).
     references:
       - "https://cwe.mitre.org/data/definitions/598.html"
   - id: DBG-001
-    title: "dd() debug dump tertinggal dalam kode production"
+    title: "Leftover dd() debug dump in production code"
     description: >
-      dd() (dump and die) di source PHP/Blade menghentikan eksekusi dan dapat membocorkan data
-      request, auth state, serta nilai environment ke response.
+      The dd() (dump and die) function in PHP/Blade source terminates execution and can leak 
+      request data, auth state, and environment values to the response.
     severity: high
     confidence: high
     category: Debug Exposure
@@ -768,14 +768,14 @@ rules:
         target: blade-files
         pattern: '@dd\s*\('
     remediation: |
-      Hapus semua dd() sebelum commit. Gunakan Log::debug() untuk debugging aman.
+      Remove all dd() calls before committing. Use Log::debug() for safe debugging.
     references:
       - "https://cwe.mitre.org/data/definitions/215.html"
   - id: DBG-002
-    title: "dump() debug call tertinggal dalam kode"
+    title: "Leftover dump() debug call in code"
     description: >
-      dump() mengeluarkan konten variabel ke HTTP response tanpa menghentikan eksekusi, sehingga
-      state internal dapat bocor ke user/API caller.
+      The dump() function outputs variable content to the HTTP response without stopping execution, 
+      potentially leaking internal state to the user or API caller.
     severity: medium
     confidence: high
     category: Debug Exposure
@@ -791,7 +791,7 @@ rules:
         target: blade-files
         pattern: '@dump\s*\('
     remediation: |
-      Hapus dump() sebelum merge. Gunakan Log::debug() untuk output debug terstruktur.
+      Remove dump() before merging. Use Log::debug() for structured debug output.
     references:
       - "https://cwe.mitre.org/data/definitions/215.html"
   - id: LAR-ENT-016
@@ -814,8 +814,8 @@ rules:
         target: php-files
         pattern: 'Http::withoutVerifying\s*\('
     remediation: |
-      Jangan menonaktifkan verifikasi sertifikat di production.
-      Gunakan CA trust store yang valid dan monitoring sertifikat upstream.
+      Do not disable certificate verification in production.
+      Use a valid CA trust store and monitor upstream certificates.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/295.html"
@@ -841,8 +841,8 @@ rules:
         target: middleware-files
         pattern: "protected\\s+\\$proxies\\s*=\\s*(['\"]\\*['\"]|\\[\\s*['\"]\\*['\"]\\s*\\])"
     remediation: |
-      Batasi trusted proxies ke IP/range infrastruktur reverse proxy yang diketahui.
-      Audit penggunaan forwarded headers pada auth/rate limit/logging.
+      Restrict trusted proxies to known IP addresses or ranges of your reverse proxy infrastructure.
+      Audit the use of forwarded headers for authentication, rate limiting, and logging.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/345.html"
@@ -872,8 +872,8 @@ rules:
         target: config-files
         pattern: "['\"]supports_credentials['\"]\\s*=>\\s*true"
     remediation: |
-      Gunakan daftar origin yang eksplisit dan nonaktifkan credentials untuk wildcard.
-      Pisahkan policy CORS antara environment internal dan public.
+      Use an explicit list of origins and disable credentials for wildcards.
+      Separate CORS policies between internal and public environments.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/346.html"
@@ -899,8 +899,8 @@ rules:
         target: config-files
         pattern: 'env\s*\(\s*[''\"]APP_KEY[''\"]\s*,\s*[''\"]base64:[^''\"]+[''\"]\s*\)'
     remediation: |
-      Jangan gunakan fallback APP_KEY hardcoded. Wajibkan key dari environment/secret manager.
-      Terapkan rotasi key dan prosedur recovery terstandar.
+      Do not use a hardcoded fallback APP_KEY. Require the key to be provided from the environment or a secret manager.
+      Implement key rotation and standardized recovery procedures.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/798.html"

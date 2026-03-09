@@ -9,9 +9,9 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: PHP-080-01
-    title: "create_function() dihapus di PHP 8.0 - vektor RCE"
+    title: "create_function() removed in PHP 8.0 - RCE vector"
     description: >
-      create_function() dihapus di PHP 8.0. Secara internal menggunakan eval(), menjadikannya vektor remote code execution. Penggunaan yang tersisa menyebabkan fatal error di PHP 8.0+.
+      create_function() was removed in PHP 8.0. Internally it uses eval(), making it a remote code execution vector. Remaining usage causes a fatal error in PHP 8.0+.
 
     severity: critical
     confidence: high
@@ -24,16 +24,16 @@ rules:
         target: php-files
         pattern: '\bcreate_function\s*\('
     remediation: |
-      Ganti dengan anonymous function:
+      Replace with anonymous functions:
         $fn = fn($a) => $a * 2;
         $fn = function ($a) { return $a * 2; };
     references:
       - "https://cwe.mitre.org/data/definitions/95.html"
       - "https://www.php.net/manual/en/migration80.incompatible.php"
   - id: PHP-082-01
-    title: "utf8_encode() / utf8_decode() deprecated di PHP 8.2"
+    title: "utf8_encode() / utf8_decode() deprecated in PHP 8.2"
     description: >
-      utf8_encode() dan utf8_decode() dideprecasi di PHP 8.2 dan dihapus di PHP 9.0. Konversi encoding yang salah dapat menyebabkan kerentanan filter-bypass dimana payload dalam satu encoding lolos dari sanitizer yang mengharapkan UTF-8.
+      utf8_encode() and utf8_decode() were deprecated in PHP 8.2 and removed in PHP 9.0. Incorrect encoding conversions can lead to filter-bypass vulnerabilities where payloads in one encoding escape sanitizers expecting UTF-8.
 
     severity: medium
     confidence: high
@@ -46,18 +46,16 @@ rules:
         target: php-files
         pattern: '\b(utf8_encode|utf8_decode)\s*\('
     remediation: |
-      Gunakan mb_convert_encoding() dengan charset sumber dan target yang eksplisit:
+      Use mb_convert_encoding() with explicit source and target charsets:
         $utf8  = mb_convert_encoding($str, 'UTF-8', 'ISO-8859-1');
         $latin = mb_convert_encoding($str, 'ISO-8859-1', 'UTF-8');
     references:
       - "https://wiki.php.net/rfc/remove_utf8_decode_and_utf8_encode"
       - "https://cwe.mitre.org/data/definitions/838.html"
   - id: PHP-082-02
-    title: "Parameter sensitif tanpa #[SensitiveParameter] (PHP 8.2+)"
+    title: "Sensitive parameters without #[SensitiveParameter] (PHP 8.2+)"
     description: >
-      PHP 8.2 memperkenalkan atribut #[SensitiveParameter] untuk menyamarkan nilai parameter
-      sensitif pada stack trace. Fungsi yang menerima password, token, secret, atau API key tanpa
-      atribut ini berisiko membocorkan kredensial ke log error dan monitoring system.
+      PHP 8.2 introduced the #[SensitiveParameter] attribute to redact sensitive parameter values in stack traces. Functions that accept passwords, tokens, secrets, or API keys without this attribute risk leaking credentials into error logs and monitoring systems.
 
     severity: medium
     confidence: medium
@@ -71,7 +69,7 @@ rules:
         pattern: 'function\s+\w+\s*\([^)]*\$(password|passwd|secret|token|api_key|apiKey|private_key|pin)\b[^)]*\)'
         exclude_pattern: '(SensitiveParameter|#\[|\btest\b|\bTest\b)'
     remediation: |
-      Tambahkan atribut #[SensitiveParameter] pada parameter sensitif:
+      Add the #[SensitiveParameter] attribute to sensitive parameters:
         function authenticate(
             string $email,
             #[SensitiveParameter] string $password
@@ -80,9 +78,9 @@ rules:
       - "https://wiki.php.net/rfc/redact_parameters_in_back_traces"
       - "https://cwe.mitre.org/data/definitions/532.html"
   - id: PHP-082-03
-    title: "Dynamic property pada non-stdClass object (PHP 8.2 deprecated)"
+    title: "Dynamic property on non-stdClass object (PHP 8.2 deprecated)"
     description: >
-      PHP 8.2 mendeprecasi pembuatan dynamic property pada objek non-stdClass. Di PHP 9.0 ini menjadi fatal error. Kode keamanan yang mendeteksi atau menyetel property secara dinamis akan gagal diam-diam di PHP 8.2 dan break sepenuhnya di PHP 9.0.
+      PHP 8.2 deprecated the creation of dynamic properties on non-stdClass objects. In PHP 9.0 this becomes a fatal error. Security code that dynamicly detects or sets properties will fail silently in PHP 8.2 and break completely in PHP 9.0.
 
     severity: medium
     confidence: medium
@@ -96,19 +94,20 @@ rules:
         pattern: '\$\w+->\$\w+\s*='
         exclude_pattern: '(stdClass|AllowDynamicProperties|test|Test|//|#\s)'
     remediation: |
-      Deklarasikan semua property secara eksplisit atau tambahkan
+      Declare all properties explicitly or add
         class UserContext {
-            public string $role = '';    // deklarasi eksplisit
+            public string $role = '';    // explicit declaration
         }
-      Atau untuk value-object legacy yang memerlukan dynamic property:
+      Or for legacy value-objects that require dynamic properties:
+        #[AllowDynamicProperties]
         class LegacyData {}
     references:
       - "https://wiki.php.net/rfc/deprecate_dynamic_properties"
       - "https://cwe.mitre.org/data/definitions/670.html"
   - id: PHP-084-01
-    title: "Property hooks PHP 8.4 mengekspos data sensitif via get hook"
+    title: "PHP 8.4 property hooks expose sensitive data via get hook"
     description: >
-      PHP 8.4 property hooks (get/set) digunakan pada model atau DTO property yang mengandung logika bisnis yang dapat membocorkan state internal atau melewati validasi. Get hook yang menurunkan nilai dari property lain atau melakukan type coercion implisit dapat mengekspos data sensitif dalam konteks serialisasi.
+      PHP 8.4 property hooks (get/set) are used on model or DTO properties containing business logic that can leak internal state or bypass validation. Get hooks that derive values from other properties or perform implicit type coercion can expose sensitive data in a serialization context.
 
     severity: medium
     confidence: low
@@ -122,8 +121,8 @@ rules:
         pattern: 'public\s+\w+\s+\$\w+\s*\{[^}]*get\s*\{'
         exclude_pattern: '(e\(|htmlspecialchars|htmlentities|encrypt\(|hash\(|mask\()'
     remediation: |
-      Pastikan get hook tidak mengekspos data sensitif mentah. Terapkan
-      escaping atau masking di dalam hook:
+      Ensure get hooks do not expose raw sensitive data. Apply
+      escaping or masking inside the hook:
         public string $email {
             get => strtolower($this->email);
         }

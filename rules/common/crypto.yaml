@@ -9,9 +9,9 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: CRY-H02
-    title: "sha1() digunakan untuk hashing yang sensitif terhadap keamanan"
+    title: "sha1() used for security-sensitive hashing"
     description: >
-      sha1() menghasilkan hash 160-bit. SHA-1 dideprecasi oleh NIST dan IETF untuk penggunaan keamanan. Serangan collision praktis yang diketahui ada. Menggunakan sha1() untuk tanda tangan HMAC, pembuatan token, atau penyimpanan password tidak memadai.
+      sha1() produces a 160-bit hash. SHA-1 is deprecated by NIST and IETF for security use. Known practical collision attacks exist. Using sha1() for HMAC signatures, token generation, or password storage is inadequate.
 
     severity: medium
     confidence: medium
@@ -25,16 +25,16 @@ rules:
         pattern: '\bsha1\s*\('
         exclude_pattern: '(//|#\s|/\*|test|Test|spec|git|legacy|uuid|oauth)'
     remediation: |
-      Ganti dengan SHA-256 atau lebih kuat:
+      Replace with SHA-256 or stronger:
         hash('sha256', $data)
         hash_hmac('sha256', $data, $secret)
-      Untuk token: gunakan Str::random(64) atau bin2hex(random_bytes(32)).
+      For tokens: use Str::random(64) or bin2hex(random_bytes(32)).
     references:
       - "https://cwe.mitre.org/data/definitions/327.html"
   - id: CRY-C02
-    title: "Algoritma cipher yang usang atau broken"
+    title: "Obsolete or broken cipher algorithms"
     description: >
-      Cipher DES, 3DES, RC2, RC4, atau BLOWFISH digunakan untuk enkripsi. Cipher ini sudah broken (RC4), memiliki panjang kunci terlalu pendek untuk keamanan modern (DES 56-bit), atau dideprecasi oleh NIST (3DES setelah 2023).
+      DES, 3DES, RC2, RC4, or BLOWFISH ciphers are used for encryption. These ciphers are broken (RC4), have key lengths too short for modern security (DES 56-bit), or are deprecated by NIST (3DES after 2023).
 
     severity: high
     confidence: high
@@ -48,16 +48,16 @@ rules:
         pattern: 'openssl_(encrypt|decrypt)\s*\([^,]+,[^"'']*\b(DES|3DES|RC2|RC4|BLOWFISH|des-|bf-|rc4)\b'
         exclude_pattern: '(AES|aes)'
     remediation: |
-      Gunakan AES-256-GCM untuk enkripsi baru:
+      Use AES-256-GCM for new encryption:
         $iv        = random_bytes(openssl_cipher_iv_length('AES-256-GCM'));
         $encrypted = openssl_encrypt($data, 'AES-256-GCM', $key, 0, $iv, $tag);
     references:
       - "https://cwe.mitre.org/data/definitions/327.html"
       - "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-131Ar2.pdf"
   - id: CRY-C03
-    title: "Hardcoded atau static initialization vector (IV / nonce)"
+    title: "Hardcoded or static initialization vector (IV / nonce)"
     description: >
-      Variabel IV atau nonce ditetapkan dengan string hardcoded atau urutan byte. IV tetap dengan kunci yang sama mengenkripsi plaintext identik ke ciphertext identik, merusak keamanan IND-CPA dan mengaktifkan serangan block-alignment (misalnya, CBC byte-flipping).
+      The IV or nonce variable is assigned a hardcoded string or byte sequence. A fixed IV with the same key encrypts identical plaintext to identical ciphertext, breaking IND-CPA security and enabling block-alignment attacks (e.g., CBC byte-flipping).
 
     severity: high
     confidence: high
@@ -71,7 +71,7 @@ rules:
         pattern: '\$\w*(iv|nonce|salt)\w*\s*=\s*["''][^"''\$]{8,}["'']'
         exclude_pattern: '(random|openssl_random_pseudo_bytes|random_bytes|bin2hex)'
     remediation: |
-      Selalu buat IV unik yang acak untuk setiap operasi enkripsi:
+      Always create an unique random IV for each encryption operation:
         $iv        = random_bytes(openssl_cipher_iv_length('AES-256-CBC'));
         $encrypted = openssl_encrypt($data, 'AES-256-CBC', $key, 0, $iv);
         $stored    = base64_encode($iv . $encrypted);
@@ -81,7 +81,7 @@ rules:
   - id: CRY-C04
     title: "Weak RSA Padding (PKCS#1 v1.5) Vulnerable to Bleichenbacher Oracle"
     description: >
-      openssl_public_encrypt() atau openssl_private_decrypt() digunakan dengan OPENSSL_PKCS1_PADDING (atau padding dibiarkan ke default). PKCS1 v1.5 padding rentan terhadap serangan Bleichenbacher's Oracle, dimana penyerang dapat mendekripsi ciphertext atau memalsukan signature dengan mengamati respons error (padding oracle).
+      openssl_public_encrypt() or openssl_private_decrypt() is used with OPENSSL_PKCS1_PADDING (or padding is left at default). PKCS1 v1.5 padding is vulnerable to Bleichenbacher's Oracle attacks, where an attacker can decrypt ciphertext or forge signatures by observing error responses (padding oracle).
     severity: high
     confidence: high
     category: Weak Padding
@@ -94,7 +94,7 @@ rules:
         pattern: 'openssl_(public_encrypt|private_decrypt)\s*\([^,]+,\s*[^,]+,\s*[^,]+(?:,\s*OPENSSL_PKCS1_PADDING)?\s*\)'
         exclude_pattern: '(OPENSSL_PKCS1_OAEP_PADDING)'
     remediation: |
-      Gunakan OAEP padding yang aman terhadapa adaptive chosen-ciphertext attacks:
+      Use secure OAEP padding to prevent adaptive chosen-ciphertext attacks:
       `openssl_public_encrypt($data, $encrypted, $pubKey, OPENSSL_PKCS1_OAEP_PADDING);`
     references:
       - "https://cwe.mitre.org/data/definitions/327.html"

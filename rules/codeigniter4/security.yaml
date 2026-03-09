@@ -151,9 +151,9 @@ rules:
       - "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/"
       - "https://cwe.mitre.org/data/definitions/15.html"
   - id: CI4-ENT-006
-    title: "Cookie Secure Tidak Diaktifkan"
+    title: "Cookie Secure Not Enabled"
     description: >
-      Di CodeIgniter 4, jika `public $cookieSecure = false;` di `app/Config/App.php`, session cookie akan dikirim melalui HTTP biasa. Ini memungkinkan session hijacking melalui network sniffing.
+      In CodeIgniter 4, if `public $cookieSecure = false;` in `app/Config/App.php`, session cookies will be sent over plain HTTP. This allows session hijacking via network sniffing.
     severity: high
     confidence: high
     category: Session Security
@@ -165,15 +165,15 @@ rules:
         target: config-files
         pattern: 'public\s+\$cookieSecure\s*=\s*false'
     remediation: |
-      Set `public $cookieSecure = true;` di `app/Config/App.php` atau melalui variabel lingkungan `app.cookieSecure = true`.
+      Set `public $cookieSecure = true;` in `app/Config/App.php` or via the environment variable `app.cookieSecure = true`.
 
     references:
       - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
       - "https://cwe.mitre.org/data/definitions/614.html"
   - id: CI4-ENT-007
-    title: "Encryption Key Lemah di CI4"
+    title: "Weak Encryption Key in CI4"
     description: >
-      `public $key = '';` di `app/Config/Encryption.php` harus diset dengan key yang kuat (biasanya 32 karakter hexadecimal). Key yang kosong atau default memungkinkan dekripsi data sensitif yang disimpan aplikasi.
+      `public $key = '';` in `app/Config/Encryption.php` must be set with a strong key (usually a 32-character hexadecimal string). An empty or default key allows decryption of sensitive data stored by the application.
     severity: critical
     confidence: high
     category: Cryptographic Failure
@@ -185,7 +185,7 @@ rules:
         target: config-files
         pattern: 'public\s+\$key\s*=\s*[''"]\s*[''"]'
     remediation: |
-      Gunakan perintah `php spark key:generate` untuk membuat key yang aman.
+      Use the command `php spark key:generate` to create a secure key.
 
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
@@ -213,8 +213,8 @@ rules:
         target: config-files
         pattern: 'public\s+\$supportsCredentials\s*=\s*true'
     remediation: |
-      Batasi allowed origins ke domain tepercaya dan nonaktifkan credentials untuk wildcard.
-      Review policy CORS pada setiap endpoint API.
+      Restrict allowed origins to trusted domains and disable credentials for wildcards.
+      Review CORS policy on every API endpoint.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/346.html"
@@ -238,8 +238,8 @@ rules:
         target: config-files
         pattern: 'public\s+\$contentSecurityPolicy\s*=\s*false'
     remediation: |
-      Aktifkan CSP dan definisikan kebijakan yang ketat sesuai kebutuhan aplikasi.
-      Mulai dari `default-src ''self''` lalu longgarkan secara terkontrol.
+      Enable CSP and define strict policies as per the application's needs.
+      Start with `default-src 'self'` and then relax it in a controlled manner.
     references:
       - "https://owasp.org/Top10/A03_2021-Injection/"
       - "https://cwe.mitre.org/data/definitions/16.html"
@@ -268,8 +268,9 @@ rules:
         target: config-files
         pattern: 'public\s+\$enabled\s*=\s*true'
     remediation: |
-      Nonaktifkan toolbar pada production dan gunakan observability pipeline terpisah.
+      Disable the toolbar in production and use a separate observability pipeline.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/489.html"
       - "https://codeigniter.com/user_guide/testing/debugging.html"
+

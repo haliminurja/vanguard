@@ -10,12 +10,9 @@ meta:
 rules:
 
   - id: SSRF-003
-    title: "SSRF via DNS Rebinding - resolusi DNS tanpa validasi post-resolution"
+    title: "SSRF via DNS Rebinding - DNS resolution without post-resolution validation"
     description: >
-      URL divalidasi tetapi DNS resolution dilakukan dua kali (sekali untuk validasi, sekali untuk
-      request). Penyerang mengonfigurasi DNS record dengan TTL sangat pendek yang pertama kali
-      me-resolve ke IP public (melewati validasi) kemudian berubah ke IP internal (saat request
-      sebenarnya dibuat) - ini disebut DNS Rebinding Attack.
+      The URL is validated but DNS resolution is performed twice (once for validation, once for the request). An attacker configures a DNS record with a very short TTL that first resolves to a public IP (passing validation) and then changes to an internal IP (when the actual request is made) - this is called a DNS Rebinding Attack.
     severity: high
     confidence: medium
     category: SSRF
@@ -28,11 +25,11 @@ rules:
         pattern: '(?s)gethostbyname\s*\([^)]+\).*?(Http::(get|post|put|patch|delete)|curl_setopt\s*\([^,]+,\s*CURLOPT_URL)'
         exclude_pattern: '(CURLOPT_RESOLVE|curl_setopt\s*\([^,]+,\s*CURLOPT_RESOLVE|withOptions\s*\(\s*\[.*CURLOPT_RESOLVE|dnsPin|pinned)'
     remediation: |
-      Pin resolved IP menggunakan cURL RESOLVE option untuk mencegah DNS rebinding:
+      Pin the resolved IP using the cURL RESOLVE option to prevent DNS rebinding:
         $host = parse_url($url, PHP_URL_HOST);
         $ip   = gethostbyname($host);
-        // Validasi IP...
-        // Pin resolusi DNS agar tidak berubah antara validasi dan request
+        // Validate IP...
+        // Pin DNS resolution so it doesn't change between validation and request
         $response = Http::withOptions([
             'curl' => [CURLOPT_RESOLVE => ["{$host}:443:{$ip}"]],
         ])->timeout(5)->get($url);
@@ -41,11 +38,9 @@ rules:
       - "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html"
 
   - id: SSRF-004
-    title: "SSRF - redirect following pada HTTP client tanpa pembatasan"
+    title: "SSRF - unrestricted redirect following on HTTP client"
     description: >
-      HTTP client (Guzzle, Http facade) mengikuti redirect tanpa pembatasan. Penyerang mengirim
-      URL yang awalnya mengarah ke host yang diizinkan, tetapi URL tersebut melakukan redirect
-      ke host internal atau cloud metadata endpoint - membypass validasi allowlist.
+      The HTTP client (Guzzle, Http facade) follows redirects without restrictions. An attacker sends a URL that initially points to an allowed host, but that URL redirects to an internal host or cloud metadata endpoint - bypassing allowlist validation.
     severity: high
     confidence: medium
     category: SSRF
@@ -58,22 +53,22 @@ rules:
         pattern: '(Http::(get|post|put|patch|delete|send|request)\s*\(\s*(\$_GET|\$_POST|\$_REQUEST|\$request->(input|get|query|post|url|fullUrl)|request\(\)->(input|get|query)|\$\w*(url|uri|endpoint|callback|target|redirect)\w*)|curl_setopt\s*\([^,]+,\s*CURLOPT_URL\s*,\s*(\$_GET|\$_POST|\$_REQUEST|\$request->|\$\w*(url|uri|endpoint|callback|target|redirect)\w*))'
         exclude_pattern: '(allow_redirects\s*=>\s*false|maxRedirects\s*\(\s*0\s*\)|CURLOPT_FOLLOWLOCATION\s*,\s*false|filter_var\s*\([^,]+,\s*FILTER_VALIDATE_URL\)|parse_url\s*\()'
     remediation: |
-      Nonaktifkan atau batasi redirect following:
+      Disable or limit redirect following:
         $response = Http::withOptions([
-            'allow_redirects' => false,  // Nonaktifkan redirect
+            'allow_redirects' => false,  // Disable redirects
         ])->timeout(5)->get($validatedUrl);
 
-        // Atau batasi jumlah redirect
+        // Or limit the number of redirects
         $response = Http::maxRedirects(0)->get($validatedUrl);
     references:
       - "https://cwe.mitre.org/data/definitions/918.html"
 
   - id: SSRF-005
-    title: "Akses langsung ke cloud metadata endpoint"
+    title: "Direct access to cloud metadata endpoint"
     description: >
-      Host metadata internal cloud provider (AWS, GCP, Azure, ECS, Alibaba) terdeteksi di source.
-      Endpoint ini sering disalahgunakan pada skenario SSRF untuk mengambil temporary credentials
-      atau identitas instance.
+      Internal cloud provider metadata hosts (AWS, GCP, Azure, ECS, Alibaba) detected in source.
+      These endpoints are often misused in SSRF scenarios to retrieve temporary credentials
+      or instance identity.
     severity: critical
     confidence: high
     category: SSRF
@@ -86,8 +81,8 @@ rules:
         pattern: '(https?:\/\/)?(169\.254\.169\.254|metadata\.google\.internal|metadata\.azure\.internal|169\.254\.170\.2|100\.100\.100\.200)([:\/]|$)'
         exclude_pattern: '(example|placeholder|dummy|sample|mock|test|README|CHANGELOG|docs?)'
     remediation: |
-      Jangan izinkan request ke host metadata internal. Terapkan denylist eksplisit
-      pada layer outbound HTTP:
+      Do not allow requests to internal metadata hosts. Apply an explicit denylist
+      at the outbound HTTP layer:
 
         $blockedHosts = [
             '169.254.169.254',

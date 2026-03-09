@@ -9,9 +9,9 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: API-001
-    title: "Unbounded query - API mengembalikan semua record tanpa pagination"
+    title: "Unbounded query - API returns all records without pagination"
     description: >
-      API controller memanggil ::all() atau query chain yang berakhir dengan ->get() tanpa pagination atau batas baris. Ini memungkinkan penyerang mengekstrak seluruh tabel dalam satu request (data exfiltration) dan menyebabkan out-of-memory denial of service pada tabel besar.
+      API controller calls ::all() or a query chain ending with ->get() without pagination or row limits. This allows an attacker to extract the entire table in a single request (data exfiltration) and can cause out-of-memory denial of service on large tables.
 
     severity: high
     confidence: medium
@@ -29,16 +29,16 @@ rules:
         pattern: 'return\s+\$\w+->get\s*\(\s*\)\s*;'
         exclude_pattern: '(paginate|limit|take|where|find|first|count|->chunk|->each)'
     remediation: |
-      Selalu paginate atau batasi response API:
+      Always paginate or limit API responses:
         return User::latest()->cursorPaginate(25);
         return User::paginate(min($request->integer('per_page', 25), 100));
     references:
       - "https://cwe.mitre.org/data/definitions/770.html"
       - "https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/"
   - id: API-004
-    title: "GraphQL introspection diaktifkan di production"
+    title: "GraphQL introspection enabled in production"
     description: >
-      GraphQL introspection tidak dinonaktifkan di production. Ini mengekspos API schema lengkap - semua type, query, mutation, dan argumen - kepada siapa saja tanpa memerlukan kredensial.
+      GraphQL introspection is not disabled in production. This exposes the complete API schema - all types, queries, mutations, and arguments - to anyone without requiring credentials.
 
     severity: medium
     confidence: high
@@ -51,16 +51,16 @@ rules:
         target: config-files
         pattern: "'introspection'\\s*=>\\s*(true|env\\([^)]*,\\s*true\\))"
     remediation: |
-      Nonaktifkan introspection di production:
+      Disable introspection in production:
         'introspection' => env('GRAPHQL_INTROSPECTION', false),
-      Set GRAPHQL_INTROSPECTION=false di semua file .env production.
+      Set GRAPHQL_INTROSPECTION=false in all production .env files.
     references:
       - "https://cwe.mitre.org/data/definitions/200.html"
       - "https://www.apollographql.com/blog/graphql/security/why-you-should-disable-graphql-introspection-in-production/"
   - id: API-004b
-    title: "GraphQL - tidak ada batasan query depth atau complexity"
+    title: "GraphQL - no query depth or complexity limits"
     description: >
-      Endpoint GraphQL tidak membatasi query depth atau complexity. Penyerang dapat membuat nested query yang sangat dalam yang mengeksponensialkan database query, menyebabkan denial of service (GraphQL query abuse).
+      The GraphQL endpoint does not limit query depth or complexity. Attackers can craft deeply nested queries that exponentially increase database queries, causing a denial of service (GraphQL query abuse).
 
     severity: high
     confidence: medium
@@ -73,7 +73,7 @@ rules:
         target: config-files
         pattern: "'max_query_depth'\\s*=>\\s*(null|0)"
     remediation: |
-      Batasi query depth dan complexity:
+      Limit query depth and complexity:
         // config/lighthouse.php
         'security' => [
             'max_query_depth'      => 7,
@@ -82,9 +82,9 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/770.html"
   - id: API-005
-    title: "API response berisi stack trace atau debug info"
+    title: "API response contains stack trace or debug info"
     description: >
-      API response menyertakan informasi debug, stack trace, atau pesan error internal. Stack trace mengekspos path file, nama kelas, query SQL, dan tanda tangan method - memberikan penyerang peta detail arsitektur internal.
+      API response includes debug information, stack traces, or internal error messages. Stack traces expose file paths, class names, SQL queries, and method signatures - providing attackers with a detailed map of the internal architecture.
 
     severity: high
     confidence: medium
@@ -102,10 +102,10 @@ rules:
         pattern: '\$e->getTraceAsString\s*\(\s*\)'
         exclude_pattern: '(Log::|logger\(|isLocal|test|Test)'
     remediation: |
-      Log detail di server, kembalikan error message generik ke klien:
+      Log details on the server and return generic error messages to the client:
         catch (\Throwable $e) {
             Log::error('API error', ['exception' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return response()->json(['message' => 'Terjadi kesalahan internal.'], 500);
+            return response()->json(['message' => 'An internal error occurred.'], 500);
         }
     references:
       - "https://cwe.mitre.org/data/definitions/209.html"

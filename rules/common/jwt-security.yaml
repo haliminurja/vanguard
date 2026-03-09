@@ -10,9 +10,9 @@ meta:
 rules:
 
   - id: JWT-006
-    title: "JWT secret key terlalu pendek (<32 karakter)"
+    title: "JWT secret key too short (<32 characters)"
     description: >
-      JWT HMAC secret key yang kurang dari 32 karakter (256 bit) rentan terhadap brute force attack. Dengan computing power modern, secret pendek dapat di-crack dalam hitungan jam hingga hari, memungkinkan penyerang memalsukan token arbitrer.
+      JWT HMAC secret keys shorter than 32 characters (256 bits) are vulnerable to brute-force attacks. With modern computing power, short secrets can be cracked within hours or days, allowing an attacker to forge arbitrary tokens.
     severity: high
     confidence: medium
     category: Weak Key
@@ -28,9 +28,9 @@ rules:
         pattern: "['\"](jwt_secret|JWT_SECRET)['\"]\\s*=>\\s*['\"][^'\"]{1,31}['\"]"
         exclude_pattern: '(env\(|getenv)'
     remediation: |
-      Gunakan secret minimal 64 karakter (512 bit) untuk HMAC:
+      Use a secret of at least 64 characters (512 bits) for HMAC:
         JWT_SECRET=$(openssl rand -base64 64)
-      Atau gunakan RSA/EC key pairs untuk keamanan lebih baik:
+      Or use RSA/EC key pairs for better security:
         openssl genpkey -algorithm RSA -out private.key -pkeyopt rsa_keygen_bits:2048
     references:
       - "https://cwe.mitre.org/data/definitions/326.html"

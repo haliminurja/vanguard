@@ -11,7 +11,7 @@ rules:
   - id: CFG-CORS01
     title: "CORS wildcard HTTP methods"
     description: >
-      Konfigurasi CORS mengizinkan semua HTTP method ('*'), memungkinkan cross-origin DELETE, PATCH, dan request mutasi lainnya dari origin manapun.
+      CORS configuration allows all HTTP methods ('*'), enabling cross-origin DELETE, PATCH, and other mutation requests from any origin.
 
     severity: medium
     confidence: high
@@ -24,14 +24,14 @@ rules:
         target: config-files
         pattern: "'allowed_methods'\\s*=>\\s*\\[?\\s*[\"']?\\*[\"']?\\s*\\]?"
     remediation: |
-      Daftarkan hanya HTTP method yang diperlukan API Anda:
+      List only the HTTP methods required by your API:
         'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE'],
     references:
       - "https://cwe.mitre.org/data/definitions/942.html"
   - id: CFG-CORS02
-    title: "CORS supports_credentials=true - verifikasi origin dibatasi"
+    title: "CORS supports_credentials=true - restricted origin verification"
     description: >
-      Konfigurasi CORS memiliki supports_credentials=true. Dikombinasikan dengan allowed_origins yang wildcard atau luas, ini mengizinkan website manapun membuat request API cross-origin yang sepenuhnya terautentikasi.
+      CORS configuration has supports_credentials=true. Combined with wildcard or broad allowed_origins, this allows any website to make fully authenticated cross-origin API requests.
 
     severity: critical
     confidence: high
@@ -44,10 +44,10 @@ rules:
         target: config-files
         pattern: "'supports_credentials'\\s*=>\\s*true"
     remediation: |
-      Ketika kredensial diperlukan, selalu tentukan origin yang diizinkan secara eksplisit:
+      When credentials are required, always specify allowed origins explicitly:
         'allowed_origins'      => ['https://myapp.com'],
         'supports_credentials' => true,
-      Jangan pernah menggabungkan supports_credentials=true dengan allowed_origins=['*'].
+      Never combine supports_credentials=true with allowed_origins=['*'].
     references:
       - "https://cwe.mitre.org/data/definitions/942.html"
       - "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#requests_with_credentials"

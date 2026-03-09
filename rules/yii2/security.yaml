@@ -1,4 +1,3 @@
-
 meta:
   category: Yii2 Security
   version: "4.0.0"
@@ -159,9 +158,9 @@ rules:
       - "https://owasp.org/Top10/A03_2021-Injection/"
       - "https://cwe.mitre.org/data/definitions/1336.html"
   - id: YII-ENT-006
-    title: "Bypass Kontrol Akses (Missing checkAccess di Controller)"
+    title: "Broken Access Control (Missing checkAccess in Controller)"
     description: >
-      Controller Yii2 menggunakan RBAC tetapi tidak memanggil `Yii::$app->user->can()` atau `checkAccess()` untuk tindakan CRUD sensitif. Ini memungkinkan IDOR di mana pengguna dapat memanipulasi data yang bukan milik mereka.
+      Yii2 Controller uses RBAC but does not call `Yii::$app->user->can()` or `checkAccess()` for sensitive CRUD actions. This allows IDOR where users can manipulate data that does not belong to them.
     severity: high
     confidence: high
     category: Broken Access Control
@@ -174,16 +173,16 @@ rules:
         pattern: 'public\s+function\s+action(Update|Delete|Edit)\s*\(.*\)\s*\{[^}]*(findModel|findOne)'
         exclude_pattern: '(can\(|checkAccess)'
     remediation: |
-      Selalu periksa izin pengguna sebelum melakukan tindakan pada model:
+      Always check user permissions before performing actions on models:
       `if (!Yii::$app->user->can('updatePost', ['post' => $model])) { throw new ForbiddenHttpException(); }`
 
     references:
       - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
       - "https://cwe.mitre.org/data/definitions/284.html"
   - id: YII-ENT-007
-    title: "YII_DEBUG Aktif di Lingkungan Production"
+    title: "YII_DEBUG Active in Production Environment"
     description: >
-      `defined('YII_DEBUG') or define('YII_DEBUG', true);` di `index.php` mengekspos detail internal sistem, stack trace, dan query SQL pada halaman error. Ini memberikan informasi berharga bagi penyerang untuk merancang serangan lebih lanjut.
+      `defined('YII_DEBUG') or define('YII_DEBUG', true);` in `index.php` exposes internal system details, stack traces, and SQL queries on error pages. This provides valuable information for attackers to design further attacks.
     severity: high
     confidence: high
     category: Information Disclosure
@@ -195,7 +194,7 @@ rules:
         target: php-files
         pattern: "define\\(\\s*['\"]YII_DEBUG['\"]\\s*,\\s*true\\s*\\)"
     remediation: |
-      Pastikan `YII_DEBUG` diset ke false di file `web/index.php` prod:
+      Ensure `YII_DEBUG` is set to false in the production `web/index.php` file:
       `defined('YII_DEBUG') or define('YII_DEBUG', false);`
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
@@ -225,8 +224,8 @@ rules:
         target: php-files
         pattern: "['\"]Access-Control-Allow-Credentials['\"]\\s*=>\\s*true"
     remediation: |
-      Jangan gunakan wildcard origin saat credentials aktif.
-      Gunakan allowlist origin eksplisit dan audit header CORS secara berkala.
+      Do not use wildcard origin when credentials are active.
+      Use explicit origin allowlists and periodically audit CORS headers.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/346.html"
@@ -257,8 +256,8 @@ rules:
         pattern: "(extensions|mimeTypes|maxSize|checkExtensionByMimeType)"
         negative: true
     remediation: |
-      Tetapkan constraints upload secara eksplisit pada setiap file validator:
-      `extensions`, `mimeTypes`, `maxSize`, dan simpan file di direktori non-executable.
+      Set upload constraints explicitly on each file validator:
+      `extensions`, `mimeTypes`, `maxSize`, and store files in non-executable directories.
     references:
       - "https://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload"
       - "https://cwe.mitre.org/data/definitions/434.html"
@@ -283,8 +282,8 @@ rules:
         target: php-files
         pattern: '\b(shell_exec|exec|passthru|system|popen|proc_open)\s*\([^)]*(\$_GET|\$_POST|\$_REQUEST|\$request->|Yii::\$app->request->(get|post)\()'
     remediation: |
-      Hindari command execution langsung dengan input pengguna.
-      Gunakan allowlist command, strict argument validation, dan process wrapper yang aman.
+      Avoid direct command execution with user input.
+      Use command allowlists, strict argument validation, and secure process wrappers.
     references:
       - "https://owasp.org/Top10/A03_2021-Injection/"
       - "https://cwe.mitre.org/data/definitions/78.html"

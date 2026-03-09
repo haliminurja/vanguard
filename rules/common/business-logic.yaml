@@ -9,9 +9,9 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: BIZ-007
-    title: "Quantity/Amount tanpa batas minimum dan maksimum"
+    title: "Quantity/Amount without minimum and maximum limits"
     description: >
-      Quantity atau amount dari input pengguna tidak divalidasi terhadap batas minimum dan maksimum. Penyerang memasukkan nilai negatif (menyebabkan refund atau kredit), nol (bypass biaya), atau sangat besar (integer overflow, DoS, atau resource exhaustion).
+      Quantity or amount from user input is not validated against minimum and maximum limits. Attackers input negative values (causing refunds or credits), zero (bypassing costs), or very large values (integer overflow, DoS, or resource exhaustion).
 
     severity: high
     confidence: medium
@@ -25,7 +25,7 @@ rules:
         pattern: '\$request->(input|get|integer)\s*\(\s*["''](quantity|qty|amount|count|units|seats|tickets|items)["'']'
         exclude_pattern: '(validate|min:|max:|between:|gt:|gte:|integer|numeric|->integer\()'
     remediation: |
-      Selalu validasi batas quantity dengan aturan ketat:
+      Always validate quantity limits with strict rules:
         $request->validate([
             'quantity' => 'required|integer|min:1|max:100',
             'amount'   => 'required|numeric|min:0.01|max:999999.99',

@@ -219,15 +219,12 @@ rules:
       ```php
       add_filter('xmlrpc_enabled', '__return_false');
       ```
-      Also configure the WAF/WebServer to block requests to `/xmlrpc.php`.
-
-    references:
       - "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_(SSRF)/"
       - "https://cwe.mitre.org/data/definitions/918.html"
   - id: WP-ENT-008
-    title: "Potensial Ekspor Konfigurasi Sensitif via wp-config.php Path Disclosure"
+    title: "Potential Sensitive Configuration Export via wp-config.php Path Disclosure"
     description: >
-      File `wp-config.php` mengandung kredensial database dan keys salt. Jika server diklasifikasikan salah atau mengizinkan directory listing, file ini bisa bocor. Secara spesifik, aturan ini mencari manipulasi path yang mungkin menargetkan file konfigurasi ini.
+      The `wp-config.php` file contains database credentials and salt keys. If the server is misconfigured or allowed directory listing, this file could leak. Specifically, this rule checks for path manipulations that might target this configuration file.
     severity: critical
     confidence: high
     category: Information Disclosure
@@ -240,15 +237,14 @@ rules:
         pattern: 'include(_once)?\s*\(?.*wp-config\.php'
         exclude_pattern: 'ABSPATH'
     remediation: |
-      Pastikan `wp-config.php` berada di luar root publik jika didukung oleh instalasi, atau pastikan izin file diset ke 600 atau 640.
-
+      Ensure `wp-config.php` is located outside the public root if supported by the installation, or ensure file permissions are set to 600 or 640.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/200.html"
   - id: WP-ENT-009
-    title: "FORCE_SSL_ADMIN Tidak Diaktifkan"
+    title: "FORCE_SSL_ADMIN Not Enabled"
     description: >
-      Tanpa `FORCE_SSL_ADMIN` diset ke true di `wp-config.php`, kredensial admin WordPress dikirim melalui HTTP yang tidak terenkripsi pada beberapa konfigurasi, memungkinkan sniffing kata sandi dan pembajakan sesi.
+      Without `FORCE_SSL_ADMIN` set to true in `wp-config.php`, WordPress admin credentials are sent over unencrypted HTTP in some configurations, allowing password sniffing and session hijacking.
     severity: high
     confidence: high
     category: Insecure Configuration
@@ -260,15 +256,14 @@ rules:
         target: php-files
         pattern: "define\\(\\s*['\"]FORCE_SSL_ADMIN['\"]\\s*,\\s*false\\s*\\)"
     remediation: |
-      Set `define('FORCE_SSL_ADMIN', true);` di file `wp-config.php` Anda.
-
+      Set `define('FORCE_SSL_ADMIN', true);` in your `wp-config.php` file.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/319.html"
   - id: WP-ENT-010
-    title: "File Editing Diaktifkan di Dashboard (DISALLOW_FILE_EDIT)"
+    title: "File Editing Enabled in Dashboard (DISALLOW_FILE_EDIT)"
     description: >
-      Jika `DISALLOW_FILE_EDIT` tidak diset ke true, admin dapat mengedit file PHP langsung dari dashboard WordPress. Jika akun admin terkompromi, ini memberikan penyerang akses RCE instan untuk menanam backdoor di server.
+      If `DISALLOW_FILE_EDIT` is not set to true, admins can edit PHP files directly from the WordPress dashboard. If an admin account is compromised, this gives the attacker instant RCE access to plant backdoors on the server.
     severity: medium
     confidence: medium
     category: Hardening
@@ -280,7 +275,7 @@ rules:
         target: php-files
         pattern: "define\\(\\s*['\"]DISALLOW_FILE_EDIT['\"]\\s*,\\s*false\\s*\\)"
     remediation: |
-      Tambahkan `define('DISALLOW_FILE_EDIT', true);` ke `wp-config.php` untuk menonaktifkan editor file dashboard.
+      Add `define('DISALLOW_FILE_EDIT', true);` to `wp-config.php` to disable the dashboard file editor.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/20.html"
@@ -303,8 +298,8 @@ rules:
         target: php-files
         pattern: "register_rest_route\\s*\\([^;]*(permission_callback)\\s*=>\\s*['\\\"]__return_true['\\\"]"
     remediation: |
-      Gunakan callback otorisasi yang memeriksa capability/role/ownership.
-      Jangan gunakan `__return_true` untuk endpoint yang memproses data sensitif.
+      Use authorization callbacks that check for capability/role/ownership. 
+      Do not use `__return_true` for endpoints processing sensitive data.
     references:
       - "https://developer.wordpress.org/rest-api/extending-the-rest-api/adding-custom-endpoints/"
       - "https://cwe.mitre.org/data/definitions/862.html"
@@ -334,8 +329,8 @@ rules:
         pattern: '(wp_check_filetype|wp_check_filetype_and_ext|mime_content_type|finfo_file)'
         negative: true
     remediation: |
-      Validasi file dengan `wp_check_filetype_and_ext()` dan enforce allowlist MIME/extension.
-      Simpan upload di jalur non-executable dan lakukan scanning malware.
+      Validate files with `wp_check_filetype_and_ext()` and enforce a MIME/extension allowlist. 
+      Store uploads in non-executable paths and perform malware scanning.
     references:
       - "https://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload"
       - "https://cwe.mitre.org/data/definitions/434.html"

@@ -235,15 +235,15 @@ rules:
         pattern: 'algorithm:\s*(plaintext|md5|sha1)'
         exclude_pattern: 'bcrypt|argon2i|argon2id'
     remediation: |
-      Gunakan `auto` untuk membiarkan Symfony memilih algoritma terbaik, atau tentukan secara eksplisit `bcrypt` atau `argon2id` dengan parameter cost yang sesuai.
+      Use `auto` to let Symfony choose the best algorithm, or explicitly define `bcrypt` or `argon2id` with appropriate cost parameters.
 
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/327.html"
   - id: SYM-ENT-009
-    title: "Akses Kontrol Terbuka (Missing access_control in security.yaml)"
+    title: "Open Access Control (Missing access_control in security.yaml)"
     description: >
-      Bagian `access_control` di `security.yaml` kosong atau tidak mendefinisikan aturan untuk path sensitif seperti `/admin` atau `/api`. Ini dapat menyebabkan IDOR atau akses tidak sah ke data sensitif.
+      The `access_control` section in `security.yaml` is empty or does not define rules for sensitive paths such as `/admin` or `/api`. This can lead to IDOR or unauthorized access to sensitive data.
     severity: high
     confidence: high
     category: Broken Access Control
@@ -255,17 +255,15 @@ rules:
         target: config-files
         pattern: 'access_control:\s*\[\s*\]'
     remediation: |
-      Definisikan aturan `access_control` yang ketat untuk menmghindari akses tidak sah ke area sensitif.
+      Define strict `access_control` rules to prevent unauthorized access to sensitive areas.
 
     references:
       - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
       - "https://cwe.mitre.org/data/definitions/284.html"
   - id: SYM-ENT-010
-    title: "HttpKernel Handle dengan Input Pengguna Langsung"
+    title: "HttpKernel Handle with Direct User Input"
     description: >
-      Pemanggilan `Request::create()` dengan URL atau path dari input pengguna
-      lalu diteruskan ke `$kernel->handle()` dapat mensimulasikan sub-request
-      internal yang seharusnya tidak dapat diakses publik.
+      Calling `Request::create()` with a URL or path from user input and then passing it to `$kernel->handle()` can simulate internal sub-requests that should not be publicly accessible.
     severity: high
     confidence: high
     category: Injection
@@ -280,7 +278,7 @@ rules:
         target: php-files
         pattern: '\$kernel->handle\s*\(\s*Request::create\s*\('
     remediation: |
-      Pastikan request ditangani melalui pipeline standar Symfony dan hindari pemanggilan manual handle kernel pada request yang tidak tervalidasi.
+      Ensure requests are handled through the standard Symfony pipeline and avoid manual kernel handle calls on unvalidated requests.
     references:
       - "https://owasp.org/Top10/A03_2021-Injection/"
       - "https://cwe.mitre.org/data/definitions/20.html"
@@ -306,8 +304,8 @@ rules:
         target: php-files
         pattern: "['\\\"]verify_host['\\\"]\\s*=>\\s*false"
     remediation: |
-      Pastikan verifikasi TLS aktif untuk semua koneksi outbound.
-      Gunakan trust store resmi dan jangan menonaktifkan pemeriksaan sertifikat di production.
+      Ensure TLS verification is enabled for all outbound connections. 
+      Use official trust stores and do not disable certificate checks in production.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/295.html"
@@ -324,6 +322,7 @@ rules:
       score: 8.2
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:L/A:N"
     category: Security Misconfiguration
+    enabled: true
     tags: [symfony, cors, owasp-a05-2021, cwe-346, asvs-14.2.5, nist-sc-23]
     owasp: "A05:2021"
     cwe: "CWE-346"
@@ -336,8 +335,8 @@ rules:
         target: config-files
         pattern: "allow_credentials:\\s*true"
     remediation: |
-      Gunakan allowlist origin spesifik dan nonaktifkan credentials untuk wildcard origin.
-      Terapkan CORS policy berbasis environment.
+      Use a specific origin allowlist and disable credentials for wildcard origins.
+      Apply environment-based CORS policies.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/346.html"
@@ -363,9 +362,10 @@ rules:
         pattern: '->deserialize\s*\(\s*\$request->getContent\(\)\s*,\s*[^,]+,\s*[''"]json[''"]\s*\)'
         exclude_pattern: '(OBJECT_TO_POPULATE|groups|allowed_attributes|ALLOW_EXTRA_ATTRIBUTES|denormalize)'
     remediation: |
-      Gunakan DTO terbatas, validation layer, dan context serializer yang ketat.
-      Hindari deserialisasi langsung ke entity domain sensitif.
+      Use limited DTOs, validation layers, and strict serializer contexts. 
+      Avoid direct deserialization into sensitive domain entities.
     references:
       - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
       - "https://cwe.mitre.org/data/definitions/502.html"
       - "https://symfony.com/doc/current/components/serializer.html"
+
