@@ -548,7 +548,21 @@ func (s *RulesScanner) checkLineContent(rule config.RuleDefinition, pat config.P
 	}
 
 	var findings []models.Finding
+	seen := make(map[string]bool)
 	matched := false
+
+	addFinding := func(lineNum int, lineIdx int, fallback string) {
+		snippet := strings.TrimSpace(fallback)
+		if snippet == "" && lineIdx >= 0 && lineIdx < len(fc.codeLines) {
+			snippet = strings.TrimSpace(fc.codeLines[lineIdx])
+		}
+		key := fmt.Sprintf("%d|%s", lineNum, snippet)
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		findings = append(findings, s.buildFinding(rule, rel, lineNum, snippet, fc.lines, lineIdx))
+	}
 
 	for i, line := range fc.codeLines {
 		if strings.TrimSpace(line) == "" {
@@ -575,11 +589,40 @@ func (s *RulesScanner) checkLineContent(rule config.RuleDefinition, pat config.P
 			}
 			matched = true
 			if !pat.Negative {
-				snippet := strings.TrimSpace(fc.lines[i])
-				if snippet == "" {
-					snippet = strings.TrimSpace(line)
+				fallback := line
+				if i < len(fc.lines) {
+					fallback = fc.lines[i]
 				}
-				findings = append(findings, s.buildFinding(rule, rel, i+1, snippet, fc.lines, i))
+				addFinding(i+1, i, fallback)
+			}
+		}
+	}
+
+	if pat.Type == "regex" && re != nil {
+		indexes := re.FindAllStringIndex(fc.codeText, -1)
+		for _, loc := range indexes {
+			startLine := 1 + strings.Count(fc.codeText[:loc[0]], "\n")
+			endLine := startLine + strings.Count(fc.codeText[loc[0]:loc[1]], "\n")
+			lineIdx := startLine - 1
+
+			if exRe != nil {
+				matchText := fc.codeText[loc[0]:loc[1]]
+				window := buildRangeWindow(fc.codeLines, lineIdx, endLine-1, 6)
+				if exRe.MatchString(matchText) || exRe.MatchString(window) {
+					continue
+				}
+				if strings.ToLower(strings.TrimSpace(pat.Scope)) == "project" && exRe.MatchString(fc.codeText) {
+					continue
+				}
+			}
+
+			matched = true
+			if !pat.Negative {
+				fallback := fc.codeText[loc[0]:loc[1]]
+				if lineIdx >= 0 && lineIdx < len(fc.lines) {
+					fallback = fc.lines[lineIdx]
+				}
+				addFinding(startLine, lineIdx, fallback)
 			}
 		}
 	}
@@ -820,15 +863,40 @@ func resolveTarget(target, root string) []string {
 		case "migration-files":
 			walkRoots = []string{filepath.Join(root, "database", "migrations")}
 		case "middleware-files":
-			walkRoots = []string{filepath.Join(root, "app", "Http", "Middleware")}
+			walkRoots = []string{
+				filepath.Join(root, "app", "Http", "Middleware"),
+				filepath.Join(root, "src", "Middleware"),
+				filepath.Join(root, "config", "Middleware"),
+			}
 		case "model-files":
-			walkRoots = []string{filepath.Join(root, "app", "Models"), filepath.Join(root, "app")}
+			walkRoots = []string{
+				filepath.Join(root, "app", "Models"),
+				filepath.Join(root, "app"),
+				filepath.Join(root, "src", "Model"),
+				filepath.Join(root, "src", "Model", "Entity"),
+				filepath.Join(root, "src", "Model", "Table"),
+				filepath.Join(root, "application", "models"),
+				filepath.Join(root, "models"),
+			}
 		case "service-files":
-			walkRoots = []string{filepath.Join(root, "app", "Services")}
+			walkRoots = []string{
+				filepath.Join(root, "app", "Services"),
+				filepath.Join(root, "src", "Service"),
+				filepath.Join(root, "services"),
+			}
 		case "controller-files":
-			walkRoots = []string{filepath.Join(root, "app", "Http", "Controllers")}
+			walkRoots = []string{
+				filepath.Join(root, "app", "Http", "Controllers"),
+				filepath.Join(root, "src", "Controller"),
+				filepath.Join(root, "application", "controllers"),
+				filepath.Join(root, "controllers"),
+			}
 		case "request-files":
-			walkRoots = []string{filepath.Join(root, "app", "Http", "Requests")}
+			walkRoots = []string{
+				filepath.Join(root, "app", "Http", "Requests"),
+				filepath.Join(root, "src", "Request"),
+				filepath.Join(root, "requests"),
+			}
 		default:
 			walkRoots = []string{root}
 		}
@@ -980,15 +1048,40 @@ func targetGlobs(target, root string) []string {
 	case "composer-files":
 		return []string{filepath.Join(root, "composer.json"), filepath.Join(root, "composer.lock")}
 	case "middleware-files":
-		return []string{filepath.Join(root, "app", "Http", "Middleware", "*.php")}
+		return []string{
+			filepath.Join(root, "app", "Http", "Middleware", "*.php"),
+			filepath.Join(root, "src", "Middleware", "*.php"),
+			filepath.Join(root, "config", "Middleware", "*.php"),
+		}
 	case "model-files":
-		return []string{filepath.Join(root, "app", "Models", "*.php"), filepath.Join(root, "app", "*.php")}
+		return []string{
+			filepath.Join(root, "app", "Models", "*.php"),
+			filepath.Join(root, "app", "*.php"),
+			filepath.Join(root, "src", "Model", "*.php"),
+			filepath.Join(root, "src", "Model", "Entity", "*.php"),
+			filepath.Join(root, "src", "Model", "Table", "*.php"),
+			filepath.Join(root, "application", "models", "*.php"),
+			filepath.Join(root, "models", "*.php"),
+		}
 	case "service-files":
-		return []string{filepath.Join(root, "app", "Services", "*.php")}
+		return []string{
+			filepath.Join(root, "app", "Services", "*.php"),
+			filepath.Join(root, "src", "Service", "*.php"),
+			filepath.Join(root, "services", "*.php"),
+		}
 	case "controller-files":
-		return []string{filepath.Join(root, "app", "Http", "Controllers", "*.php")}
+		return []string{
+			filepath.Join(root, "app", "Http", "Controllers", "*.php"),
+			filepath.Join(root, "src", "Controller", "*.php"),
+			filepath.Join(root, "application", "controllers", "*.php"),
+			filepath.Join(root, "controllers", "*.php"),
+		}
 	case "request-files":
-		return []string{filepath.Join(root, "app", "Http", "Requests", "*.php")}
+		return []string{
+			filepath.Join(root, "app", "Http", "Requests", "*.php"),
+			filepath.Join(root, "src", "Request", "*.php"),
+			filepath.Join(root, "requests", "*.php"),
+		}
 	default:
 		if strings.ContainsAny(target, "*?[") {
 			return []string{filepath.Join(root, target)}
@@ -1358,6 +1451,29 @@ func buildLineWindow(lines []string, center, radius int) string {
 	return strings.Join(lines[start:end+1], "\n")
 }
 
+func buildRangeWindow(lines []string, start, end, pad int) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	if start < 0 {
+		start = 0
+	}
+	if end < start {
+		end = start
+	}
+
+	start -= pad
+	if start < 0 {
+		start = 0
+	}
+	end += pad
+	if end >= len(lines) {
+		end = len(lines) - 1
+	}
+
+	return strings.Join(lines[start:end+1], "\n")
+}
+
 func patternAppliesToFile(pat config.PatternDef, relPath string) bool {
 	target := strings.ToLower(strings.TrimSpace(pat.Target))
 	if target == "" || target == "any" {
@@ -1399,17 +1515,33 @@ func patternAppliesToFile(pat config.PatternDef, relPath string) bool {
 	case "composer-files":
 		return baseLower == "composer.json" || baseLower == "composer.lock"
 	case "middleware-files":
-		return strings.HasPrefix(relLower, "app/http/middleware/") && strings.HasSuffix(relLower, ".php")
+		return strings.HasSuffix(relLower, ".php") &&
+			(strings.HasPrefix(relLower, "app/http/middleware/") ||
+				strings.HasPrefix(relLower, "src/middleware/") ||
+				strings.HasPrefix(relLower, "config/middleware/"))
 	case "model-files":
 		return strings.HasSuffix(relLower, ".php") &&
 			(strings.HasPrefix(relLower, "app/models/") ||
-				(strings.HasPrefix(relLower, "app/") && strings.Count(relLower, "/") == 1))
+				(strings.HasPrefix(relLower, "app/") && strings.Count(relLower, "/") == 1) ||
+				strings.HasPrefix(relLower, "src/model/") ||
+				strings.HasPrefix(relLower, "application/models/") ||
+				strings.HasPrefix(relLower, "models/"))
 	case "service-files":
-		return strings.HasPrefix(relLower, "app/services/") && strings.HasSuffix(relLower, ".php")
+		return strings.HasSuffix(relLower, ".php") &&
+			(strings.HasPrefix(relLower, "app/services/") ||
+				strings.HasPrefix(relLower, "src/service/") ||
+				strings.HasPrefix(relLower, "services/"))
 	case "controller-files":
-		return strings.HasPrefix(relLower, "app/http/controllers/") && strings.HasSuffix(relLower, ".php")
+		return strings.HasSuffix(relLower, ".php") &&
+			(strings.HasPrefix(relLower, "app/http/controllers/") ||
+				strings.HasPrefix(relLower, "src/controller/") ||
+				strings.HasPrefix(relLower, "application/controllers/") ||
+				strings.HasPrefix(relLower, "controllers/"))
 	case "request-files":
-		return strings.HasPrefix(relLower, "app/http/requests/") && strings.HasSuffix(relLower, ".php")
+		return strings.HasSuffix(relLower, ".php") &&
+			(strings.HasPrefix(relLower, "app/http/requests/") ||
+				strings.HasPrefix(relLower, "src/request/") ||
+				strings.HasPrefix(relLower, "requests/"))
 	default:
 		if strings.ContainsAny(target, "*?[") {
 			ok, err := filepath.Match(filepath.FromSlash(target), filepath.FromSlash(rel))

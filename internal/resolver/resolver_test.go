@@ -59,6 +59,55 @@ func TestFrameworkResolver_EnvFile(t *testing.T) {
 	}
 }
 
+func TestFrameworkResolver_PackageJSONDoesNotOverrideDetectedPHPFramework(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "composer.json"), []byte(`{
+		"require": {
+			"laravel/framework": "^11.0"
+		}
+	}`), 0644)
+	os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{
+		"name": "frontend-shell",
+		"dependencies": {
+			"react": "^19.0.0"
+		}
+	}`), 0644)
+
+	r := NewFrameworkResolver()
+	pc := &models.ProjectContext{}
+	if err := r.Resolve(context.Background(), dir, pc); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if pc.FrameworkType != "laravel" {
+		t.Fatalf("FrameworkType = %q, want laravel", pc.FrameworkType)
+	}
+}
+
+func TestFrameworkResolver_FileBasedPHPFrameworkWinsOverPackageJSON(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "bin"), 0755)
+	os.MkdirAll(filepath.Join(dir, "config"), 0755)
+	os.WriteFile(filepath.Join(dir, "bin", "console"), []byte("#!/usr/bin/env php\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "config", "bundles.php"), []byte("<?php return [];"), 0644)
+	os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{
+		"name": "frontend-shell",
+		"dependencies": {
+			"react": "^19.0.0"
+		}
+	}`), 0644)
+
+	r := NewFrameworkResolver()
+	pc := &models.ProjectContext{}
+	if err := r.Resolve(context.Background(), dir, pc); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if pc.FrameworkType != "symfony" {
+		t.Fatalf("FrameworkType = %q, want symfony", pc.FrameworkType)
+	}
+}
+
 func TestFrameworkResolver_ConfigDiscovery(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "composer.json"), []byte(`{
@@ -78,6 +127,117 @@ func TestFrameworkResolver_ConfigDiscovery(t *testing.T) {
 
 	if len(pc.ConfigFiles) != 2 {
 		t.Errorf("ConfigFiles count = %d, want 2", len(pc.ConfigFiles))
+	}
+}
+
+func TestFrameworkResolver_FileBasedSymfony(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "bin"), 0755)
+	os.MkdirAll(filepath.Join(dir, "config"), 0755)
+	os.WriteFile(filepath.Join(dir, "bin", "console"), []byte("#!/usr/bin/env php\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "config", "bundles.php"), []byte("<?php return [];"), 0644)
+	os.WriteFile(filepath.Join(dir, ".env"), []byte("APP_ENV=prod\n"), 0644)
+
+	r := NewFrameworkResolver()
+	pc := &models.ProjectContext{}
+	if err := r.Resolve(context.Background(), dir, pc); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pc.FrameworkType != "symfony" {
+		t.Fatalf("FrameworkType = %q, want symfony", pc.FrameworkType)
+	}
+	if len(pc.ConfigFiles) != 1 || filepath.ToSlash(pc.ConfigFiles[0]) != "config/bundles.php" {
+		t.Fatalf("ConfigFiles = %+v, want [config/bundles.php]", pc.ConfigFiles)
+	}
+}
+
+func TestFrameworkResolver_FileBasedCakePHP(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "bin"), 0755)
+	os.MkdirAll(filepath.Join(dir, "src"), 0755)
+	os.MkdirAll(filepath.Join(dir, "config"), 0755)
+	os.WriteFile(filepath.Join(dir, "bin", "cake"), []byte("#!/usr/bin/env php\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "src", "Application.php"), []byte("<?php class Application {}"), 0644)
+	os.WriteFile(filepath.Join(dir, "config", "app.php"), []byte("<?php return [];"), 0644)
+	os.WriteFile(filepath.Join(dir, ".env"), []byte("APP_ENV=prod\n"), 0644)
+
+	r := NewFrameworkResolver()
+	pc := &models.ProjectContext{}
+	if err := r.Resolve(context.Background(), dir, pc); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pc.FrameworkType != "cakephp" {
+		t.Fatalf("FrameworkType = %q, want cakephp", pc.FrameworkType)
+	}
+	if len(pc.ConfigFiles) != 1 || filepath.ToSlash(pc.ConfigFiles[0]) != "config/app.php" {
+		t.Fatalf("ConfigFiles = %+v, want [config/app.php]", pc.ConfigFiles)
+	}
+}
+
+func TestFrameworkResolver_FileBasedYii2(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "config"), 0755)
+	os.WriteFile(filepath.Join(dir, "yii"), []byte("#!/usr/bin/env php\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "config", "web.php"), []byte("<?php return [];"), 0644)
+	os.WriteFile(filepath.Join(dir, ".env"), []byte("APP_ENV=prod\n"), 0644)
+
+	r := NewFrameworkResolver()
+	pc := &models.ProjectContext{}
+	if err := r.Resolve(context.Background(), dir, pc); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pc.FrameworkType != "yii2" {
+		t.Fatalf("FrameworkType = %q, want yii2", pc.FrameworkType)
+	}
+	if len(pc.ConfigFiles) != 1 || filepath.ToSlash(pc.ConfigFiles[0]) != "config/web.php" {
+		t.Fatalf("ConfigFiles = %+v, want [config/web.php]", pc.ConfigFiles)
+	}
+}
+
+func TestFrameworkResolver_FileBasedWordPressPlugin(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "my-plugin.php"), []byte(`<?php
+/**
+ * Plugin Name: My Plugin
+ */
+defined('ABSPATH') || exit;
+add_action('init', function () {});
+`), 0644)
+
+	r := NewFrameworkResolver()
+	pc := &models.ProjectContext{}
+	if err := r.Resolve(context.Background(), dir, pc); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pc.FrameworkType != "wordpress" {
+		t.Fatalf("FrameworkType = %q, want wordpress", pc.FrameworkType)
+	}
+}
+
+func TestFrameworkResolver_ConfigDiscoveryRecursive(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "bin"), 0755)
+	os.MkdirAll(filepath.Join(dir, "config", "packages"), 0755)
+	os.WriteFile(filepath.Join(dir, "bin", "console"), []byte("#!/usr/bin/env php\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "config", "bundles.php"), []byte("<?php return [];"), 0644)
+	os.WriteFile(filepath.Join(dir, "config", "packages", "security.yaml"), []byte("security:\n  firewalls: {}\n"), 0644)
+	os.WriteFile(filepath.Join(dir, ".env"), []byte("APP_ENV=prod\n"), 0644)
+
+	r := NewFrameworkResolver()
+	pc := &models.ProjectContext{}
+	if err := r.Resolve(context.Background(), dir, pc); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pc.FrameworkType != "symfony" {
+		t.Fatalf("FrameworkType = %q, want symfony", pc.FrameworkType)
+	}
+
+	seen := map[string]bool{}
+	for _, path := range pc.ConfigFiles {
+		seen[filepath.ToSlash(path)] = true
+	}
+	if !seen["config/bundles.php"] || !seen["config/packages/security.yaml"] {
+		t.Fatalf("ConfigFiles missing expected recursive entries: %+v", pc.ConfigFiles)
 	}
 }
 

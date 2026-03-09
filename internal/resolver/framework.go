@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,9 +25,9 @@ func (r *FrameworkResolver) Resolve(_ context.Context, root string, pc *models.P
 	pc.RootPath = root
 
 	r.resolveComposer(root, pc)
-	r.resolvePackageJSON(root, pc)
 	r.resolveFileBasedFrameworks(root, pc)
 	r.resolveGenericPHP(root, pc)
+	r.resolvePackageJSON(root, pc)
 	r.resolveEnv(root, pc)
 
 	return nil
@@ -105,6 +106,12 @@ func (r *FrameworkResolver) resolvePackageJSON(root string, pc *models.ProjectCo
 		pc.ProjectName = pkgJSON.Name
 	}
 
+	// Preserve a backend/PHP framework detected from composer.json or file layout.
+	// package.json should only classify the project when no stronger backend signal exists.
+	if pc.FrameworkType != "" {
+		return
+	}
+
 	deps := make(map[string]string)
 	for k, v := range pkgJSON.Dependencies {
 		deps[k] = v
@@ -161,6 +168,33 @@ func (r *FrameworkResolver) resolveFileBasedFrameworks(root string, pc *models.P
 		pc.FrameworkType = "wordpress"
 		return
 	}
+	if hasWordPressSourceSignature(root) {
+		pc.FrameworkType = "wordpress"
+		return
+	}
+
+	if fileExists(filepath.Join(root, "bin", "console")) &&
+		(fileExists(filepath.Join(root, "config", "bundles.php")) || fileExists(filepath.Join(root, "src", "Kernel.php"))) {
+		pc.FrameworkType = "symfony"
+		return
+	}
+
+	if fileExists(filepath.Join(root, "bin", "cake")) &&
+		(fileExists(filepath.Join(root, "src", "Application.php")) || fileExists(filepath.Join(root, "config", "bootstrap.php"))) {
+		pc.FrameworkType = "cakephp"
+		return
+	}
+
+	if (fileExists(filepath.Join(root, "yii")) || fileExists(filepath.Join(root, "yii.bat"))) &&
+		(fileExists(filepath.Join(root, "config", "web.php")) || fileExists(filepath.Join(root, "config", "console.php"))) {
+		pc.FrameworkType = "yii2"
+		return
+	}
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func (r *FrameworkResolver) resolveGenericPHP(root string, pc *models.ProjectContext) {
@@ -201,27 +235,124 @@ func (r *FrameworkResolver) resolveEnv(root string, pc *models.ProjectContext) {
 		pc.EnvVariables[k] = "***"
 	}
 
-	if pc.FrameworkType == "laravel" {
-		configDir := filepath.Join(root, "config")
-		entries, err := os.ReadDir(configDir)
-		if err == nil {
-			for _, entry := range entries {
-				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".php") {
-					pc.ConfigFiles = append(pc.ConfigFiles, filepath.Join("config", entry.Name()))
-				}
-			}
-		}
-	} else if strings.HasPrefix(pc.FrameworkType, "codeigniter") {
-		configDir := filepath.Join(root, "application", "config")
-		entries, err := os.ReadDir(configDir)
-		if err == nil {
-			for _, entry := range entries {
-				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".php") {
-					pc.ConfigFiles = append(pc.ConfigFiles, filepath.Join("application", "config", entry.Name()))
-				}
-			}
-		}
+	switch {
+	case pc.FrameworkType == "laravel":
+		pc.ConfigFiles = append(pc.ConfigFiles, collectConfigFiles(root, "config", ".php")...)
+	case strings.HasPrefix(pc.FrameworkType, "codeigniter"):
+		pc.ConfigFiles = append(pc.ConfigFiles, collectConfigFiles(root, filepath.Join("application", "config"), ".php")...)
+	case pc.FrameworkType == "symfony":
+		pc.ConfigFiles = append(pc.ConfigFiles, collectConfigFiles(root, "config", ".php", ".yaml", ".yml", ".xml")...)
+	case pc.FrameworkType == "cakephp":
+		pc.ConfigFiles = append(pc.ConfigFiles, collectConfigFiles(root, "config", ".php", ".yaml", ".yml")...)
+	case pc.FrameworkType == "yii2":
+		pc.ConfigFiles = append(pc.ConfigFiles, collectConfigFiles(root, "config", ".php")...)
 	}
+}
+
+func collectConfigFiles(root string, relDir string, exts ...string) []string {
+	dir := filepath.Join(root, relDir)
+	info, err := os.Stat(dir)
+	if err != nil {
+		return nil
+	}
+	if !info.IsDir() {
+		return nil
+	}
+
+	allowed := make(map[string]bool, len(exts))
+	for _, ext := range exts {
+		allowed[strings.ToLower(ext)] = true
+	}
+
+	var files []string
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if d.IsDir() {
+			name := d.Name()
+			if name == "vendor" || name == "node_modules" || name == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(d.Name()))
+		if !allowed[ext] {
+			return nil
+		}
+
+		relPath, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return nil
+		}
+		files = append(files, relPath)
+		return nil
+	})
+	return files
+}
+
+func hasWordPressSourceSignature(root string) bool {
+	signatures := []string{
+		"plugin name:",
+		"register_rest_route(",
+		"add_action(",
+		"add_filter(",
+		"register_activation_hook(",
+		"register_deactivation_hook(",
+		"wp_enqueue_script(",
+		"wp_enqueue_style(",
+		"defined('ABSPATH')",
+		`defined("ABSPATH")`,
+		"plugin_dir_path(__file__)",
+	}
+
+	matches := 0
+	scannedPHP := 0
+
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if d.IsDir() {
+			name := d.Name()
+			if name == "vendor" || name == "node_modules" || name == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(strings.ToLower(d.Name())) != ".php" {
+			return nil
+		}
+
+		scannedPHP++
+		if scannedPHP > 150 {
+			return fs.SkipAll
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		content := strings.ToLower(string(data))
+		fileHits := 0
+		for _, sig := range signatures {
+			if strings.Contains(content, strings.ToLower(sig)) {
+				fileHits++
+			}
+		}
+		matches += fileHits
+		if fileHits >= 2 {
+			return fs.SkipAll
+		}
+
+		if matches >= 2 {
+			return fs.SkipAll
+		}
+		return nil
+	})
+
+	return matches >= 2
 }
 func parseEnvFile(path string) map[string]string {
 	f, err := os.Open(path)

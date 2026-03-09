@@ -219,6 +219,7 @@ rules:
       ```php
       add_filter('xmlrpc_enabled', '__return_false');
       ```
+    references:
       - "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_(SSRF)/"
       - "https://cwe.mitre.org/data/definitions/918.html"
   - id: WP-ENT-008

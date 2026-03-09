@@ -212,6 +212,88 @@ func TestRulesScanner_Multiline(t *testing.T) {
 	}
 }
 
+func TestRulesScanner_RegexMatchesAcrossLines(t *testing.T) {
+	dir := t.TempDir()
+	controllerDir := filepath.Join(dir, "app", "Http", "Controllers")
+	os.MkdirAll(controllerDir, 0755)
+	os.WriteFile(filepath.Join(controllerDir, "UserController.php"), []byte(`<?php
+class UserController
+{
+    public function update($request, $user)
+    {
+        $user->update($request->all());
+    }
+}
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-REGEX-MULTI-LINE-001",
+			Title:   "Controller CRUD without authorization check",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{
+					Type:    "regex",
+					Target:  "controller-files",
+					Pattern: `public\s+function\s+update\s*\([^)]*\)\s*\{[^}]*->update\s*\(`,
+				},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding for multi-line regex rule, got %d", len(findings))
+	}
+	if findings[0].Line != 4 {
+		t.Fatalf("expected finding line 4, got %d", findings[0].Line)
+	}
+}
+
+func TestRulesScanner_RegexSupportsEmbeddedNewlines(t *testing.T) {
+	dir := t.TempDir()
+	configDir := filepath.Join(dir, "config")
+	os.MkdirAll(configDir, 0755)
+	os.WriteFile(filepath.Join(configDir, "packages.yaml"), []byte(`framework:
+  something: true
+web_profiler:
+  toolbar: true
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-REGEX-MULTI-LINE-002",
+			Title:   "Profiler enabled",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{
+					Type:    "regex",
+					Target:  "config-files",
+					Pattern: `web_profiler:\s*\n\s*toolbar:\s*true`,
+				},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding for regex with embedded newline, got %d", len(findings))
+	}
+	if findings[0].Line != 3 {
+		t.Fatalf("expected finding line 3, got %d", findings[0].Line)
+	}
+}
+
 func TestRulesScanner_UnescapedBlade(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "resources", "views"), 0755)
@@ -761,6 +843,42 @@ $routes->add('/admin', 'Admin::index');
 	}
 	if len(findings) != 1 {
 		t.Fatalf("expected 1 finding for app/Config/Routes.php target, got %d", len(findings))
+	}
+}
+
+func TestRulesScanner_ModelFilesSupportCakePHPLayout(t *testing.T) {
+	dir := t.TempDir()
+	entityDir := filepath.Join(dir, "src", "Model", "Entity")
+	os.MkdirAll(entityDir, 0755)
+	os.WriteFile(filepath.Join(entityDir, "User.php"), []byte(`<?php
+class User
+{
+    protected $_accessible = ['*' => true];
+}
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-MODEL-CAKE-001",
+			Title:   "Cake model mass assignment",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "model-files", Pattern: `\$_accessible\s*=\s*\[[^\]]*['"]\*['"]\s*=>\s*true`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding for CakePHP src/Model/Entity target, got %d", len(findings))
+	}
+	if filepath.ToSlash(findings[0].File) != "src/Model/Entity/User.php" {
+		t.Fatalf("expected finding in src/Model/Entity/User.php, got %q", findings[0].File)
 	}
 }
 
