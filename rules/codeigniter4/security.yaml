@@ -11,6 +11,10 @@ meta:
     - NIST-SP-800-53
     - PCI-DSS-v4
     - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
 
 rules:
 
@@ -186,3 +190,86 @@ rules:
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/326.html"
+  - id: CI4-ENT-008
+    title: "CORS Wildcard Origin with Credentials Enabled"
+    description: >
+      CodeIgniter 4 CORS configuration allows wildcard origins while credentials are enabled.
+      This combination weakens browser origin isolation for authenticated traffic.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:L/A:N"
+    category: Security Misconfiguration
+    tags: [codeigniter4, cors, owasp-a05-2021, cwe-346, asvs-14.2.5, nist-sc-23]
+    owasp: "A05:2021"
+    cwe: "CWE-346"
+    condition: all
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'public\s+\$allowedOrigins\s*=\s*\[\s*[''"]\*[''"]\s*\]'
+      - type: regex
+        target: config-files
+        pattern: 'public\s+\$supportsCredentials\s*=\s*true'
+    remediation: |
+      Batasi allowed origins ke domain tepercaya dan nonaktifkan credentials untuk wildcard.
+      Review policy CORS pada setiap endpoint API.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/346.html"
+      - "https://codeigniter.com/user_guide/libraries/cors.html"
+
+  - id: CI4-ENT-009
+    title: "Content Security Policy Disabled in App Configuration"
+    description: >
+      Disabling CSP removes an important browser-side mitigation against XSS and content injection.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 6.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N"
+    category: Missing Security Control
+    tags: [codeigniter4, csp, xss, owasp-a03-2021, cwe-16, asvs-14.4.1]
+    owasp: "A03:2021"
+    cwe: "CWE-16"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'public\s+\$contentSecurityPolicy\s*=\s*false'
+    remediation: |
+      Aktifkan CSP dan definisikan kebijakan yang ketat sesuai kebutuhan aplikasi.
+      Mulai dari `default-src ''self''` lalu longgarkan secara terkontrol.
+    references:
+      - "https://owasp.org/Top10/A03_2021-Injection/"
+      - "https://cwe.mitre.org/data/definitions/16.html"
+      - "https://codeigniter.com/user_guide/outgoing/csp.html"
+
+  - id: CI4-ENT-010
+    title: "Debug Toolbar Enabled"
+    description: >
+      CodeIgniter 4 Debug Toolbar enabled in non-development environments can expose
+      SQL queries, headers, and runtime internals useful for attackers.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 5.3
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
+    category: Information Disclosure
+    tags: [codeigniter4, debug, disclosure, owasp-a05-2021, cwe-489, nist-si-11]
+    owasp: "A05:2021"
+    cwe: "CWE-489"
+    condition: all
+    patterns:
+      - type: regex-multiline
+        target: config-files
+        pattern: '(?s)class\s+Toolbar\b'
+      - type: regex
+        target: config-files
+        pattern: 'public\s+\$enabled\s*=\s*true'
+    remediation: |
+      Nonaktifkan toolbar pada production dan gunakan observability pipeline terpisah.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/489.html"
+      - "https://codeigniter.com/user_guide/testing/debugging.html"

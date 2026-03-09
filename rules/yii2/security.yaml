@@ -11,6 +11,10 @@ meta:
     - NIST-SP-800-53
     - PCI-DSS-v4
     - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
 
 rules:
 
@@ -197,3 +201,91 @@ rules:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/489.html"
 
+  - id: YII-ENT-008
+    title: "CORS Wildcard Origin with Credentials Enabled"
+    description: >
+      Yii2 CORS configuration allows `Origin => ['*']` while credentials are enabled.
+      This combination permits cross-site credentialed requests and can leak sensitive data
+      to untrusted origins.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:L/A:N"
+    category: Security Misconfiguration
+    tags: [yii2, cors, owasp-a05-2021, cwe-346, asvs-14.2.5, nist-sc-23]
+    owasp: "A05:2021"
+    cwe: "CWE-346"
+    condition: all
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "['\"]Origin['\"]\\s*=>\\s*\\[\\s*['\"]\\*['\"]\\s*\\]"
+      - type: regex
+        target: php-files
+        pattern: "['\"]Access-Control-Allow-Credentials['\"]\\s*=>\\s*true"
+    remediation: |
+      Jangan gunakan wildcard origin saat credentials aktif.
+      Gunakan allowlist origin eksplisit dan audit header CORS secara berkala.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/346.html"
+      - "https://owasp.org/www-project-application-security-verification-standard/"
+      - "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf"
+
+  - id: YII-ENT-009
+    title: "File Validator Without Extension or MIME Restrictions"
+    description: >
+      Yii2 `file` validator is used without strict `extensions`, `mimeTypes`, or `maxSize`.
+      This increases the risk of malicious upload payloads and unsafe file processing.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: File Upload
+    tags: [yii2, upload, owasp-a08-2021, cwe-434, asvs-12.3.1, pci-dss-6.2]
+    owasp: "A08:2021"
+    cwe: "CWE-434"
+    condition: all
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "\\[\\s*\\[[^\\]]+\\]\\s*,\\s*['\"]file['\"]\\s*\\]"
+      - type: regex
+        target: php-files
+        pattern: "(extensions|mimeTypes|maxSize|checkExtensionByMimeType)"
+        negative: true
+    remediation: |
+      Tetapkan constraints upload secara eksplisit pada setiap file validator:
+      `extensions`, `mimeTypes`, `maxSize`, dan simpan file di direktori non-executable.
+    references:
+      - "https://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload"
+      - "https://cwe.mitre.org/data/definitions/434.html"
+      - "https://owasp.org/www-project-application-security-verification-standard/"
+
+  - id: YII-ENT-010
+    title: "Command Execution with User-Controlled Input"
+    description: >
+      Dangerous process execution functions receive untrusted input from request sources.
+      This can lead to command injection and full server compromise.
+    severity: critical
+    confidence: high
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: OS Command Injection
+    tags: [yii2, command-injection, owasp-a03-2021, cwe-78, asvs-5.3.8, nist-si-10]
+    owasp: "A03:2021"
+    cwe: "CWE-78"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\b(shell_exec|exec|passthru|system|popen|proc_open)\s*\([^)]*(\$_GET|\$_POST|\$_REQUEST|\$request->|Yii::\$app->request->(get|post)\()'
+    remediation: |
+      Hindari command execution langsung dengan input pengguna.
+      Gunakan allowlist command, strict argument validation, dan process wrapper yang aman.
+    references:
+      - "https://owasp.org/Top10/A03_2021-Injection/"
+      - "https://cwe.mitre.org/data/definitions/78.html"
+      - "https://owasp.org/www-project-application-security-verification-standard/"

@@ -11,6 +11,10 @@ meta:
     - NIST-SP-800-53
     - PCI-DSS-v4
     - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
 
 rules:
 
@@ -156,3 +160,89 @@ rules:
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/489.html"
+  - id: CAKE-ENT-007
+    title: "CSRF Protection Middleware Missing from Application Pipeline"
+    description: >
+      Application middleware pipeline does not include CSRF protection middleware.
+      State-changing requests can be forged from attacker-controlled origins.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.0
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: CSRF
+    tags: [cakephp, csrf, middleware, owasp-a01-2021, cwe-352, asvs-4.3.2]
+    owasp: "A01:2021"
+    cwe: "CWE-352"
+    condition: all
+    patterns:
+      - type: regex-multiline
+        target: php-files
+        pattern: '(?s)function\s+middleware\s*\([^)]*\)\s*:\s*MiddlewareQueue'
+      - type: contains
+        target: php-files
+        pattern: 'CsrfProtectionMiddleware'
+        negative: true
+    remediation: |
+      Tambahkan `CsrfProtectionMiddleware` pada middleware queue aplikasi.
+      Pastikan semua endpoint state-changing tervalidasi token CSRF.
+    references:
+      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+      - "https://cwe.mitre.org/data/definitions/352.html"
+      - "https://book.cakephp.org/4/en/security/csrf.html"
+
+  - id: CAKE-ENT-008
+    title: "CORS Wildcard Origin with Credentials in Middleware"
+    description: >
+      CORS middleware allows all origins while also allowing credentials.
+      This can expose authenticated responses across origins.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:L/A:N"
+    category: Security Misconfiguration
+    tags: [cakephp, cors, owasp-a05-2021, cwe-346, asvs-14.2.5, nist-sc-23]
+    owasp: "A05:2021"
+    cwe: "CWE-346"
+    condition: all
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'allowOrigin\s*\(\s*\[\s*[''"]\*[''"]\s*\]\s*\)'
+      - type: regex
+        target: php-files
+        pattern: 'allowCredentials\s*\(\s*true\s*\)'
+    remediation: |
+      Gunakan daftar origin yang eksplisit dan nonaktifkan credentials untuk wildcard.
+      Review ulang seluruh endpoint CORS-exposed.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/346.html"
+      - "https://book.cakephp.org/4/en/controllers/middleware.html"
+
+  - id: CAKE-ENT-009
+    title: "Weak Password Hashing Configuration"
+    description: >
+      Password hasher config uses weak/legacy algorithms such as MD5 or SHA1,
+      or legacy hasher class names that are not suitable for modern password storage.
+    severity: critical
+    confidence: high
+    cvss_v3:
+      score: 9.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Cryptographic Failure
+    tags: [cakephp, password, hashing, owasp-a02-2021, cwe-327, asvs-2.4.4, pci-dss-3.5]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: "['\"]className['\"]\\s*=>\\s*['\"](Legacy|WeakPasswordHasher)['\"]|['\"]hashType['\"]\\s*=>\\s*['\"](md5|sha1)['\"]"
+    remediation: |
+      Gunakan hasher modern (bcrypt/argon2id) dengan cost yang sesuai dan kebijakan rotasi.
+      Rehash password legacy saat user login.
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/327.html"
+      - "https://book.cakephp.org/4/en/controllers/components/authentication.html"

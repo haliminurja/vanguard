@@ -11,6 +11,10 @@ meta:
     - NIST-SP-800-53
     - PCI-DSS-v4
     - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
 
 rules:
 
@@ -280,3 +284,88 @@ rules:
     references:
       - "https://owasp.org/Top10/A03_2021-Injection/"
       - "https://cwe.mitre.org/data/definitions/20.html"
+  - id: SYM-ENT-011
+    title: "TLS Verification Disabled in HTTP Client Configuration"
+    description: >
+      Symfony outbound HTTP calls disable TLS peer/host verification.
+      This permits man-in-the-middle attacks and forged upstream responses.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Cryptographic Failure
+    tags: [symfony, tls, mitm, owasp-a02-2021, cwe-295, asvs-9.1.1, nist-sc-8]
+    owasp: "A02:2021"
+    cwe: "CWE-295"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "['\\\"]verify_peer['\\\"]\\s*=>\\s*false"
+      - type: regex
+        target: php-files
+        pattern: "['\\\"]verify_host['\\\"]\\s*=>\\s*false"
+    remediation: |
+      Pastikan verifikasi TLS aktif untuk semua koneksi outbound.
+      Gunakan trust store resmi dan jangan menonaktifkan pemeriksaan sertifikat di production.
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/295.html"
+      - "https://symfony.com/doc/current/http_client.html"
+
+  - id: SYM-ENT-012
+    title: "CORS allows wildcard origin with credentials"
+    description: >
+      Configuration allows `allow_origin: ['*']` together with `allow_credentials: true`.
+      This is unsafe and can expose authenticated responses cross-origin.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:L/A:N"
+    category: Security Misconfiguration
+    tags: [symfony, cors, owasp-a05-2021, cwe-346, asvs-14.2.5, nist-sc-23]
+    owasp: "A05:2021"
+    cwe: "CWE-346"
+    condition: all
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: "allow_origin:\\s*\\[\\s*['\"]\\*['\"]\\s*\\]"
+      - type: regex
+        target: config-files
+        pattern: "allow_credentials:\\s*true"
+    remediation: |
+      Gunakan allowlist origin spesifik dan nonaktifkan credentials untuk wildcard origin.
+      Terapkan CORS policy berbasis environment.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/346.html"
+      - "https://symfony.com/bundles/NelmioCorsBundle/current/index.html"
+
+  - id: SYM-ENT-013
+    title: "Unsafe Serializer Deserialization from Request Body"
+    description: >
+      Request content is directly deserialized into objects without strict context controls.
+      This can cause mass assignment, privilege abuse, or unsafe object state transitions.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.7
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: Deserialization
+    tags: [symfony, serializer, owasp-a08-2021, cwe-502, asvs-5.5.2, nist-si-10]
+    owasp: "A08:2021"
+    cwe: "CWE-502"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->deserialize\s*\(\s*\$request->getContent\(\)\s*,\s*[^,]+,\s*[''"]json[''"]\s*\)'
+        exclude_pattern: '(OBJECT_TO_POPULATE|groups|allowed_attributes|ALLOW_EXTRA_ATTRIBUTES|denormalize)'
+    remediation: |
+      Gunakan DTO terbatas, validation layer, dan context serializer yang ketat.
+      Hindari deserialisasi langsung ke entity domain sensitif.
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/502.html"
+      - "https://symfony.com/doc/current/components/serializer.html"
