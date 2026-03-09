@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: CodeIgniter 4 - Cryptographic Failure
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CodeIgniter 4.x, PHP 8.0-8.4"
@@ -17,34 +17,35 @@
 
 rules:
   - id: CI4-CRYPTO-001
-    title: "Weak or Legacy Cryptographic Primitive Usage"
+    title: "Weak hash used for CodeIgniter 4 password or token material"
     description: >
-      Weak hashing or deprecated cryptographic options are present. This can reduce resistance to cracking and tampering attacks.
+      CodeIgniter 4 code derives password-like values or secrets with MD5 or
+      SHA-1, weakening resistance to offline cracking.
     severity: high
     confidence: high
     cvss_v3:
-      score: 7.7
+      score: 7.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Cryptographic Failure
-    tags: [codeigniter4, crypto, hashing, owasp-a02-2021, cwe-327, asvs-6.2.5]
+    tags: [codeigniter4, crypto, hashing, owasp-a02-2021, cwe-327, asvs-2.4.4]
     owasp: "A02:2021"
     cwe: "CWE-327"
     patterns:
       - type: regex
-        target: any
-        pattern: '\b(md5|sha1)\s*\('
+        target: php-files
+        pattern: '\$(password|passwd|pwd|token|resetToken|reset_token|secret|apiKey|api_key)[A-Za-z0-9_]*\s*=\s*(md5|sha1|hash\s*\(\s*["''](md5|sha1)["''])'
     remediation: |
-      Replace weak algorithms with modern primitives such as Argon2id, bcrypt, AES-GCM, and strong key management. Enforce organization crypto policy and periodic rotation.
+      Use PHP password hashing for credentials and CSPRNG-backed generation for
+      reset tokens or API secrets.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/327.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
-      - "https://codeigniter.com/user_guide/"
 
   - id: CI4-CRYPTO-002
-    title: "TLS Certificate Verification Disabled"
+    title: "CodeIgniter 4 outbound HTTP disables TLS verification"
     description: >
-      TLS certificate or host verification appears disabled in outbound communication settings.
+      CodeIgniter 4 code disables certificate or hostname verification for
+      outbound HTTP requests, allowing man-in-the-middle attacks.
     severity: high
     confidence: high
     cvss_v3:
@@ -56,11 +57,40 @@ rules:
     cwe: "CWE-295"
     patterns:
       - type: regex
-        target: any
-        pattern: 'CURLOPT_SSL_VERIFYPEER\s*=>\s*false|CURLOPT_SSL_VERIFYHOST\s*=>\s*0'
+        target: php-files
+        pattern: 'CURLOPT_SSL_VERIFYPEER\s*=>\s*false|CURLOPT_SSL_VERIFYHOST\s*=>\s*0|["'']verify["'']\s*=>\s*false'
     remediation: |
-      Always verify TLS peer and hostname. Use trusted CA stores and block insecure overrides in production.
+      Keep peer and hostname verification enabled for all outbound HTTP clients
+      and fix trust-store issues instead of bypassing checks.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/295.html"
-      - "https://codeigniter.com/user_guide/"
+
+  - id: CI4-CRYPTO-003
+    title: "CodeIgniter 4 code uses ECB mode or hardcoded IV/nonce"
+    description: >
+      CodeIgniter 4 code uses insecure ECB mode or static IV/nonce values in
+      custom encryption routines.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.9
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Cryptographic Failure
+    tags: [codeigniter4, crypto, encryption, owasp-a02-2021, cwe-327, asvs-6.2.5]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'openssl_(encrypt|decrypt)\s*\([^,]+,\s*["'']AES-(128|192|256)-ECB["'']'
+      - type: regex
+        target: php-files
+        pattern: '\$(iv|nonce|salt)[A-Za-z0-9_]*\s*=\s*["''][^"''\$]{8,}["'']'
+        exclude_pattern: '(random_bytes|bin2hex|base64_decode\s*\()'
+    remediation: |
+      Use modern AEAD encryption and generate a fresh random IV or nonce for
+      every encryption operation.
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/327.html"

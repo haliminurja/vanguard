@@ -1,6 +1,6 @@
 ﻿meta:
   category: CakePHP - Information Disclosure
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CakePHP 3.0-5.x, PHP 8.0-8.4"
@@ -17,30 +17,31 @@
 
 rules:
   - id: CAKE-DEBUG-001
-    title: "Debug Mode or Verbose Diagnostic Exposure"
+    title: "CakePHP Debugger diagnostic methods present in runtime code"
     description: >
-      Debug functionality appears enabled in application or runtime configuration. Production exposure can leak internals and accelerate exploitation.
+      CakePHP Debugger helpers are present in runtime paths and may expose raw
+      object graphs, request data, or secrets if reached in production.
     severity: medium
     confidence: high
     cvss_v3:
-      score: 5.9
+      score: 6.0
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
     category: Information Disclosure
-    tags: [cakephp, debug, diagnostics, owasp-a05-2021, cwe-489, nist-si-11]
+    tags: [cakephp, debug, debugger, owasp-a05-2021, cwe-489, asvs-14.3.1]
     owasp: "A05:2021"
     cwe: "CWE-489"
     patterns:
       - type: regex
-        target: any
-        pattern: '[\"]debug[\"]\s*=>\s*true'
+        target: php-files
+        pattern: 'Debugger::(dump|printVar|exportVar)\s*\('
+        exclude_pattern: '(//|#\s|/\*|test|Test|spec)'
     remediation: |
-      Disable debug features in production and route diagnostics into secure observability tooling with strict access controls.
+      Remove Debugger diagnostics from runtime code and use controlled logging
+      or local-only debugging paths.
     references:
-      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/489.html"
+      - "https://book.cakephp.org/5/en/development/debugging.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
-      - "https://book.cakephp.org/4/en/index.html"
-
   - id: CAKE-DEBUG-002
     title: "Debug Functions Present in Runtime Code"
     description: >

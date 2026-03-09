@@ -1,6 +1,6 @@
 ﻿meta:
   category: WordPress - Information Disclosure
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "WordPress 5.0-6.x, PHP 8.0-8.4"
@@ -40,28 +40,29 @@ rules:
       - "https://cwe.mitre.org/data/definitions/489.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
       - "https://developer.wordpress.org"
-
   - id: WP-DEBUG-002
-    title: "Debug Functions Present in Runtime Code"
+    title: "WordPress SCRIPT_DEBUG enabled"
     description: >
-      Debug helper functions are present and may expose sensitive runtime data if reached in production paths.
+      `SCRIPT_DEBUG` forces WordPress to load non-minified assets and is a
+      strong indicator that development-oriented diagnostics are enabled in a
+      non-production context.
     severity: medium
     confidence: high
     cvss_v3:
-      score: 6.0
+      score: 5.3
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
     category: Information Disclosure
-    tags: [wordpress, debug, owasp-a05-2021, cwe-489, asvs-14.3.1]
+    tags: [wordpress, debug, script-debug, owasp-a05-2021, cwe-489, asvs-14.3.1]
     owasp: "A05:2021"
     cwe: "CWE-489"
     patterns:
       - type: regex
         target: php-files
-        pattern: '\b(var_dump|print_r|var_export)\s*\('
-        exclude_pattern: '(//|#\s|/\*|test|Test|spec|hexdump|mysqldump|mongodump|pg_dump)'
+        pattern: "define\\(\\s*['\"]SCRIPT_DEBUG['\"]\\s*,\\s*true\\s*\\)"
     remediation: |
-      Remove debug statements from production code and use controlled logging with sanitization and access controls.
+      Disable SCRIPT_DEBUG outside local development and serve production
+      minified assets from controlled build outputs.
     references:
+      - "https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/"
       - "https://cwe.mitre.org/data/definitions/489.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
-      - "https://developer.wordpress.org"
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"

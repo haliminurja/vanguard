@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Laravel - Cryptographic Failure
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Laravel 10-12, PHP 8.0-8.4"
@@ -17,34 +17,41 @@
 
 rules:
   - id: LAR-CRYPTO-001
-    title: "Weak or Legacy Cryptographic Primitive Usage"
+    title: "Weak hash or under-costed Laravel password/token handling"
     description: >
-      Weak hashing or deprecated cryptographic options are present. This can reduce resistance to cracking and tampering attacks.
+      Laravel code uses MD5 or SHA-1 for password or token material, or the
+      configured bcrypt work factor is suspiciously low. This reduces resistance
+      to offline cracking.
     severity: high
     confidence: high
     cvss_v3:
-      score: 7.7
+      score: 7.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Cryptographic Failure
-    tags: [laravel, crypto, hashing, owasp-a02-2021, cwe-327, asvs-6.2.5]
+    tags: [laravel, crypto, hashing, owasp-a02-2021, cwe-327, asvs-2.4.4]
     owasp: "A02:2021"
     cwe: "CWE-327"
     patterns:
       - type: regex
-        target: any
-        pattern: '\b(md5|sha1)\s*\('
+        target: php-files
+        pattern: '\$(password|passwd|pwd|token|resetToken|reset_token|secret|apiKey|api_key)[A-Za-z0-9_]*\s*=\s*(md5|sha1|hash\s*\(\s*["''](md5|sha1)["''])'
+      - type: regex
+        target: config-files
+        pattern: '''rounds''\s*=>\s*[1-7]\b'
     remediation: |
-      Replace weak algorithms with modern primitives such as Argon2id, bcrypt, AES-GCM, and strong key management. Enforce organization crypto policy and periodic rotation.
+      Keep Laravel password storage on `Hash::make()` with a defensible work
+      factor and use `random_bytes()` or `Str::random()` only for non-secret UI
+      identifiers, not for security tokens.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/327.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/11.x/hashing"
 
   - id: LAR-CRYPTO-002
-    title: "TLS Certificate Verification Disabled"
+    title: "Laravel outbound HTTP disables TLS verification"
     description: >
-      TLS certificate or host verification appears disabled in outbound communication settings.
+      Laravel HTTP client calls disable TLS certificate validation. This allows
+      man-in-the-middle attacks against upstream API calls.
     severity: high
     confidence: high
     cvss_v3:
@@ -56,11 +63,46 @@ rules:
     cwe: "CWE-295"
     patterns:
       - type: regex
-        target: any
+        target: php-files
         pattern: 'Http::withoutVerifying\s*\('
+      - type: regex
+        target: php-files
+        pattern: 'Http::withOptions\s*\(\s*\[[^\]]*["'']verify["'']\s*=>\s*false'
     remediation: |
-      Always verify TLS peer and hostname. Use trusted CA stores and block insecure overrides in production.
+      Keep peer and hostname verification enabled for every Laravel HTTP client
+      request and fix trust-store issues instead of disabling verification.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/295.html"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/11.x/http-client"
+
+  - id: LAR-CRYPTO-003
+    title: "Laravel code uses ECB mode or hardcoded IV/nonce"
+    description: >
+      Laravel application code drops down to OpenSSL with ECB mode or static IV
+      values. This undermines confidentiality even when the key is otherwise
+      strong.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.9
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Cryptographic Failure
+    tags: [laravel, crypto, encryption, owasp-a02-2021, cwe-327, asvs-6.2.5]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'openssl_(encrypt|decrypt)\s*\([^,]+,\s*["'']AES-(128|192|256)-ECB["'']'
+      - type: regex
+        target: php-files
+        pattern: '\$(iv|nonce|salt)[A-Za-z0-9_]*\s*=\s*["''][^"''\$]{8,}["'']'
+        exclude_pattern: '(random_bytes|Str::random|bin2hex|base64_decode\s*\()'
+    remediation: |
+      Prefer Laravel `Crypt` for ordinary application data and use modern AEAD
+      modes with fresh random IVs when dropping to low-level crypto APIs.
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/327.html"
+      - "https://laravel.com/docs/11.x/encryption"

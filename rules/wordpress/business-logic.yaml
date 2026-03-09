@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: WordPress - Business Logic
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "WordPress 5.0-6.x, PHP 8.0-8.4"
@@ -17,9 +17,11 @@
 
 rules:
   - id: WP-BIZ-001
-    title: "State-Changing Business Action Without Authorization Guard"
+    title: "Privileged WordPress business mutation without clear capability check"
     description: >
-      Business-critical operations such as update, delete, approve, or refund are defined without explicit ownership or role checks. This can lead to horizontal or vertical privilege abuse.
+      WordPress code performs privileged content, option, user, or refund
+      mutations without nearby evidence of `current_user_can()` or equivalent
+      capability enforcement.
     severity: high
     confidence: medium
     cvss_v3:
@@ -32,36 +34,65 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: '(update_option|update_user_meta|wp_update_post|wp_delete_post)\s*\('
-        exclude_pattern: '(authorize|can\(|Gate::|policy|current_user_can|denyAccessUnlessGranted|checkAccess|isAuthorized)'
+        pattern: '(update_option|update_user_meta|wp_update_post|wp_delete_post|wc_create_refund)\s*\('
+        exclude_pattern: '(current_user_can\s*\(|user_can\s*\(|map_meta_cap|manage_options|edit_post)'
     remediation: |
-      Apply object-level authorization checks for every state-changing operation. Validate resource ownership and enforce deny-by-default policy design.
+      Enforce capability checks before every business-critical mutation and keep
+      object ownership validation close to the write path.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/840.html"
-      - "https://owasp.org/www-project-application-security-verification-standard/"
-      - "https://developer.wordpress.org"
+      - "https://developer.wordpress.org/reference/functions/current_user_can/"
 
   - id: WP-BIZ-002
-    title: "Sensitive Business Field Controlled by Request Input"
+    title: "Sensitive business fields assigned from raw WordPress request input"
     description: >
-      Request input appears to directly control sensitive business fields such as price, role, status, or amount.
+      Price, role, status, or similar privileged values are copied directly from
+      raw request input into WordPress persistence functions.
     severity: high
     confidence: high
     cvss_v3:
       score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Business Logic
-    tags: [wordpress, business-logic, owasp-a04-2021, cwe-840, asvs-4.2.4]
+    tags: [wordpress, business-logic, pricing, owasp-a04-2021, cwe-840, asvs-4.2.4]
     owasp: "A04:2021"
     cwe: "CWE-840"
     patterns:
       - type: regex
         target: php-files
-        pattern: '\$_(?:GET|POST|REQUEST)\[[''"](price|amount|role|is_admin|status)[''"]\]'
+        pattern: 'wp_update_user\s*\(\s*\[[^\]]*["'']role["'']\s*=>\s*(\$_(?:GET|POST|REQUEST)|sanitize_text_field\s*\(\s*\$_(?:GET|POST|REQUEST))'
+      - type: regex
+        target: php-files
+        pattern: '(update_option|update_user_meta|update_post_meta)\s*\([^,]+,\s*["''](price|_price|amount|discount|status|role|is_admin)["'']\s*,\s*(\$_(?:GET|POST|REQUEST)|sanitize_text_field\s*\(\s*\$_(?:GET|POST|REQUEST))'
     remediation: |
-      Never trust client-provided values for privileged business fields. Compute sensitive values server-side and enforce strict authorization.
+      Derive privileged business values server-side or constrain them with
+      strict allowlists, capability checks, and workflow validation.
+    references:
+      - "https://cwe.mitre.org/data/definitions/840.html"
+      - "https://developer.wordpress.org/reference/functions/wp_update_user/"
+
+  - id: WP-BIZ-003
+    title: "WordPress pricing, stock, or refund logic uses raw request amounts"
+    description: >
+      WooCommerce or custom business logic feeds raw request values directly
+      into refund, price, or stock adjustment operations.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Business Logic
+    tags: [wordpress, business-logic, finance, owasp-a04-2021, cwe-840, asvs-4.2.4]
+    owasp: "A04:2021"
+    cwe: "CWE-840"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(wc_create_refund|set_(regular_price|sale_price|price|stock_quantity)|update_post_meta\s*\([^,]+,\s*["'']_(regular_price|sale_price|stock|price)["''])[^;]*(\$_(?:GET|POST|REQUEST)|filter_input\s*\()'
+    remediation: |
+      Normalize and bound monetary or quantity input before use and re-check
+      business invariants such as ownership, state, and allowed adjustment size.
     references:
       - "https://cwe.mitre.org/data/definitions/840.html"
       - "https://owasp.org/www-project-top-ten/"
-      - "https://developer.wordpress.org"

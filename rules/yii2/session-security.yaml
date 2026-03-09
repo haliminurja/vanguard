@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Yii2 - Session Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Yii2 2.0.x, PHP 8.0-8.4"
@@ -17,9 +17,11 @@
 
 rules:
   - id: YII-SESSION-001
-    title: "Insecure Session Cookie or Session Transport Setting"
+    title: "Yii2 session cookie configuration is weak"
     description: >
-      Session security flags appear weak or disabled, potentially exposing authenticated sessions to interception or misuse.
+      Yii2 session component configuration disables `secure` or `httpOnly`, or
+      uses `SameSite=None`. Weak cookie settings materially increase exposure to
+      session theft and CSRF-style abuse.
     severity: high
     confidence: high
     cvss_v3:
@@ -31,36 +33,69 @@ rules:
     cwe: "CWE-614"
     patterns:
       - type: regex
-        target: any
-        pattern: 'cookieParams\s*=>\s*\[[^\]]*secure\s*=>\s*false'
+        target: config-files
+        pattern: 'cookieParams\s*=>\s*\[[^\]]*(secure\s*=>\s*false|httpOnly\s*=>\s*false|sameSite\s*=>\s*[''"]?none[''"]?)'
     remediation: |
-      Enforce secure cookie attributes (Secure, HttpOnly, SameSite), require HTTPS everywhere, and rotate session identifiers after privilege changes.
+      Keep Yii2 session cookies secure, HttpOnly, and SameSite-restricted in
+      production configuration.
     references:
       - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
       - "https://cwe.mitre.org/data/definitions/614.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/runtime-sessions-cookies"
 
   - id: YII-SESSION-002
-    title: "Session Identifier Exposure via URL or User Input"
+    title: "Yii2 session transport allows IDs outside secure cookies"
     description: >
-      Session identifiers may be propagated via URL/query input, increasing hijacking and fixation risk.
+      Yii2 session handling is configured to accept non-cookie transport or
+      manual request-controlled identifiers. This materially increases session
+      fixation risk.
     severity: high
     confidence: high
     cvss_v3:
-      score: 7.4
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+      score: 7.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
     category: Session Security
-    tags: [yii2, session-security, owasp-a07-2021, cwe-384, asvs-3.4.2]
+    tags: [yii2, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
     owasp: "A07:2021"
     cwe: "CWE-384"
     patterns:
       - type: regex
-        target: any
-        pattern: 'session_id\s*\(\s*\$_(?:GET|POST|REQUEST)\)|PHPSESSID='
+        target: config-files
+        pattern: 'useCookies\s*=>\s*false|useTransparentSessionID\s*=>\s*true'
+      - type: regex
+        target: php-files
+        pattern: 'session_id\s*\(\s*(Yii::\$app->request->|\$_(?:GET|POST|REQUEST|COOKIE))|Yii::\$app->session->setId\s*\(\s*Yii::\$app->request->'
     remediation: |
-      Never transport session IDs in URLs. Regenerate IDs on privilege change and enforce secure session cookies.
+      Restrict Yii2 sessions to secure cookies only and never source the
+      session ID from query, form, or cookie input controlled by the client.
     references:
       - "https://cwe.mitre.org/data/definitions/384.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"
+      - "https://www.yiiframework.com/doc/api/2.0/yii-web-session"
+
+  - id: YII-SESSION-003
+    title: "Yii2 session regeneration preserves the old session"
+    description: >
+      Yii2 code explicitly regenerates the session ID without destroying the old
+      session. This weakens expected fixation protections during security-
+      sensitive transitions.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 6.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: Session Security
+    tags: [yii2, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
+    owasp: "A07:2021"
+    cwe: "CWE-384"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Yii::\$app->session->regenerateID\s*\(\s*(false|0)\s*\)'
+    remediation: |
+      Destroy the old session when rotating identifiers during login or
+      privilege changes:
+        Yii::$app->session->regenerateID(true);
+    references:
+      - "https://cwe.mitre.org/data/definitions/384.html"
+      - "https://www.yiiframework.com/doc/api/2.0/yii-web-session"

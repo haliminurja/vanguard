@@ -1,6 +1,6 @@
 ﻿meta:
   category: Symfony - Security Configuration
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
@@ -17,9 +17,10 @@
 
 rules:
   - id: SYM-SECCFG-001
-    title: "High-Risk Security Configuration Detected"
+    title: "Symfony CSRF protection disabled in configuration"
     description: >
-      Security-critical configuration appears to weaken default protections such as CSRF, origin controls, or privileged admin hardening.
+      Framework configuration disables built-in CSRF protection. Browser-based
+      state-changing operations then depend entirely on custom defenses.
     severity: high
     confidence: high
     cvss_v3:
@@ -31,10 +32,11 @@ rules:
     cwe: "CWE-16"
     patterns:
       - type: regex
-        target: any
-        pattern: 'csrf_protection:\s*false|allow_origin:\s*\[\s*[\"]\*[\"]\s*\]|allow_credentials:\s*true'
+        target: config-files
+        pattern: 'csrf_protection:\s*false'
     remediation: |
-      Apply secure-by-default framework configuration profiles and maintain environment-specific hardening baselines with periodic review.
+      Keep Symfony CSRF protection enabled for browser state-changing flows, or
+      replace it with an equivalent demonstrable control on every affected path.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/16.html"

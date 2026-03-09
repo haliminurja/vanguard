@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Symfony - Logging and Monitoring
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
@@ -17,13 +17,14 @@
 
 rules:
   - id: SYM-LOG-001
-    title: "Sensitive Data Written to Application Logs"
+    title: "Sensitive data written to Symfony logs"
     description: >
-      Logging statements appear to include credentials or sensitive tokens. This can create downstream data exposure and lateral movement risk.
-    severity: medium
+      Symfony or Monolog logging calls appear to include credentials or secret
+      material. This creates durable downstream disclosure risk.
+    severity: high
     confidence: high
     cvss_v3:
-      score: 6.8
+      score: 7.4
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N"
     category: Logging and Monitoring
     tags: [symfony, logging, monitoring, owasp-a09-2021, cwe-532, asvs-9.3.3]
@@ -32,36 +33,65 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: '->(debug|info|warning|error)\s*\([^)]*(password|token|secret|authorization)'
+        pattern: '(\$[A-Za-z_][A-Za-z0-9_]*Logger|\$logger|->getLogger\(\)|->(debug|info|warning|error|critical|notice|alert)\s*\()[^;]*(password|token|secret|authorization|api_key|private_key|otp)'
     remediation: |
-      Mask or hash sensitive values before logging and enforce centralized redaction policies in logging pipelines.
+      Redact or avoid sensitive fields before they reach Monolog handlers or
+      centralized logging backends.
     references:
       - "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/"
       - "https://cwe.mitre.org/data/definitions/532.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
-      - "https://symfony.com/doc/current/index.html"
+      - "https://symfony.com/doc/current/logging.html"
 
   - id: SYM-LOG-002
-    title: "Runtime Error Visibility/Logging Misconfiguration"
+    title: "Symfony exception details returned to the client without clear logging"
     description: >
-      Error reporting configuration may suppress or misroute critical security events, reducing detection and incident response capability.
-    severity: medium
+      Controller code returns raw exception messages or traces and does not show
+      a nearby logging call. This leaks internals and weakens incident response.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"
+    category: Logging and Monitoring
+    tags: [symfony, logging, exception-handling, owasp-a09-2021, cwe-209, asvs-9.1.1]
+    owasp: "A09:2021"
+    cwe: "CWE-209"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'catch\s*\([^)]*\$e\s*\)\s*\{[^}]*return\s+new\s+(JsonResponse|Response)[^}]*\$e->(getMessage|getTraceAsString)\(\)'
+        exclude_pattern: '(logger->|->error\(|->critical\(|report\()'
+    remediation: |
+      Log the exception server-side and return only normalized client-facing
+      error text.
+    references:
+      - "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/"
+      - "https://cwe.mitre.org/data/definitions/209.html"
+      - "https://symfony.com/doc/current/controller.html"
+
+  - id: SYM-LOG-003
+    title: "Symfony privilege or account-state changes without audit logging"
+    description: >
+      Role, password, email, or account enablement changes appear without clear
+      evidence of audit logging or event emission nearby.
+    severity: high
     confidence: medium
     cvss_v3:
-      score: 6.2
-      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N"
+      score: 7.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Logging and Monitoring
-    tags: [symfony, logging, monitoring, owasp-a09-2021, cwe-778, asvs-9.1.1]
+    tags: [symfony, logging, audit, owasp-a09-2021, cwe-778, asvs-9.2.1]
     owasp: "A09:2021"
     cwe: "CWE-778"
     patterns:
       - type: regex
-        target: any
-        pattern: 'error_reporting\s*\(\s*0\s*\)|display_errors\s*=\s*On'
-        exclude_pattern: '(test|Test|spec)'
+        target: php-files
+        pattern: '->set(Roles|Password|Email|Enabled|Locked)\s*\('
+        exclude_pattern: '(logger->|->info\(|->warning\(|->error\(|audit|eventDispatcher|dispatch\()'
     remediation: |
-      Route errors to centralized logs with retention and alerting. Do not suppress events needed for security monitoring.
+      Emit audit events for sensitive identity and privilege mutations with
+      actor, target, request metadata, and change reason.
     references:
       - "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/"
       - "https://cwe.mitre.org/data/definitions/778.html"
-      - "https://symfony.com/doc/current/index.html"
+      - "https://symfony.com/doc/current/logging.html"

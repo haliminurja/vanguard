@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: CodeIgniter 3 - API Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CodeIgniter 2.x-3.x, PHP 8.0-8.4"
@@ -17,13 +17,14 @@
 
 rules:
   - id: CI-API-001
-    title: "API Endpoint Exposure Without Explicit Access Control Evidence"
+    title: "Sensitive CodeIgniter API route without clear auth boundary"
     description: >
-      API route declarations are detected without strong indicators of authentication or authorization in the same context.
+      CodeIgniter routes expose sensitive API paths without clear evidence of an
+      authentication boundary in routing or the mapped endpoint naming.
     severity: high
     confidence: medium
     cvss_v3:
-      score: 7.8
+      score: 7.4
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: API Security
     tags: [codeigniter, api-security, access-control, owasp-a01-2021, cwe-862, asvs-4.1.3]
@@ -31,38 +32,42 @@ rules:
     cwe: "CWE-862"
     patterns:
       - type: regex
-        target: any
-        pattern: '\$route\[[^\]]*api/'
-        exclude_pattern: '(auth|middleware|permission_callback|isGranted|denyAccessUnlessGranted|current_user_can|jwt|bearer|api[_-]?key)'
+        target: routes-files
+        pattern: '\$route\[[''"](api/)?(admin|users?|accounts?|profiles?|billing|payments?|orders?|invoices?|settings)[^''"]*[''"]\]\s*='
+        exclude_pattern: '(auth|login|session|jwt|token|api_key)'
     remediation: |
-      Require explicit authentication and authorization for every API route. Use centralized policy enforcement and deny by default for sensitive actions.
+      Ensure sensitive API routes resolve to controllers that enforce explicit
+      authentication and authorization checks.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/862.html"
-      - "https://owasp.org/www-project-api-security/"
+      - "https://owasp.org/API-Security/editions/2023/en/0xa5-broken-function-level-authorization/"
       - "https://codeigniter.com/userguide3/"
 
   - id: CI-API-002
-    title: "API Route Without Evident Access Enforcement"
+    title: "CodeIgniter authentication API action without visible anti-bruteforce control"
     description: >
-      API route definitions are present while strong authz/authn indicators are not evident in nearby declarations.
+      Authentication-related controller actions are present without visible
+      throttling or lockout indicators, increasing brute-force risk for custom
+      API login or token issuance flows.
     severity: high
     confidence: medium
     cvss_v3:
-      score: 7.8
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+      score: 7.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"
     category: API Security
-    tags: [codeigniter, api-security, owasp-a01-2021, cwe-862, asvs-4.1.3]
-    owasp: "A01:2021"
-    cwe: "CWE-862"
+    tags: [codeigniter, api-security, bruteforce, rate-limit, owasp-a04-2021, cwe-307, asvs-2.2.4]
+    owasp: "A04:2021"
+    cwe: "CWE-307"
     patterns:
       - type: regex
-        target: any
-        pattern: '\$route\[[''"]api/'
-        exclude_pattern: '(auth|middleware|permission_callback|isGranted|denyAccessUnlessGranted|current_user_can|jwt|bearer|api[_-]?key)'
+        target: controller-files
+        pattern: 'function\s+(login|token|authenticate|forgot_password|reset_password|otp)\s*\('
+        exclude_pattern: '(throttle|rate_limit|attempts|lockout|too_many_requests|sleep\s*\()'
     remediation: |
-      Enforce authentication and authorization on every API endpoint. Require explicit policy checks for sensitive operations.
+      Add throttling, lockouts, and monitoring around authentication-related API
+      actions in custom CodeIgniter controllers.
     references:
-      - "https://owasp.org/www-project-api-security/"
-      - "https://cwe.mitre.org/data/definitions/862.html"
+      - "https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/"
+      - "https://cwe.mitre.org/data/definitions/307.html"
       - "https://codeigniter.com/userguide3/"

@@ -1,0 +1,76 @@
+meta:
+  category: CodeIgniter 4 Enterprise Security
+  version: "4.1.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "CodeIgniter 4.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - OWASP-ASVS-4.0.3
+    - CWE-Top25-2024
+    - NIST-SP-800-53r5
+    - PCI-DSS-v4.0.1
+rules:
+  - id: CI4-ENT-101
+    title: "Config\\Cookie disables HttpOnly protection"
+    description: >
+      CodeIgniter 4 cookie defaults disable the HttpOnly flag. This increases
+      the impact of XSS because session or remember-me cookies become readable by
+      JavaScript in the browser.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.4
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Session Security
+    enabled: true
+    tags: [codeigniter4, cookie, httponly, owasp-a07-2021, cwe-1004, asvs-3.4.3]
+    owasp: "A07:2021"
+    cwe: "CWE-1004"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'public\s+\$httponly\s*=\s*false'
+      - type: regex
+        target: config-files
+        pattern: '[''"]httponly[''"]\s*=>\s*false'
+    remediation: |
+      Keep HttpOnly enabled for cookie defaults and for all authentication or
+      session-related cookies.
+    references:
+      - "https://www.codeigniter.com/user_guide/libraries/cookies.html"
+      - "https://cwe.mitre.org/data/definitions/1004.html"
+      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+
+  - id: CI4-ENT-102
+    title: "CodeIgniter 4 redirect()->to() with raw input target"
+    description: >
+      CodeIgniter 4 redirect helpers receive the destination from untrusted
+      request data. This creates an open redirect vector that can be used for
+      phishing, token leakage, or trust boundary abuse.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 6.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+    category: Open Redirect
+    enabled: true
+    tags: [codeigniter4, redirect, phishing, owasp-a01-2021, cwe-601, asvs-5.1.5]
+    owasp: "A01:2021"
+    cwe: "CWE-601"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'redirect\(\)->to\s*\(\s*\$this->request->get(Get|Post)\s*\(\s*[''"](next|redirect|url|return|return_url|redirect_to)[''"]'
+        exclude_pattern: '(filter_var|parse_url|site_url|base_url|in_array)'
+      - type: regex
+        target: php-files
+        pattern: 'redirect\(\)->to\s*\(\s*(\$_GET|\$_POST|\$_REQUEST)'
+        exclude_pattern: '(filter_var|parse_url|site_url|base_url|in_array)'
+    remediation: |
+      Redirect only to internal allowlisted destinations and validate user input
+      before calling redirect()->to().
+    references:
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"
+      - "https://cwe.mitre.org/data/definitions/601.html"
+      - "https://codeigniter.com/user_guide/"

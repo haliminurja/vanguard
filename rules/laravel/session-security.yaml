@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Laravel - Session Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Laravel 10-12, PHP 8.0-8.4"
@@ -17,50 +17,93 @@
 
 rules:
   - id: LAR-SESSION-001
-    title: "Insecure Session Cookie or Session Transport Setting"
+    title: "Laravel session cookie flags are weak in configuration"
     description: >
-      Session security flags appear weak or disabled, potentially exposing authenticated sessions to interception or misuse.
+      Laravel session configuration disables `secure`, disables `http_only`, or
+      sets SameSite to `none` or null. Weak cookie flags materially increase
+      exposure to session theft and CSRF-style abuse.
     severity: high
     confidence: high
     cvss_v3:
       score: 7.4
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Session Security
-    tags: [laravel, session-security, cookie, owasp-a07-2021, cwe-614, asvs-3.4.3]
+    tags: [laravel, session-security, cookies, owasp-a07-2021, cwe-614, asvs-3.4.3]
     owasp: "A07:2021"
     cwe: "CWE-614"
     patterns:
       - type: regex
-        target: any
-        pattern: '[\"]secure[\"]\s*=>\s*false|[\"]same_site[\"]\s*=>\s*[\"]none[\"]'
+        target: config-files
+        pattern: '''secure''\s*=>\s*(false|null)|''http_only''\s*=>\s*false|''same_site''\s*=>\s*(''none''|"none"|null)'
+      - type: regex
+        target: env-files
+        pattern: 'SESSION_SECURE_COOKIE\s*=\s*false|SESSION_HTTP_ONLY\s*=\s*false|SESSION_SAME_SITE\s*=\s*(none|null)'
     remediation: |
-      Enforce secure cookie attributes (Secure, HttpOnly, SameSite), require HTTPS everywhere, and rotate session identifiers after privilege changes.
+      Keep `secure` and `http_only` enabled and set SameSite to `lax` or
+      `strict`. Review these settings in both `config/session.php` and `.env`
+      overrides used by production deployments.
     references:
-      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
-      - "https://cwe.mitre.org/data/definitions/614.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://laravel.com/docs"
+      - "https://cwe.mitre.org/data/definitions/614.html"
+      - "https://laravel.com/docs/11.x/session"
 
   - id: LAR-SESSION-002
-    title: "Session Identifier Exposure via URL or User Input"
+    title: "Laravel code accepts session ID from user-controlled input"
     description: >
-      Session identifiers may be propagated via URL/query input, increasing hijacking and fixation risk.
+      Laravel or underlying PHP session handling is wired to request-controlled
+      session identifiers. This is a direct session fixation risk.
     severity: high
     confidence: high
     cvss_v3:
       score: 7.4
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Session Security
-    tags: [laravel, session-security, owasp-a07-2021, cwe-384, asvs-3.4.2]
+    tags: [laravel, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
     owasp: "A07:2021"
     cwe: "CWE-384"
     patterns:
       - type: regex
-        target: any
-        pattern: 'session_id\s*\(\s*\$_(?:GET|POST|REQUEST)\)|PHPSESSID='
+        target: php-files
+        pattern: 'session_id\s*\(\s*(\$request->(input|get|cookie)\s*\(|request\(\)->(input|get|cookie)\s*\(|\$_(?:GET|POST|REQUEST|COOKIE)\[)'
+      - type: regex
+        target: php-files
+        pattern: '["''][^"'']*PHPSESSID='
     remediation: |
-      Never transport session IDs in URLs. Regenerate IDs on privilege change and enforce secure session cookies.
+      Accept session identifiers only from Laravel-managed secure cookies and
+      regenerate them after every authentication or privilege transition.
     references:
       - "https://cwe.mitre.org/data/definitions/384.html"
+      - "https://laravel.com/docs/11.x/session"
+
+  - id: LAR-SESSION-003
+    title: "Laravel login flow without clear session regeneration"
+    description: >
+      The code authenticates a user but no nearby session regeneration is
+      visible. Successful login flows should rotate the session identifier to
+      reduce fixation risk.
+    severity: medium
+    confidence: medium
+    cvss_v3:
+      score: 6.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: Session Security
+    tags: [laravel, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
+    owasp: "A07:2021"
+    cwe: "CWE-384"
+    condition: all
+    patterns:
+      - type: regex
+        target: controller-files
+        pattern: 'Auth::attempt\s*\(|Auth::(login|loginUsingId|onceUsingId)\s*\('
+      - type: regex
+        target: controller-files
+        pattern: '(\$request->session\(\)->regenerate\s*\(|session\(\)->regenerate\s*\(|Session::regenerate\s*\(|->migrate\s*\()'
+        negative: true
+        exclude_pattern: '(test|Test|fake)'
+    remediation: |
+      Regenerate the Laravel session immediately after successful login or
+      impersonation changes:
+        $request->session()->regenerate();
+    references:
       - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/11.x/authentication"

@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Symfony - Session Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
@@ -17,50 +17,87 @@
 
 rules:
   - id: SYM-SESSION-001
-    title: "Insecure Session Cookie or Session Transport Setting"
+    title: "Symfony session cookie settings are weak"
     description: >
-      Session security flags appear weak or disabled, potentially exposing authenticated sessions to interception or misuse.
+      Symfony session cookie configuration disables secure or HttpOnly cookies,
+      or leaves SameSite overly permissive. This raises fixation, theft, and
+      CSRF risk for authenticated sessions.
     severity: high
     confidence: high
     cvss_v3:
       score: 7.4
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Session Security
-    tags: [symfony, session-security, cookie, owasp-a07-2021, cwe-614, asvs-3.4.3]
+    tags: [symfony, session-security, cookies, owasp-a07-2021, cwe-614, asvs-3.4.3]
     owasp: "A07:2021"
     cwe: "CWE-614"
     patterns:
       - type: regex
-        target: any
-        pattern: 'cookie_secure:\s*false|cookie_samesite:\s*none'
+        target: config-files
+        pattern: 'cookie_secure:\s*false|cookie_httponly:\s*false|cookie_samesite:\s*(null|none)'
     remediation: |
-      Enforce secure cookie attributes (Secure, HttpOnly, SameSite), require HTTPS everywhere, and rotate session identifiers after privilege changes.
+      Keep Symfony session cookies secure, HttpOnly, and SameSite-restricted in
+      production configuration.
     references:
-      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
-      - "https://cwe.mitre.org/data/definitions/614.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://symfony.com/doc/current/index.html"
+      - "https://symfony.com/doc/current/session.html"
 
   - id: SYM-SESSION-002
-    title: "Session Identifier Exposure via URL or User Input"
+    title: "Symfony code accepts session ID from request input"
     description: >
-      Session identifiers may be propagated via URL/query input, increasing hijacking and fixation risk.
+      The application accepts a session ID from user-controlled input. This is
+      a direct session fixation weakness.
     severity: high
     confidence: high
     cvss_v3:
       score: 7.4
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Session Security
-    tags: [symfony, session-security, owasp-a07-2021, cwe-384, asvs-3.4.2]
+    tags: [symfony, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
     owasp: "A07:2021"
     cwe: "CWE-384"
     patterns:
       - type: regex
-        target: any
-        pattern: 'session_id\s*\(\s*\$_(?:GET|POST|REQUEST)\)|PHPSESSID='
+        target: php-files
+        pattern: 'session_id\s*\(\s*(\$request->(get|query->get|request->get|cookies->get)\s*\(|\$_(?:GET|POST|REQUEST|COOKIE)\[)'
+      - type: regex
+        target: php-files
+        pattern: '["''][^"'']*PHPSESSID='
     remediation: |
-      Never transport session IDs in URLs. Regenerate IDs on privilege change and enforce secure session cookies.
+      Accept session identifiers only from secure cookies managed by Symfony and
+      rotate them on authentication changes.
     references:
       - "https://cwe.mitre.org/data/definitions/384.html"
+      - "https://symfony.com/doc/current/session.html"
+
+  - id: SYM-SESSION-003
+    title: "Symfony manual login flow without clear session migration"
+    description: >
+      Manual Symfony login code establishes a user session or token but no
+      nearby session migration is visible. That weakens expected fixation
+      defenses.
+    severity: medium
+    confidence: medium
+    cvss_v3:
+      score: 6.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: Session Security
+    tags: [symfony, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
+    owasp: "A07:2021"
+    cwe: "CWE-384"
+    condition: all
+    patterns:
+      - type: regex
+        target: controller-files
+        pattern: 'loginUser\s*\(|->setToken\s*\(\s*new\s+[A-Za-z0-9_\\]*Token'
+      - type: regex
+        target: controller-files
+        pattern: '(->migrate\s*\(|invalidate\s*\(|session_strategy)'
+        negative: true
+        exclude_pattern: '(test|Test|fake)'
+    remediation: |
+      Migrate or invalidate the session when manually establishing Symfony user
+      state so pre-authentication identifiers are not retained.
+    references:
       - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://symfony.com/doc/current/index.html"
+      - "https://symfony.com/doc/current/security.html"

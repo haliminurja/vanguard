@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: CodeIgniter 3 - Business Logic
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CodeIgniter 2.x-3.x, PHP 8.0-8.4"
@@ -17,9 +17,11 @@
 
 rules:
   - id: CI-BIZ-001
-    title: "State-Changing Business Action Without Authorization Guard"
+    title: "Sensitive CodeIgniter business action without clear authorization check"
     description: >
-      Business-critical operations such as update, delete, approve, or refund are defined without explicit ownership or role checks. This can lead to horizontal or vertical privilege abuse.
+      CodeIgniter controller methods for refunds, approvals, cancellations,
+      price updates, or destructive mutations are present without nearby
+      authorization enforcement.
     severity: high
     confidence: medium
     cvss_v3:
@@ -31,37 +33,65 @@ rules:
     cwe: "CWE-840"
     patterns:
       - type: regex
-        target: php-files
-        pattern: 'function\s+(update|delete|approve|refund)\b'
-        exclude_pattern: '(authorize|can\(|Gate::|policy|current_user_can|denyAccessUnlessGranted|checkAccess|isAuthorized)'
+        target: controller-files
+        pattern: 'function\s+(update|delete|approve|refund|cancel|capture|change_role|set_status|update_price)\b'
+        exclude_pattern: '(logged_in|is_admin|has_role|authorize|auth|session->userdata\s*\(\s*[''"]user_id)'
     remediation: |
-      Apply object-level authorization checks for every state-changing operation. Validate resource ownership and enforce deny-by-default policy design.
+      Keep authorization explicit for every business-critical CodeIgniter action
+      and enforce object ownership close to the write path.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/840.html"
-      - "https://owasp.org/www-project-application-security-verification-standard/"
-      - "https://codeigniter.com/userguide3/"
 
   - id: CI-BIZ-002
-    title: "Sensitive Business Field Controlled by Request Input"
+    title: "Sensitive business fields assigned from CodeIgniter request input"
     description: >
-      Request input appears to directly control sensitive business fields such as price, role, status, or amount.
+      Price, amount, balance, discount, role, or status values are copied
+      directly from CodeIgniter input into persistence structures.
     severity: high
     confidence: high
     cvss_v3:
       score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Business Logic
-    tags: [codeigniter, business-logic, owasp-a04-2021, cwe-840, asvs-4.2.4]
+    tags: [codeigniter, business-logic, pricing, owasp-a04-2021, cwe-840, asvs-4.2.4]
     owasp: "A04:2021"
     cwe: "CWE-840"
     patterns:
       - type: regex
         target: php-files
-        pattern: '\$this->input->(post|get)\(\s*[''"](price|amount|role|is_admin|status)[''"]'
+        pattern: '["''](price|amount|balance|discount|role|status|is_admin)["'']\s*=>\s*\$this->input->(post|get)\('
+      - type: regex
+        target: php-files
+        pattern: '\$(price|amount|balance|discount|role|status|is_admin)[A-Za-z0-9_]*\s*=\s*\$this->input->(post|get)\('
     remediation: |
-      Never trust client-provided values for privileged business fields. Compute sensitive values server-side and enforce strict authorization.
+      Derive privileged business values server-side or constrain them with
+      strict validation plus workflow-aware authorization logic.
+    references:
+      - "https://cwe.mitre.org/data/definitions/840.html"
+      - "https://codeigniter.com/userguide3/libraries/input.html"
+
+  - id: CI-BIZ-003
+    title: "CodeIgniter refund or balance mutation uses request-controlled amount"
+    description: >
+      Refund, credit, debit, transfer, or price adjustment methods receive raw
+      CodeIgniter input values directly as the controlling amount or quantity.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Business Logic
+    tags: [codeigniter, business-logic, finance, owasp-a04-2021, cwe-840, asvs-4.2.4]
+    owasp: "A04:2021"
+    cwe: "CWE-840"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(refund|credit|debit|withdraw|transfer|adjustBalance|setPrice|applyDiscount)\s*\([^)]*\$this->input->(post|get)\('
+    remediation: |
+      Normalize and bound financial input before use and re-check business
+      invariants such as ownership, state, and maximum allowed adjustment.
     references:
       - "https://cwe.mitre.org/data/definitions/840.html"
       - "https://owasp.org/www-project-top-ten/"
-      - "https://codeigniter.com/userguide3/"

@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Symfony - Middleware Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
@@ -17,11 +17,13 @@
 
 rules:
   - id: SYM-MID-001
-    title: "Sensitive Route Without Clear Middleware Guard"
+    title: "Sensitive Symfony route without clear authorization guard"
     description: >
-      Sensitive or privileged route/action patterns are detected without explicit middleware/access guard indicators in the same context.
+      Sensitive Symfony controller routes are present without visible
+      authorization guards such as `#[IsGranted]`, security expressions, or
+      `denyAccessUnlessGranted()` in the same controller context.
     severity: high
-    confidence: medium
+    confidence: high
     cvss_v3:
       score: 8.2
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
@@ -31,21 +33,23 @@ rules:
     cwe: "CWE-862"
     patterns:
       - type: regex
-        target: any
+        target: controller-files
         pattern: '#\[Route\(\s*[''"][^''"]*(admin|account|settings|billing|profile|payment)[^''"]*[''"]'
-        exclude_pattern: '(auth|middleware|filter|isGranted|denyAccessUnlessGranted|current_user_can|checkAccess|isAuthorized|Gate::|can\()'
+        exclude_pattern: '(#\[\s*IsGranted|Security\s*\(|denyAccessUnlessGranted\s*\(|->isGranted\s*\()'
     remediation: |
-      Apply explicit authentication and authorization middleware for privileged routes.
-      Enforce deny-by-default access policy and verify ownership at controller/service layer.
+      Apply explicit authorization checks to privileged routes and keep access
+      decisions close to the controller boundary.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/862.html"
-      - "https://symfony.com/doc/current/index.html"
+      - "https://symfony.com/doc/current/security.html"
 
   - id: SYM-MID-002
-    title: "Middleware Bypass or Security Filter Disabled"
+    title: "Sensitive Symfony path exposed with PUBLIC_ACCESS or security false"
     description: >
-      Middleware bypass patterns or disabled security filters are detected, increasing the risk of unprotected request handling.
+      Symfony configuration allows sensitive paths to bypass security controls
+      through `PUBLIC_ACCESS` or `security: false`. This can unintentionally
+      remove authentication from privileged request flows.
     severity: high
     confidence: high
     cvss_v3:
@@ -55,14 +59,18 @@ rules:
     tags: [symfony, middleware-security, security-misconfiguration, owasp-a05-2021, cwe-16, asvs-14.2.1]
     owasp: "A05:2021"
     cwe: "CWE-16"
+    condition: all
     patterns:
       - type: regex
-        target: any
+        target: config-files
+        pattern: 'path:\s*\^/(admin|account|settings|billing|profile|payment)'
+      - type: regex
+        target: config-files
         pattern: 'roles:\s*PUBLIC_ACCESS|security:\s*false'
     remediation: |
-      Remove middleware bypass behavior from production paths and restore security filters.
-      Review exception lists and route-level overrides regularly.
+      Remove middleware bypass behavior from privileged paths and ensure access
+      controls are deny-by-default for sensitive areas.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/16.html"
-      - "https://symfony.com/doc/current/index.html"
+      - "https://symfony.com/doc/current/security/access_control.html"

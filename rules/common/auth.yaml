@@ -1,6 +1,6 @@
 meta:
   category: Authentication & Authorization
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
@@ -8,11 +8,65 @@ meta:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
 rules:
+  - id: AUTH-001
+    title: "Session identity or privilege context sourced directly from request input"
+    description: >
+      Request-controlled values are copied directly into `$_SESSION` keys that
+      represent identity or privilege state. This lets attackers choose their
+      own user ID, role, or administrative flag and can lead to immediate
+      account takeover or privilege escalation.
+    severity: critical
+    confidence: high
+    category: Authentication
+    tags: [auth, session, privilege-escalation, owasp-a07, cwe-287]
+    owasp: "A07:2021"
+    cwe: "CWE-287"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$_SESSION\s*\[\s*["''](user|user_id|uid|account_id|role|roles|is_admin|admin|permissions?)["'']\s*\]\s*=\s*(\$_(?:GET|POST|REQUEST|COOKIE)|filter_input\s*\()'
+    remediation: |
+      Derive authenticated identity only from verified server-side lookups after
+      successful credential or token validation. Never trust client-supplied
+      identifiers or privilege flags as the source of session truth.
+    references:
+      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+      - "https://cwe.mitre.org/data/definitions/287.html"
+
+  - id: AUTH-002
+    title: "Privileged account attributes assigned directly from untrusted input"
+    description: >
+      Code assigns role, permission, status, or administrative fields directly
+      from request input. Even when a surrounding validation layer exists, this
+      pattern is a high-risk source of privilege escalation if an allowlist is
+      incomplete or bypassed.
+    severity: high
+    confidence: medium
+    category: Authorization
+    tags: [authorization, privilege-escalation, owasp-a01, cwe-266]
+    owasp: "A01:2021"
+    cwe: "CWE-266"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$(user|account|member|admin)[A-Za-z0-9_]*->(role|roles|is_admin|isAdmin|permissions?|status)\s*=\s*(\$_(?:GET|POST|REQUEST)|filter_input\s*\()'
+      - type: regex
+        target: php-files
+        pattern: '["''](role|roles|is_admin|isAdmin|permissions?|status)["'']\s*=>\s*(\$_(?:GET|POST|REQUEST)|filter_input\s*\()'
+    remediation: |
+      Keep privilege-bearing attributes off direct request assignment paths.
+      Resolve roles and permissions from server-side policy decisions or strict
+      allowlists enforced outside the request payload itself.
+    references:
+      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+      - "https://cwe.mitre.org/data/definitions/266.html"
+
   - id: AUTH-Z03
     title: "Model::update() with unfiltered request payload (IDOR)"
     description: >
-      update() is called with $request->all() without first authorizing that the authenticated user owns that record. Attackers change the resource ID to overwrite other users' data.
-
+      update() is called with $request->all() without first authorizing that the
+      authenticated user owns that record. Attackers can change the resource ID
+      to overwrite other users' data.
     severity: high
     confidence: high
     category: IDOR
@@ -24,9 +78,9 @@ rules:
         target: php-files
         pattern: '->update\(\s*(\$request->all\(\)|request\(\)->all\(\))'
     remediation: |
-      Authorize ownership before updating, use ->only() for field limitations:
+      Authorize ownership before updating and allowlist mutable fields:
         $post = Post::findOrFail($id);
-        $this->authorize('update', $post);
+        authorizeUpdate($post, $currentUser);
         $post->update($request->only(['title', 'body']));
     references:
       - "https://cwe.mitre.org/data/definitions/639.html"

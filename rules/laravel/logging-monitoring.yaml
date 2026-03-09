@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Laravel - Logging and Monitoring
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Laravel 10-12, PHP 8.0-8.4"
@@ -17,13 +17,15 @@
 
 rules:
   - id: LAR-LOG-001
-    title: "Sensitive Data Written to Application Logs"
+    title: "Sensitive data written to Laravel logs"
     description: >
-      Logging statements appear to include credentials or sensitive tokens. This can create downstream data exposure and lateral movement risk.
-    severity: medium
+      Laravel logging calls include secrets, passwords, tokens, or raw
+      authorization material. This creates durable downstream exposure in log
+      files, central collectors, and support workflows.
+    severity: high
     confidence: high
     cvss_v3:
-      score: 6.8
+      score: 7.4
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N"
     category: Logging and Monitoring
     tags: [laravel, logging, monitoring, owasp-a09-2021, cwe-532, asvs-9.3.3]
@@ -32,36 +34,70 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: 'Log::(debug|info|warning|error)\s*\([^)]*(password|token|secret|authorization)'
+        pattern: '(Log::|logger\s*\()[^;]*(password|token|secret|authorization|api_key|private_key|otp)'
     remediation: |
-      Mask or hash sensitive values before logging and enforce centralized redaction policies in logging pipelines.
+      Redact secret-bearing fields before they reach Laravel log channels and
+      store only the minimum metadata needed for investigation.
     references:
       - "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/"
       - "https://cwe.mitre.org/data/definitions/532.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/11.x/logging"
 
   - id: LAR-LOG-002
-    title: "Runtime Error Visibility/Logging Misconfiguration"
+    title: "Laravel exception details returned to the client without clear logging"
     description: >
-      Error reporting configuration may suppress or misroute critical security events, reducing detection and incident response capability.
-    severity: medium
+      Application code returns raw exception messages or traces but does not
+      show a nearby logging or reporting call. This leaks internal details and
+      weakens detection.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"
+    category: Logging and Monitoring
+    tags: [laravel, logging, exception-handling, owasp-a09-2021, cwe-209, asvs-9.1.1]
+    owasp: "A09:2021"
+    cwe: "CWE-209"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'catch\s*\([^)]*\$e\s*\)\s*\{[^}]*return\s+(response\(\)->json|back\(\)|redirect\(\)|response\(\))[^}]*\$e->(getMessage|getTraceAsString)\(\)'
+        exclude_pattern: '(Log::|logger\(|report\()'
+    remediation: |
+      Call `report($e)` or emit a structured Laravel log event, then return a
+      generic client-facing error response.
+    references:
+      - "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/"
+      - "https://cwe.mitre.org/data/definitions/209.html"
+      - "https://laravel.com/docs/11.x/errors"
+
+  - id: LAR-LOG-003
+    title: "Laravel privilege or credential changes without audit logging"
+    description: >
+      Code changes roles, permissions, or sensitive account state without clear
+      evidence of audit logging or activity tracking nearby.
+    severity: high
     confidence: medium
     cvss_v3:
-      score: 6.2
-      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N"
+      score: 7.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Logging and Monitoring
-    tags: [laravel, logging, monitoring, owasp-a09-2021, cwe-778, asvs-9.1.1]
+    tags: [laravel, logging, audit, owasp-a09-2021, cwe-778, asvs-9.2.1]
     owasp: "A09:2021"
     cwe: "CWE-778"
     patterns:
       - type: regex
-        target: any
-        pattern: 'error_reporting\s*\(\s*0\s*\)|ini_set\s*\(\s*[''"]display_errors[''"]\s*,\s*[''"]?1[''"]?\s*\)'
-        exclude_pattern: '(test|Test|spec)'
+        target: php-files
+        pattern: '(assignRole|syncRoles|removeRole|givePermissionTo|revokePermissionTo|syncPermissions)\s*\('
+        exclude_pattern: '(Log::|logger\(|activity\(|audit|event\()'
+      - type: regex
+        target: php-files
+        pattern: '->update\s*\(\s*\[[^\]]*["''](email|password|is_admin|role|status|two_factor_secret|mfa_secret)["'']'
+        exclude_pattern: '(Log::|logger\(|activity\(|audit|event\()'
     remediation: |
-      Route errors to centralized logs with retention and alerting. Do not suppress events needed for security monitoring.
+      Emit audit logs for role, permission, password, MFA, and account-status
+      changes with actor, target, source IP, and reason.
     references:
       - "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/"
       - "https://cwe.mitre.org/data/definitions/778.html"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/11.x/logging"

@@ -1,0 +1,79 @@
+meta:
+  category: Laravel Enterprise Security
+  version: "4.1.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - OWASP-ASVS-4.0.3
+    - CWE-Top25-2024
+    - NIST-SP-800-53r5
+    - PCI-DSS-v4.0.1
+rules:
+  - id: LAR-ENT-101
+    title: "Open redirect via Laravel redirect helpers with user-controlled target"
+    description: >
+      Laravel redirect helpers receive the destination directly from request
+      input. Attackers can send victims to phishing domains or abuse trust flows
+      such as login return URLs and password reset follow-up redirects.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 6.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+    category: Open Redirect
+    enabled: true
+    tags: [laravel, redirect, phishing, owasp-a01-2021, cwe-601, asvs-5.1.5]
+    owasp: "A01:2021"
+    cwe: "CWE-601"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'redirect\s*\(\s*\$request->(input|get|query)\s*\(\s*[''"](next|redirect|url|return|return_url|redirect_to)[''"]'
+        exclude_pattern: '(route\(|url\(|to_route|signedRoute|filter_var|parse_url|in_array|Str::startsWith)'
+      - type: regex
+        target: php-files
+        pattern: 'redirect\(\)->(to|away)\s*\(\s*(\$request->|request\(\)->|\$_GET|\$_POST|\$_REQUEST)'
+        exclude_pattern: '(route\(|url\(|to_route|signedRoute|filter_var|parse_url|in_array|Str::startsWith)'
+    remediation: |
+      Redirect only to internal allowlisted paths or named routes.
+      Validate destination values with strict allowlists before calling
+      redirect helpers.
+    references:
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"
+      - "https://cwe.mitre.org/data/definitions/601.html"
+      - "https://laravel.com/docs/11.x/redirects"
+
+  - id: LAR-ENT-102
+    title: "Application root URL forced from inbound Host header"
+    description: >
+      Absolute URL generation is forced from the current inbound host header
+      using request-derived values. This can enable host header poisoning in
+      password reset URLs, signed links, email links, and other absolute URL
+      generation paths.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.4
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Host Header Poisoning
+    enabled: true
+    tags: [laravel, host-header, url-generation, owasp-a05-2021, cwe-20, asvs-14.4.3]
+    owasp: "A05:2021"
+    cwe: "CWE-20"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'URL::forceRootUrl\s*\(\s*(\$request->getSchemeAndHttpHost\(\)|request\(\)->getSchemeAndHttpHost\(\)|\$request->getHost\(\)|request\(\)->getHost\(\))'
+      - type: regex
+        target: php-files
+        pattern: 'config\s*\(\s*\[\s*[''"]app\.url[''"]\s*=>\s*(\$request->getSchemeAndHttpHost\(\)|request\(\)->getSchemeAndHttpHost\(\)|\$request->getHost\(\)|request\(\)->getHost\(\))'
+    remediation: |
+      Do not derive the canonical application URL from inbound requests.
+      Configure trusted hosts and use environment-controlled canonical URLs for
+      absolute link generation.
+    references:
+      - "https://laravel.com/docs/11.x/requests#configuring-trusted-hosts"
+      - "https://cwe.mitre.org/data/definitions/20.html"
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"

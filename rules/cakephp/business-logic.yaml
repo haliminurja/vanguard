@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: CakePHP - Business Logic
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CakePHP 3.0-5.x, PHP 8.0-8.4"
@@ -17,9 +17,11 @@
 
 rules:
   - id: CAKE-BIZ-001
-    title: "State-Changing Business Action Without Authorization Guard"
+    title: "Sensitive CakePHP business action without clear authorization check"
     description: >
-      Business-critical operations such as update, delete, approve, or refund are defined without explicit ownership or role checks. This can lead to horizontal or vertical privilege abuse.
+      CakePHP controller methods for refunds, approvals, cancellations, price
+      updates, or destructive mutations are present without nearby authorization
+      enforcement.
     severity: high
     confidence: medium
     cvss_v3:
@@ -31,37 +33,67 @@ rules:
     cwe: "CWE-840"
     patterns:
       - type: regex
-        target: php-files
-        pattern: 'public\s+function\s+(edit|delete|approve|refund)\b'
-        exclude_pattern: '(authorize|can\(|Gate::|policy|current_user_can|denyAccessUnlessGranted|checkAccess|isAuthorized)'
+        target: controller-files
+        pattern: 'public\s+function\s+(edit|delete|approve|refund|cancel|capture|changeRole|setStatus|updatePrice)\b'
+        exclude_pattern: '(->Authorization->authorize\s*\(|isAuthorized\s*\(|skipAuthorization)'
     remediation: |
-      Apply object-level authorization checks for every state-changing operation. Validate resource ownership and enforce deny-by-default policy design.
+      Keep authorization explicit for every business-critical CakePHP action and
+      enforce object ownership close to the write path.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/840.html"
-      - "https://owasp.org/www-project-application-security-verification-standard/"
-      - "https://book.cakephp.org/4/en/index.html"
+      - "https://book.cakephp.org/authorization/2/en/index.html"
 
   - id: CAKE-BIZ-002
-    title: "Sensitive Business Field Controlled by Request Input"
+    title: "Sensitive business fields assigned from CakePHP request input"
     description: >
-      Request input appears to directly control sensitive business fields such as price, role, status, or amount.
+      Price, amount, balance, discount, role, or status values are copied
+      directly from CakePHP request data into entity setters or persistence
+      arrays.
     severity: high
     confidence: high
     cvss_v3:
       score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Business Logic
-    tags: [cakephp, business-logic, owasp-a04-2021, cwe-840, asvs-4.2.4]
+    tags: [cakephp, business-logic, pricing, owasp-a04-2021, cwe-840, asvs-4.2.4]
     owasp: "A04:2021"
     cwe: "CWE-840"
     patterns:
       - type: regex
         target: php-files
-        pattern: '\$this->request->getData\(\s*[''"](price|amount|role|is_admin|status)[''"]'
+        pattern: '->set\s*\(\s*["''](price|amount|balance|discount|role|status)["'']\s*,\s*\$this->request->getData\s*\('
+      - type: regex
+        target: php-files
+        pattern: '["''](price|amount|balance|discount|role|status)["'']\s*=>\s*\$this->request->getData\s*\('
     remediation: |
-      Never trust client-provided values for privileged business fields. Compute sensitive values server-side and enforce strict authorization.
+      Derive privileged business values server-side or constrain them with
+      strict validation plus workflow-aware authorization logic.
+    references:
+      - "https://cwe.mitre.org/data/definitions/840.html"
+      - "https://book.cakephp.org/5/en/controllers/request-response.html"
+
+  - id: CAKE-BIZ-003
+    title: "CakePHP refund or balance mutation uses request-controlled amount"
+    description: >
+      Refund, credit, debit, transfer, or price adjustment methods receive raw
+      CakePHP request values directly as the controlling amount or quantity.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Business Logic
+    tags: [cakephp, business-logic, finance, owasp-a04-2021, cwe-840, asvs-4.2.4]
+    owasp: "A04:2021"
+    cwe: "CWE-840"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(refund|credit|debit|withdraw|transfer|adjustBalance|setPrice|applyDiscount)\s*\([^)]*\$this->request->getData\s*\('
+    remediation: |
+      Normalize and bound financial input before use and re-check business
+      invariants such as ownership, state, and maximum allowed adjustment.
     references:
       - "https://cwe.mitre.org/data/definitions/840.html"
       - "https://owasp.org/www-project-top-ten/"
-      - "https://book.cakephp.org/4/en/index.html"

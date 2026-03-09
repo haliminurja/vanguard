@@ -1,6 +1,6 @@
 meta:
   category: Laravel Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Laravel 10-12, PHP 8.0-8.4"
@@ -74,33 +74,6 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/89.html"
       - "https://laravel.com/docs/queries#raw-expressions"
-  - id: LAR-ENT-003
-    title: "Auth Bypass — Auth::loginUsingId() with user ID from request"
-    description: >
-      Auth::loginUsingId() is called with an ID originating from a request input without ownership verification. An attacker can replace the ID to log in as another user, including an admin.
-
-    severity: critical
-    confidence: high
-    cvss_v3:
-      score: 9.8
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-    category: Authentication Bypass
-    enabled: true
-    tags: [auth-bypass, owasp-a07-2021, cwe-287, laravel]
-    owasp: "A07:2021"
-    cwe: "CWE-287"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: 'Auth::(loginUsingId|onceUsingId)\s*\(\s*(\$request->|request\(|$_GET|$_POST)'
-    remediation: |
-      loginUsingId() should only be used in controlled contexts (seeder, testing, admin impersonation with audit):
-        // ✅ Admin impersonation with audit trail
-        $this->authorize('impersonate', $targetUser);
-        Log::warning('Admin impersonation', ['admin_id' => auth()->id(), 'target_id' => $targetUser->id]);
-        Auth::loginUsingId($targetUser->id);
-    references:
-      - "https://cwe.mitre.org/data/definitions/287.html"
   - id: LAR-ENT-004
     title: "File Upload — without MIME type and extension validation"
     description: >
@@ -132,35 +105,6 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/434.html"
       - "https://laravel.com/docs/validation#rule-mimes"
-  - id: LAR-ENT-005
-    title: "XSS — Blade raw output {!! !!} with untrusted data"
-    description: >
-      Blade outputs raw variables via {!! !!} without escaping. If the variable comes from user input, an unsanitized database, or an external API, an attacker can insert JavaScript that runs in the victim's browser — enabling session hijacking, keylogging, and data theft.
-
-    severity: high
-    confidence: high
-    cvss_v3:
-      score: 7.2
-      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:L/A:N"
-    category: Cross-Site Scripting (XSS)
-    enabled: true
-    tags: [xss, blade, owasp-a03-2021, cwe-79, laravel]
-    owasp: "A03:2021"
-    cwe: "CWE-79"
-    patterns:
-      - type: regex
-        target: blade-files
-        pattern: '\{!!\s*\$[a-zA-Z]'
-        exclude_pattern: '(Purifier|clean|strip_tags|htmlspecialchars|e\(|sanitize|markdown|trusted_html)'
-    remediation: |
-      Use {{ }} (auto-escaped) instead of {!! !!}:
-        <!- ✅ CORRECT — auto-escaped ->
-        <p>{{ $user->bio }}</p>
-        <!- If HTML is required, use HTMLPurifier ->
-        {!! clean($user->bio) !!}
-    references:
-      - "https://cwe.mitre.org/data/definitions/79.html"
-      - "https://laravel.com/docs/blade#displaying-data"
   - id: LAR-ENT-006
     title: "API Token — Sanctum/Passport token without expiration"
     description: >
@@ -198,39 +142,6 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/613.html"
       - "https://laravel.com/docs/sanctum#token-expiration"
-  - id: LAR-ENT-007
-    title: "Sensitive route without authentication middleware"
-    description: >
-      Routes handling sensitive operations (admin panel, account settings, CRUD resources) are defined without 'auth', 'auth:sanctum', or other guard middleware. Unauthenticated users can access these endpoints.
-
-    severity: critical
-    confidence: high
-    cvss_v3:
-      score: 9.1
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-    category: Authentication Missing
-    enabled: true
-    tags: [auth, middleware, owasp-a07-2021, cwe-306, laravel]
-    owasp: "A07:2021"
-    cwe: "CWE-306"
-    patterns:
-      - type: regex
-        target: routes-files
-        pattern: "Route::(post|put|patch|delete)\\s*\\(\\s*[\"'][^\"']*(admin|dashboard|settings|account|profile|user|payment|order|invoice)[^\"']*[\"']"
-        exclude_pattern: '(middleware\s*\(\s*["\x27][^\x27"]*auth|->middleware|group.*auth)'
-    remediation: |
-      Use middleware groups for all sensitive routes:
-        Route::middleware(['auth', 'verified'])->group(function () {
-            Route::resource('orders', OrderController::class);
-            Route::resource('payments', PaymentController::class);
-        });
-
-        Route::middleware(['auth', 'can:admin'])->prefix('admin')->group(function () {
-            Route::resource('users', Admin\UserController::class);
-        });
-    references:
-      - "https://cwe.mitre.org/data/definitions/306.html"
-      - "https://laravel.com/docs/middleware"
   - id: LAR-ENT-008
     title: "Artisan Command Injection — arguments from user input"
     description: >
@@ -317,34 +228,6 @@ rules:
         dispatch(new SendNotification($data['email'], $data['message']));
     references:
       - "https://cwe.mitre.org/data/definitions/502.html"
-  - id: LAR-ENT-011
-    title: "Signed URL — route receives signed URL without verification middleware"
-    description: >
-      URL::signedRoute() or URL::temporarySignedRoute() is used to create a signed URL, but the target route does not use the 'signed' middleware to verify the signature. Without verification, the URL can be manipulated by an attacker.
-
-    severity: high
-    confidence: high
-    cvss_v3:
-      score: 7.5
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-    category: Integrity Bypass
-    enabled: true
-    tags: [signed-url, integrity, owasp-a04-2021, cwe-345, laravel]
-    owasp: "A04:2021"
-    cwe: "CWE-345"
-    patterns:
-      - type: regex
-        target: routes-files
-        pattern: "(signedRoute|temporarySignedRoute)"
-        exclude_pattern: '(middleware.*signed|->middleware\s*\(\s*["\x27]signed)'
-    remediation: |
-      Add the 'signed' middleware to the route that receives the signed URL:
-        Route::get('/unsubscribe/{user}', [SubscriptionController::class, 'unsubscribe'])
-            ->name('unsubscribe')
-            ->middleware('signed');
-    references:
-      - "https://cwe.mitre.org/data/definitions/345.html"
-      - "https://laravel.com/docs/urls#signed-urls"
   - id: LAR-ENT-012
     title: "Controller CRUD without authorization check"
     description: >
@@ -670,61 +553,6 @@ rules:
         <?= json_encode($data, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>
     references:
       - "https://cwe.mitre.org/data/definitions/79.html"
-  - id: ADV-CSRF01
-    title: "Blade form without @csrf directive"
-    description: >
-      The Blade template contains a <form> element with a non-GET method but does not include the 
-      @csrf directive. Without a CSRF token, any third-party website can create a form that 
-      silently sends requests to your application on behalf of the logged-in user.
-    severity: high
-    confidence: high
-    category: CSRF
-    tags: [csrf, laravel, owasp-a05, cwe-352, blade]
-    owasp: "A05:2021"
-    cwe: "CWE-352"
-    condition: all
-    patterns:
-      - type: regex
-        target: blade-files
-        pattern: '<form[^>]+method\s*=\s*["'']?(POST|PUT|PATCH|DELETE)[^>]*>'
-      - type: contains
-        target: blade-files
-        pattern: "@csrf"
-        negative: true
-    remediation: |
-      Add @csrf as the first element inside every non-GET form:
-        <form method="POST" action="{{ route('orders.store') }}">
-            @csrf
-            @method('POST')
-        </form>
-    references:
-      - "https://owasp.org/www-community/attacks/csrf"
-      - "https://laravel.com/docs/csrf"
-      - "https://cwe.mitre.org/data/definitions/352.html"
-  - id: ADV-DBG01
-    title: "Debug code (dd, dump, var_dump) left in production code"
-    description: >
-      Leftover calls to dd(), dump(), or var_dump() can expose sensitive data 
-      directly to the browser, and dd() also terminates request execution which can cause a DoS.
-    severity: high
-    confidence: high
-    category: Debug Exposure
-    tags: [debug, info-disclosure, owasp-a05, cwe-215, laravel]
-    owasp: "A05:2021"
-    cwe: "CWE-215"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '\b(dd|dump|var_dump|print_r|var_export)\s*\('
-        exclude_pattern: '(//|#\s|/\*|test|Test|spec|hexdump|mysqldump|mongodump|pg_dump)'
-      - type: regex
-        target: blade-files
-        pattern: '@(dd|dump)\s*\('
-    remediation: |
-      Remove all debug calls before commit/deploy. Use structured logging:
-        Log::debug('Order state', ['order_id' => $order->id, 'status' => $order->status]);
-    references:
-      - "https://cwe.mitre.org/data/definitions/215.html"
   - id: BIZ-002
     title: "Insecure Password Reset - Reset token sent as HTTP GET parameter"
     description: >
@@ -794,33 +622,6 @@ rules:
       Remove dump() before merging. Use Log::debug() for structured debug output.
     references:
       - "https://cwe.mitre.org/data/definitions/215.html"
-  - id: LAR-ENT-016
-    title: "TLS Verification Disabled via Http::withoutVerifying()"
-    description: >
-      Laravel HTTP client disables certificate verification, allowing MITM attacks
-      and forged responses from upstream services.
-    severity: high
-    confidence: high
-    cvss_v3:
-      score: 8.1
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-    category: Cryptographic Failure
-    enabled: true
-    tags: [laravel, tls, mitm, owasp-a02-2021, cwe-295, asvs-9.1.1, nist-sc-8]
-    owasp: "A02:2021"
-    cwe: "CWE-295"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: 'Http::withoutVerifying\s*\('
-    remediation: |
-      Do not disable certificate verification in production.
-      Use a valid CA trust store and monitor upstream certificates.
-    references:
-      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
-      - "https://cwe.mitre.org/data/definitions/295.html"
-      - "https://laravel.com/docs/http-client"
-
   - id: LAR-ENT-017
     title: "Trusted Proxies Wildcard Configuration"
     description: >
@@ -905,3 +706,4 @@ rules:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/798.html"
       - "https://laravel.com/docs/encryption"
+

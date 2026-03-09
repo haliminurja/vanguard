@@ -1,7 +1,7 @@
 
 meta:
   category: CakePHP Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CakePHP 3.0-5.x, PHP 8.0-8.4"
@@ -220,30 +220,4 @@ rules:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/346.html"
       - "https://book.cakephp.org/4/en/controllers/middleware.html"
-
-  - id: CAKE-ENT-009
-    title: "Weak Password Hashing Configuration"
-    description: >
-      Password hasher config uses weak/legacy algorithms such as MD5 or SHA1,
-      or legacy hasher class names that are not suitable for modern password storage.
-    severity: critical
-    confidence: high
-    cvss_v3:
-      score: 9.1
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-    category: Cryptographic Failure
-    tags: [cakephp, password, hashing, owasp-a02-2021, cwe-327, asvs-2.4.4, pci-dss-3.5]
-    owasp: "A02:2021"
-    cwe: "CWE-327"
-    patterns:
-      - type: regex
-        target: config-files
-        pattern: "['\"]className['\"]\\s*=>\\s*['\"](Legacy|WeakPasswordHasher)['\"]|['\"]hashType['\"]\\s*=>\\s*['\"](md5|sha1)['\"]"
-    remediation: |
-      Use modern hashers (bcrypt/argon2id) with appropriate cost and rotation policies.
-      Rehash legacy passwords when users log in.
-    references:
-      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
-      - "https://cwe.mitre.org/data/definitions/327.html"
-      - "https://book.cakephp.org/4/en/controllers/components/authentication.html"
 

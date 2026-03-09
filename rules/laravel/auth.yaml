@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Laravel - Authentication
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Laravel 10-12, PHP 8.0-8.4"
@@ -17,52 +17,90 @@
 
 rules:
   - id: LAR-AUTH-001
-    title: "User-Controlled Authentication Flow"
+    title: "Laravel login established from request-controlled user identifier"
     description: >
-      Authentication identity or privilege context is derived from user-controlled input without strict verification. This can enable account takeover or privilege escalation.
+      Authentication is created directly from request-controlled user IDs or
+      model lookups. This pattern bypasses normal credential verification and
+      can lead to account takeover or unauthorized impersonation.
     severity: critical
     confidence: high
     cvss_v3:
       score: 9.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Authentication
-    tags: [laravel, auth, authorization, owasp-a07-2021, cwe-287, asvs-2.1.1]
+    tags: [laravel, auth, impersonation, owasp-a07-2021, cwe-287, asvs-2.1.1]
     owasp: "A07:2021"
     cwe: "CWE-287"
     patterns:
       - type: regex
         target: php-files
-        pattern: 'Auth::(loginUsingId|onceUsingId)\s*\(\s*(\$request->|request\(|\$_(?:GET|POST|REQUEST))'
-        exclude_pattern: '(authorize|policy|current_user_can|denyAccessUnlessGranted|checkAccess|isAuthorized|Gate::|can\()'
+        pattern: 'Auth::(loginUsingId|onceUsingId)\s*\(\s*(\$request->(input|get|route)\s*\(|request\(\)->(input|get|route)\s*\(|\$_(?:GET|POST|REQUEST)\[)'
+      - type: regex
+        target: php-files
+        pattern: 'Auth::login\s*\(\s*(App\\Models\\User|User)::(find|findOrFail|where)\s*\([^;]*(\$request->|request\(|\$_(?:GET|POST|REQUEST))'
+        exclude_pattern: '(Auth::attempt|Hash::check|Password::reset)'
     remediation: |
-      Enforce strong authentication checks before setting identity or session context. Use framework-native guards, policies, and MFA for privileged flows.
+      Authenticate through credential, token, or signed-link validation first.
+      Only then resolve the user server-side and establish the Laravel guard
+      session in a controlled path.
     references:
       - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
       - "https://cwe.mitre.org/data/definitions/287.html"
-      - "https://owasp.org/www-project-application-security-verification-standard/"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/11.x/authentication"
 
   - id: LAR-AUTH-002
-    title: "Privileged Endpoint Without Clear Auth Guard"
+    title: "Sensitive Laravel web route without clear authentication middleware"
     description: >
-      Potential privileged endpoint patterns are detected without clear access control indicators in the same context.
+      A sensitive Laravel route is declared without nearby evidence of `auth`,
+      `verified`, or policy-related middleware. This weakens protection around
+      dashboard, billing, account, and password-management flows.
     severity: high
-    confidence: medium
+    confidence: high
     cvss_v3:
-      score: 8.3
+      score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-    category: Authentication
-    tags: [laravel, auth, authorization, owasp-a01-2021, cwe-862, asvs-4.1.3]
+    category: Authorization
+    tags: [laravel, auth, access-control, owasp-a01-2021, cwe-862, asvs-4.1.3]
     owasp: "A01:2021"
     cwe: "CWE-862"
     patterns:
       - type: regex
-        target: php-files
-        pattern: 'Route::(post|put|patch|delete)\s*\(\s*[''"][^''"]*(admin|account|settings|profile|password|billing)[^''"]*[''"]'
-        exclude_pattern: '(auth|middleware|authorize|isAuthorized|current_user_can|denyAccessUnlessGranted|checkAccess|Gate::|can\()'
+        target: routes-files
+        pattern: 'Route::(get|post|put|patch|delete|match|any)\s*\(\s*[''"]/?(admin|dashboard|account|billing|settings|profile|password|users?/\{[^}]+\}/impersonate)[^''"]*[''"]'
+        exclude_pattern: '(middleware\s*\([^)]*(auth|verified|can:|permission|signed)|Route::middleware\s*\([^)]*(auth|verified|can:|permission|signed))'
     remediation: |
-      Protect privileged endpoints with explicit authentication and authorization middleware/policies. Enforce deny-by-default.
+      Put sensitive web routes behind explicit authentication middleware and
+      controller or policy-level authorization checks. Prefer deny-by-default
+      route groups for administrative surfaces.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/862.html"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/11.x/middleware"
+
+  - id: LAR-AUTH-003
+    title: "Laravel login or recovery route without clear throttling"
+    description: >
+      Login, password reset, OTP, or two-factor routes are exposed without
+      visible rate-limiting controls nearby. These endpoints are prime targets
+      for brute-force and credential-stuffing attacks.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"
+    category: Authentication
+    tags: [laravel, auth, rate-limit, bruteforce, owasp-a07-2021, cwe-307, asvs-2.2.4]
+    owasp: "A07:2021"
+    cwe: "CWE-307"
+    patterns:
+      - type: regex
+        target: routes-files
+        pattern: 'Route::post\s*\(\s*[''"]/?(login|signin|password|forgot-password|forgot|reset-password|reset|otp|2fa|two-factor)[^''"]*[''"]'
+        exclude_pattern: '(throttle|RateLimiter|Limit::perMinute|middleware\s*\([^)]*throttle|Route::middleware\s*\([^)]*throttle)'
+    remediation: |
+      Apply explicit throttling to every interactive authentication and recovery
+      route. Back the rate limiter with both IP-based and account-based keys.
+    references:
+      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+      - "https://cwe.mitre.org/data/definitions/307.html"
+      - "https://laravel.com/docs/11.x/routing#rate-limiting"

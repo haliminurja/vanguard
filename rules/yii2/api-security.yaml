@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Yii2 - API Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Yii2 2.0.x, PHP 8.0-8.4"
@@ -17,13 +17,15 @@
 
 rules:
   - id: YII-API-001
-    title: "API Endpoint Exposure Without Explicit Access Control Evidence"
+    title: "Yii2 ActiveController API without authenticator behavior"
     description: >
-      API route declarations are detected without strong indicators of authentication or authorization in the same context.
+      A Yii2 REST controller extends `ActiveController` but no obvious
+      authenticator behavior is present in the same controller file. This can
+      expose API actions without token or session-based authentication.
     severity: high
-    confidence: medium
+    confidence: high
     cvss_v3:
-      score: 7.8
+      score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: API Security
     tags: [yii2, api-security, access-control, owasp-a01-2021, cwe-862, asvs-4.1.3]
@@ -31,38 +33,42 @@ rules:
     cwe: "CWE-862"
     patterns:
       - type: regex
-        target: any
-        pattern: 'class\s+\w+\s+extends\s+ActiveController|yii\\rest\\UrlRule'
-        exclude_pattern: '(auth|middleware|permission_callback|isGranted|denyAccessUnlessGranted|current_user_can|jwt|bearer|api[_-]?key)'
+        target: controller-files
+        pattern: 'class\s+\w+\s+extends\s+ActiveController'
+        exclude_pattern: '(HttpBearerAuth|CompositeAuth|QueryParamAuth|authenticator)'
     remediation: |
-      Require explicit authentication and authorization for every API route. Use centralized policy enforcement and deny by default for sensitive actions.
+      Attach an authenticator behavior to every REST controller and deny access
+      by default for sensitive actions.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/862.html"
-      - "https://owasp.org/www-project-api-security/"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"
+      - "https://owasp.org/API-Security/editions/2023/en/0xa5-broken-function-level-authorization/"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/rest-authentication"
 
   - id: YII-API-002
-    title: "API Route Without Evident Access Enforcement"
+    title: "Yii2 ActiveController API without visible rate limiting controls"
     description: >
-      API route definitions are present while strong authz/authn indicators are not evident in nearby declarations.
+      A Yii2 REST controller extends `ActiveController` but there is no visible
+      rate limiting evidence such as `RateLimiter` or `RateLimitInterface`.
+      This increases brute-force and resource abuse risk on API endpoints.
     severity: high
     confidence: medium
     cvss_v3:
-      score: 7.8
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+      score: 7.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"
     category: API Security
-    tags: [yii2, api-security, owasp-a01-2021, cwe-862, asvs-4.1.3]
-    owasp: "A01:2021"
-    cwe: "CWE-862"
+    tags: [yii2, api-security, rate-limit, bruteforce, owasp-a04-2021, cwe-307, asvs-2.2.4]
+    owasp: "A04:2021"
+    cwe: "CWE-307"
     patterns:
       - type: regex
-        target: any
-        pattern: 'yii\\rest\\UrlRule|class\s+\w+\s+extends\s+ActiveController'
-        exclude_pattern: '(auth|middleware|permission_callback|isGranted|denyAccessUnlessGranted|current_user_can|jwt|bearer|api[_-]?key)'
+        target: controller-files
+        pattern: 'class\s+\w+\s+extends\s+ActiveController'
+        exclude_pattern: '(RateLimiter|RateLimitInterface|rateLimit\s*\(|loadAllowance\s*\(|saveAllowance\s*\()'
     remediation: |
-      Enforce authentication and authorization on every API endpoint. Require explicit policy checks for sensitive operations.
+      Implement Yii2 REST rate limiting for API users and enforce request
+      budgets on externally reachable API endpoints.
     references:
-      - "https://owasp.org/www-project-api-security/"
-      - "https://cwe.mitre.org/data/definitions/862.html"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"
+      - "https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/"
+      - "https://cwe.mitre.org/data/definitions/307.html"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/rest-rate-limiting"

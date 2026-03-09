@@ -1,6 +1,6 @@
 meta:
   category: Security Configuration
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
@@ -29,9 +29,11 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/942.html"
   - id: CFG-CORS02
-    title: "CORS supports_credentials=true - restricted origin verification"
+    title: "Wildcard credentialed CORS response"
     description: >
-      CORS configuration has supports_credentials=true. Combined with wildcard or broad allowed_origins, this allows any website to make fully authenticated cross-origin API requests.
+      The application emits `Access-Control-Allow-Origin: *` together with
+      credential support. Browsers must not trust wildcard origins for
+      authenticated cross-origin traffic because this weakens origin isolation.
 
     severity: critical
     confidence: high
@@ -39,15 +41,117 @@ rules:
     tags: [cors, owasp-a05, cwe-942]
     owasp: "A05:2021"
     cwe: "CWE-942"
+    condition: all
     patterns:
       - type: regex
-        target: config-files
-        pattern: "'supports_credentials'\\s*=>\\s*true"
+        target: any
+        pattern: "['\"]Access-Control-Allow-Origin['\"]\\s*=>\\s*['\"]\\*['\"]|Access-Control-Allow-Origin:\\s*\\*"
+      - type: regex
+        target: any
+        pattern: "['\"]Access-Control-Allow-Credentials['\"]\\s*=>\\s*true|Access-Control-Allow-Credentials:\\s*true"
     remediation: |
-      When credentials are required, always specify allowed origins explicitly:
-        'allowed_origins'      => ['https://myapp.com'],
-        'supports_credentials' => true,
-      Never combine supports_credentials=true with allowed_origins=['*'].
+      When credentials are required, emit a specific allowlist origin instead
+      of `*`, and keep credentialed CORS limited to trusted sites only.
     references:
       - "https://cwe.mitre.org/data/definitions/942.html"
       - "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#requests_with_credentials"
+  - id: CFG-PHP01
+    title: "PHP session cookies not forced to Secure"
+    description: >
+      PHP runtime configuration allows session cookies to be sent without the
+      Secure attribute. Session identifiers can then traverse plaintext HTTP in
+      downgraded or misrouted traffic paths, increasing session hijacking risk.
+
+    severity: high
+    confidence: high
+    category: Session Configuration
+    tags: [session, cookies, secure-flag, owasp-a05, cwe-614]
+    owasp: "A05:2021"
+    cwe: "CWE-614"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'session\.cookie_secure\s*=\s*(0|Off|off|false|FALSE)\b'
+    remediation: |
+      Enforce secure session cookies in runtime configuration:
+        session.cookie_secure = 1
+      Combine this with full HTTPS enforcement and HSTS.
+    references:
+      - "https://cwe.mitre.org/data/definitions/614.html"
+      - "https://www.php.net/manual/en/session.configuration.php"
+
+  - id: CFG-PHP02
+    title: "PHP session cookies not forced to HttpOnly"
+    description: >
+      PHP runtime configuration allows session cookies to be readable by
+      JavaScript because the HttpOnly attribute is disabled. This materially
+      increases the impact of any XSS flaw that reaches the browser.
+
+    severity: high
+    confidence: high
+    category: Session Configuration
+    tags: [session, cookies, httponly, owasp-a05, cwe-1004]
+    owasp: "A05:2021"
+    cwe: "CWE-1004"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'session\.cookie_httponly\s*=\s*(0|Off|off|false|FALSE)\b'
+    remediation: |
+      Keep HttpOnly enabled for session cookies:
+        session.cookie_httponly = 1
+      Review any custom cookies to ensure they inherit equivalent protection.
+    references:
+      - "https://cwe.mitre.org/data/definitions/1004.html"
+      - "https://www.php.net/manual/en/session.configuration.php"
+
+  - id: CFG-PHP03
+    title: "PHP exposes its version through headers"
+    description: >
+      expose_php is enabled, causing PHP to advertise itself via HTTP response
+      headers. This increases technology fingerprinting and helps attackers tune
+      exploitation attempts against the runtime stack.
+
+    severity: medium
+    confidence: high
+    category: Information Disclosure
+    tags: [php, fingerprinting, disclosure, owasp-a05, cwe-200]
+    owasp: "A05:2021"
+    cwe: "CWE-200"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'expose_php\s*=\s*(On|1|true|TRUE)\b'
+    remediation: |
+      Disable PHP version exposure:
+        expose_php = Off
+      Reduce externally observable stack metadata wherever possible.
+    references:
+      - "https://cwe.mitre.org/data/definitions/200.html"
+      - "https://www.php.net/manual/en/ini.core.php"
+
+  - id: CFG-PHP04
+    title: "PHP session.use_only_cookies disabled"
+    description: >
+      PHP accepts session IDs from sources other than cookies because
+      session.use_only_cookies is disabled. This widens session fixation
+      exposure by allowing attackers to push session identifiers through URLs or
+      other channels more easily.
+
+    severity: high
+    confidence: high
+    category: Session Configuration
+    tags: [session, fixation, owasp-a05, cwe-384]
+    owasp: "A05:2021"
+    cwe: "CWE-384"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'session\.use_only_cookies\s*=\s*(0|Off|off|false|FALSE)\b'
+    remediation: |
+      Restrict session identifiers to cookies only:
+        session.use_only_cookies = 1
+      Regenerate the session ID after authentication and privilege changes.
+    references:
+      - "https://cwe.mitre.org/data/definitions/384.html"
+      - "https://www.php.net/manual/en/session.configuration.php"

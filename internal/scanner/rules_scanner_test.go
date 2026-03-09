@@ -759,6 +759,84 @@ curl_setopt($ch, CURLOPT_URL, $request->url);
 	}
 }
 
+func TestRulesScanner_MultilineExcludePatternUsesLocalContext(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "app"), 0755)
+	os.WriteFile(filepath.Join(dir, "app", "DnsClient.php"), []byte(`<?php
+$host = parse_url($url, PHP_URL_HOST);
+$ip = gethostbyname($host);
+curl_setopt($ch, CURLOPT_URL, $url);
+
+curl_setopt($safeCh, CURLOPT_RESOLVE, ["safe.example:443:127.0.0.1"]);
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-MULTI-EXCLUDE-001",
+			Title:   "Potential DNS rebinding SSRF",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{
+					Type:           "regex-multiline",
+					Target:         "php-files",
+					Pattern:        `(?s)gethostbyname\s*\([^)]+\).*?curl_setopt\s*\([^,]+,\s*CURLOPT_URL`,
+					ExcludePattern: `CURLOPT_RESOLVE`,
+				},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding when exclude marker is outside multiline match, got %d", len(findings))
+	}
+	if findings[0].Line != 3 {
+		t.Fatalf("expected finding line 3, got %d", findings[0].Line)
+	}
+}
+
+func TestRulesScanner_MultilineExcludePatternSuppressesSameMatch(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "app"), 0755)
+	os.WriteFile(filepath.Join(dir, "app", "DnsClient.php"), []byte(`<?php
+$host = parse_url($url, PHP_URL_HOST);
+$ip = gethostbyname($host);
+curl_setopt($ch, CURLOPT_RESOLVE, ["example.com:443:127.0.0.1"]);
+curl_setopt($ch, CURLOPT_URL, $url);
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-MULTI-EXCLUDE-002",
+			Title:   "Potential DNS rebinding SSRF",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{
+					Type:           "regex-multiline",
+					Target:         "php-files",
+					Pattern:        `(?s)gethostbyname\s*\([^)]+\).*?curl_setopt\s*\([^,]+,\s*CURLOPT_URL`,
+					ExcludePattern: `CURLOPT_RESOLVE`,
+				},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings when exclude marker is within multiline match, got %d", len(findings))
+	}
+}
+
 func TestRulesScanner_TargetAnySkipsEngineRulesDirectory(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "rules"), 0755)

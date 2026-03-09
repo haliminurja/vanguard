@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Yii2 - Cryptographic Failure
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Yii2 2.0.x, PHP 8.0-8.4"
@@ -17,34 +17,36 @@
 
 rules:
   - id: YII-CRYPTO-001
-    title: "Weak or Legacy Cryptographic Primitive Usage"
+    title: "Weak hash used for Yii2 password or token material"
     description: >
-      Weak hashing or deprecated cryptographic options are present. This can reduce resistance to cracking and tampering attacks.
+      Yii2 code derives password-like values, auth keys, or reset tokens with
+      MD5 or SHA-1, materially weakening resistance to offline cracking.
     severity: high
     confidence: high
     cvss_v3:
-      score: 7.7
+      score: 7.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Cryptographic Failure
-    tags: [yii2, crypto, hashing, owasp-a02-2021, cwe-327, asvs-6.2.5]
+    tags: [yii2, crypto, hashing, owasp-a02-2021, cwe-327, asvs-2.4.4]
     owasp: "A02:2021"
     cwe: "CWE-327"
     patterns:
       - type: regex
-        target: any
-        pattern: '\b(md5|sha1)\s*\('
+        target: php-files
+        pattern: '\$(password|passwd|pwd|token|resetToken|reset_token|secret|apiKey|api_key|authKey|auth_key)[A-Za-z0-9_]*\s*=\s*(md5|sha1|hash\s*\(\s*["''](md5|sha1)["''])'
     remediation: |
-      Replace weak algorithms with modern primitives such as Argon2id, bcrypt, AES-GCM, and strong key management. Enforce organization crypto policy and periodic rotation.
+      Use Yii2 security helpers or PHP password hashing for credentials and
+      CSPRNG-backed generation for secrets or reset tokens.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/327.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/security-passwords"
 
   - id: YII-CRYPTO-002
-    title: "TLS Certificate Verification Disabled"
+    title: "Yii2 outbound HTTP disables TLS verification"
     description: >
-      TLS certificate or host verification appears disabled in outbound communication settings.
+      Yii2 HTTP client or cURL configuration disables certificate verification,
+      allowing man-in-the-middle attacks against upstream traffic.
     severity: high
     confidence: high
     cvss_v3:
@@ -56,11 +58,41 @@ rules:
     cwe: "CWE-295"
     patterns:
       - type: regex
-        target: any
-        pattern: 'CURLOPT_SSL_VERIFYPEER\s*=>\s*false|CURLOPT_SSL_VERIFYHOST\s*=>\s*0'
+        target: php-files
+        pattern: 'CURLOPT_SSL_VERIFYPEER\s*=>\s*false|CURLOPT_SSL_VERIFYHOST\s*=>\s*0|["'']sslVerifyPeer["'']\s*=>\s*false'
     remediation: |
-      Always verify TLS peer and hostname. Use trusted CA stores and block insecure overrides in production.
+      Keep peer and hostname verification enabled for every outbound Yii2 HTTP
+      request and resolve trust-store issues instead of suppressing checks.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/295.html"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"
+      - "https://www.yiiframework.com/extension/yiisoft/yii2-httpclient"
+
+  - id: YII-CRYPTO-003
+    title: "Yii2 code uses ECB mode or hardcoded IV/nonce"
+    description: >
+      Yii2 application code uses insecure ECB mode or static IV/nonce values in
+      custom encryption routines.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.9
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Cryptographic Failure
+    tags: [yii2, crypto, encryption, owasp-a02-2021, cwe-327, asvs-6.2.5]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'openssl_(encrypt|decrypt)\s*\([^,]+,\s*["'']AES-(128|192|256)-ECB["'']'
+      - type: regex
+        target: php-files
+        pattern: '\$(iv|nonce|salt)[A-Za-z0-9_]*\s*=\s*["''][^"''\$]{8,}["'']'
+        exclude_pattern: '(random_bytes|bin2hex|base64_decode\s*\()'
+    remediation: |
+      Use modern AEAD encryption and generate a fresh random IV or nonce for
+      every encryption operation.
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/327.html"

@@ -1,6 +1,6 @@
 ﻿meta:
   category: WordPress - Security Configuration
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "WordPress 5.0-6.x, PHP 8.0-8.4"
@@ -17,30 +17,32 @@
 
 rules:
   - id: WP-SECCFG-001
-    title: "High-Risk Security Configuration Detected"
+    title: "WordPress file modifications allowed from the dashboard"
     description: >
-      Security-critical configuration appears to weaken default protections such as CSRF, origin controls, or privileged admin hardening.
+      `DISALLOW_FILE_MODS` is explicitly disabled, allowing plugin, theme, or
+      core file modifications from the administrative interface. If an admin
+      session is compromised, this materially lowers the path to persistent code
+      execution.
     severity: high
     confidence: high
     cvss_v3:
-      score: 8.0
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Security Configuration
     tags: [wordpress, security-config, hardening, owasp-a05-2021, cwe-16, cis-control-4]
     owasp: "A05:2021"
     cwe: "CWE-16"
     patterns:
       - type: regex
-        target: any
-        pattern: 'define\(\s*[\"](DISALLOW_FILE_EDIT|FORCE_SSL_ADMIN)[\"]\s*,\s*false'
+        target: php-files
+        pattern: "define\\(\\s*['\"]DISALLOW_FILE_MODS['\"]\\s*,\\s*false\\s*\\)"
     remediation: |
-      Apply secure-by-default framework configuration profiles and maintain environment-specific hardening baselines with periodic review.
+      Disable dashboard-driven file modifications in hardened environments:
+      `define('DISALLOW_FILE_MODS', true);`
     references:
-      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://developer.wordpress.org/advanced-administration/security/hardening/"
       - "https://cwe.mitre.org/data/definitions/16.html"
-      - "https://owasp.org/www-project-application-security-verification-standard/"
-      - "https://developer.wordpress.org"
-
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
   - id: WP-SECCFG-002
     title: "Overly Permissive CORS Policy Indicator"
     description: >

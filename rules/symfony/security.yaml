@@ -1,7 +1,7 @@
 
 meta:
   category: Symfony Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
@@ -219,27 +219,6 @@ rules:
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/287.html"
-  - id: SYM-ENT-008
-    title: "Weak Password Encoder Configuration (Legacy Crypt/MD5/Plaintext)"
-    description: >
-      Using legacy or weak password encoders like `plaintext`, `bcrypt` with low cost, or `md5` allows attackers to crack passwords quickly if the database is compromised.
-    severity: high
-    confidence: high
-    category: Cryptographic Failure
-    tags: [crypto, symfony, cwe-327]
-    owasp: "A05:2021"
-    cwe: "CWE-327"
-    patterns:
-      - type: regex
-        target: config-files
-        pattern: 'algorithm:\s*(plaintext|md5|sha1)'
-        exclude_pattern: 'bcrypt|argon2i|argon2id'
-    remediation: |
-      Use `auto` to let Symfony choose the best algorithm, or explicitly define `bcrypt` or `argon2id` with appropriate cost parameters.
-
-    references:
-      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
-      - "https://cwe.mitre.org/data/definitions/327.html"
   - id: SYM-ENT-009
     title: "Open Access Control (Missing access_control in security.yaml)"
     description: >
@@ -282,34 +261,6 @@ rules:
     references:
       - "https://owasp.org/Top10/A03_2021-Injection/"
       - "https://cwe.mitre.org/data/definitions/20.html"
-  - id: SYM-ENT-011
-    title: "TLS Verification Disabled in HTTP Client Configuration"
-    description: >
-      Symfony outbound HTTP calls disable TLS peer/host verification.
-      This permits man-in-the-middle attacks and forged upstream responses.
-    severity: high
-    confidence: high
-    cvss_v3:
-      score: 8.1
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-    category: Cryptographic Failure
-    tags: [symfony, tls, mitm, owasp-a02-2021, cwe-295, asvs-9.1.1, nist-sc-8]
-    owasp: "A02:2021"
-    cwe: "CWE-295"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: "['\\\"]verify_peer['\\\"]\\s*=>\\s*false"
-      - type: regex
-        target: php-files
-        pattern: "['\\\"]verify_host['\\\"]\\s*=>\\s*false"
-    remediation: |
-      Ensure TLS verification is enabled for all outbound connections. 
-      Use official trust stores and do not disable certificate checks in production.
-    references:
-      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
-      - "https://cwe.mitre.org/data/definitions/295.html"
-      - "https://symfony.com/doc/current/http_client.html"
 
   - id: SYM-ENT-012
     title: "CORS allows wildcard origin with credentials"

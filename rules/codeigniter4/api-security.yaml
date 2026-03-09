@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: CodeIgniter 4 - API Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CodeIgniter 4.x, PHP 8.0-8.4"
@@ -17,13 +17,14 @@
 
 rules:
   - id: CI4-API-001
-    title: "API Endpoint Exposure Without Explicit Access Control Evidence"
+    title: "Sensitive CodeIgniter 4 API route without clear auth filter"
     description: >
-      API route declarations are detected without strong indicators of authentication or authorization in the same context.
+      Sensitive CodeIgniter 4 API routes are declared without clear auth or JWT
+      filter indicators in the same routing context.
     severity: high
-    confidence: medium
+    confidence: high
     cvss_v3:
-      score: 7.8
+      score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: API Security
     tags: [codeigniter4, api-security, access-control, owasp-a01-2021, cwe-862, asvs-4.1.3]
@@ -31,38 +32,41 @@ rules:
     cwe: "CWE-862"
     patterns:
       - type: regex
-        target: any
-        pattern: '\$routes->(get|post|put|patch|delete)\(\s*[\"]api/'
-        exclude_pattern: '(auth|middleware|permission_callback|isGranted|denyAccessUnlessGranted|current_user_can|jwt|bearer|api[_-]?key)'
+        target: routes-files
+        pattern: '\$routes->(resource|get|post|put|patch|delete)\(\s*[''"](api/)?(admin|users?|accounts?|profiles?|billing|payments?|orders?|invoices?|settings)'
+        exclude_pattern: '(filter[s]?\s*=>\s*[''"][^''"]*(auth|session|jwt|api|bearer)|group\s*\(\s*[''"]api[''"][^)]*filter)'
     remediation: |
-      Require explicit authentication and authorization for every API route. Use centralized policy enforcement and deny by default for sensitive actions.
+      Attach explicit auth filters to sensitive API routes or route groups and
+      enforce authorization in controllers or services.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/862.html"
-      - "https://owasp.org/www-project-api-security/"
+      - "https://owasp.org/API-Security/editions/2023/en/0xa5-broken-function-level-authorization/"
       - "https://codeigniter.com/user_guide/"
 
   - id: CI4-API-002
-    title: "API Route Without Evident Access Enforcement"
+    title: "CodeIgniter 4 authentication API route without visible throttling"
     description: >
-      API route definitions are present while strong authz/authn indicators are not evident in nearby declarations.
+      Authentication-related API routes are present without visible rate-limit or
+      throttle filter indicators in the same routing context.
     severity: high
     confidence: medium
     cvss_v3:
-      score: 7.8
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+      score: 7.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"
     category: API Security
-    tags: [codeigniter4, api-security, owasp-a01-2021, cwe-862, asvs-4.1.3]
-    owasp: "A01:2021"
-    cwe: "CWE-862"
+    tags: [codeigniter4, api-security, bruteforce, rate-limit, owasp-a04-2021, cwe-307, asvs-2.2.4]
+    owasp: "A04:2021"
+    cwe: "CWE-307"
     patterns:
       - type: regex
-        target: any
-        pattern: '\$routes->(get|post|put|patch|delete|options)\(\s*[''"]api/'
-        exclude_pattern: '(auth|middleware|permission_callback|isGranted|denyAccessUnlessGranted|current_user_can|jwt|bearer|api[_-]?key)'
+        target: routes-files
+        pattern: '\$routes->post\s*\(\s*[''"](api/)?(login|token|auth|otp|password|forgot|reset)'
+        exclude_pattern: '(throttle|limit|Limiter|filter[s]?\s*=>\s*[''"][^''"]*(throttle|limit)|group\s*\([^)]*(throttle|limit))'
     remediation: |
-      Enforce authentication and authorization on every API endpoint. Require explicit policy checks for sensitive operations.
+      Add throttle filters or application-level rate limiting to authentication
+      API routes and monitor repeated failures.
     references:
-      - "https://owasp.org/www-project-api-security/"
-      - "https://cwe.mitre.org/data/definitions/862.html"
+      - "https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/"
+      - "https://cwe.mitre.org/data/definitions/307.html"
       - "https://codeigniter.com/user_guide/"

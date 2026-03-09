@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Laravel - Middleware Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Laravel 10-12, PHP 8.0-8.4"
@@ -17,11 +17,13 @@
 
 rules:
   - id: LAR-MID-001
-    title: "Sensitive Route Without Clear Middleware Guard"
+    title: "Sensitive Laravel route without clear middleware guard"
     description: >
-      Sensitive or privileged route/action patterns are detected without explicit middleware/access guard indicators in the same context.
+      Sensitive mutating Laravel routes are declared without clear authentication
+      or authorization middleware nearby. This weakens the request boundary for
+      account, billing, or administrative actions.
     severity: high
-    confidence: medium
+    confidence: high
     cvss_v3:
       score: 8.2
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
@@ -31,21 +33,24 @@ rules:
     cwe: "CWE-862"
     patterns:
       - type: regex
-        target: any
+        target: routes-files
         pattern: 'Route::(post|put|patch|delete)\s*\(\s*[''"][^''"]*(admin|account|settings|billing|profile|payment)[^''"]*[''"]'
-        exclude_pattern: '(auth|middleware|filter|isGranted|denyAccessUnlessGranted|current_user_can|checkAccess|isAuthorized|Gate::|can\()'
+        exclude_pattern: '(middleware\s*\([^)]*(auth|auth:sanctum|can:|permission|verified)|Route::middleware\s*\([^)]*(auth|auth:sanctum|can:|permission))'
     remediation: |
-      Apply explicit authentication and authorization middleware for privileged routes.
-      Enforce deny-by-default access policy and verify ownership at controller/service layer.
+      Apply explicit authentication and authorization middleware for privileged
+      routes and verify ownership in the controller or policy layer.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/862.html"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/11.x/middleware"
 
   - id: LAR-MID-002
-    title: "Middleware Bypass or Security Filter Disabled"
+    title: "Laravel route explicitly bypasses important middleware"
     description: >
-      Middleware bypass patterns or disabled security filters are detected, increasing the risk of unprotected request handling.
+      A route or controller explicitly disables middleware via
+      `withoutMiddleware()`. When this bypass affects authentication, CSRF,
+      signature, verification, or throttling middleware, request protection can
+      be materially weakened.
     severity: high
     confidence: high
     cvss_v3:
@@ -57,12 +62,13 @@ rules:
     cwe: "CWE-16"
     patterns:
       - type: regex
-        target: any
-        pattern: '->withoutMiddleware\s*\('
+        target: php-files
+        pattern: '->withoutMiddleware\s*\([^)]*(auth|auth:sanctum|Authenticate|verified|signed|throttle|csrf|EnsureEmailIsVerified)'
+        exclude_pattern: '(test|Test|fake|stub)'
     remediation: |
-      Remove middleware bypass behavior from production paths and restore security filters.
-      Review exception lists and route-level overrides regularly.
+      Remove middleware bypass behavior from production paths and review every
+      explicit exception against the intended threat model.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/16.html"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/11.x/middleware"

@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: WordPress - Session Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "WordPress 5.0-6.x, PHP 8.0-8.4"
@@ -17,9 +17,10 @@
 
 rules:
   - id: WP-SESSION-001
-    title: "Insecure Session Cookie or Session Transport Setting"
+    title: "Custom WordPress cookie created without Secure or HttpOnly"
     description: >
-      Session security flags appear weak or disabled, potentially exposing authenticated sessions to interception or misuse.
+      Custom authentication or session cookies are created with security flags
+      disabled. This increases exposure to theft via plaintext transport or XSS.
     severity: high
     confidence: high
     cvss_v3:
@@ -31,36 +32,68 @@ rules:
     cwe: "CWE-614"
     patterns:
       - type: regex
-        target: any
-        pattern: 'setcookie\s*\([^)]*,[^)]*,[^)]*,[^)]*,[^)]*,\s*false'
+        target: php-files
+        pattern: 'setcookie\s*\([^,]+,[^,]+,[^,]+,[^,]+,[^,]+,\s*(false|0|null)\s*,\s*(true|1|false|0|null)'
+      - type: regex
+        target: php-files
+        pattern: 'setcookie\s*\([^,]+,[^,]+,[^,]+,[^,]+,[^,]+,\s*(true|1)\s*,\s*(false|0|null)'
     remediation: |
-      Enforce secure cookie attributes (Secure, HttpOnly, SameSite), require HTTPS everywhere, and rotate session identifiers after privilege changes.
+      Keep Secure and HttpOnly enabled for custom cookies and prefer
+      WordPress-managed auth cookies where possible.
     references:
       - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
       - "https://cwe.mitre.org/data/definitions/614.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://developer.wordpress.org"
 
   - id: WP-SESSION-002
-    title: "Session Identifier Exposure via URL or User Input"
+    title: "WordPress code accepts session ID from request input"
     description: >
-      Session identifiers may be propagated via URL/query input, increasing hijacking and fixation risk.
+      Request data is used as the PHP session identifier. This is a direct
+      session fixation weakness regardless of WordPress plugin context.
     severity: high
     confidence: high
     cvss_v3:
       score: 7.4
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Session Security
-    tags: [wordpress, session-security, owasp-a07-2021, cwe-384, asvs-3.4.2]
+    tags: [wordpress, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
     owasp: "A07:2021"
     cwe: "CWE-384"
     patterns:
       - type: regex
-        target: any
-        pattern: 'session_id\s*\(\s*\$_(?:GET|POST|REQUEST)\)|PHPSESSID='
+        target: php-files
+        pattern: 'session_id\s*\(\s*(\$_(?:GET|POST|REQUEST|COOKIE)|filter_input\s*\()'
+      - type: regex
+        target: php-files
+        pattern: '["''][^"'']*PHPSESSID='
     remediation: |
-      Never transport session IDs in URLs. Regenerate IDs on privilege change and enforce secure session cookies.
+      Accept session identifiers only from secure cookies and regenerate them on
+      authentication changes.
     references:
       - "https://cwe.mitre.org/data/definitions/384.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://developer.wordpress.org"
+
+  - id: WP-SESSION-003
+    title: "PHP session regeneration keeps the old session alive"
+    description: >
+      WordPress plugin code explicitly uses `session_regenerate_id(false)`,
+      preserving the old session during a security-sensitive transition.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 6.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: Session Security
+    tags: [wordpress, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
+    owasp: "A07:2021"
+    cwe: "CWE-384"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'session_regenerate_id\s*\(\s*(false|0)\s*\)'
+    remediation: |
+      Destroy the old session when rotating identifiers after a login or
+      privilege transition:
+        session_regenerate_id(true);
+    references:
+      - "https://cwe.mitre.org/data/definitions/384.html"
+      - "https://www.php.net/manual/en/function.session-regenerate-id.php"

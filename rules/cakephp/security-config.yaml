@@ -1,6 +1,6 @@
 ﻿meta:
   category: CakePHP - Security Configuration
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CakePHP 3.0-5.x, PHP 8.0-8.4"
@@ -17,34 +17,37 @@
 
 rules:
   - id: CAKE-SECCFG-001
-    title: "High-Risk Security Configuration Detected"
+    title: "CakePHP fullBaseUrl left empty"
     description: >
-      Security-critical configuration appears to weaken default protections such as CSRF, origin controls, or privileged admin hardening.
-    severity: high
+      CakePHP `App.fullBaseUrl` is empty, causing URL generation to rely on the
+      incoming request host and proxy context. This can enable host-header
+      poisoning if upstream trust boundaries are weak.
+    severity: medium
     confidence: high
     cvss_v3:
-      score: 8.0
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+      score: 6.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
     category: Security Configuration
-    tags: [cakephp, security-config, hardening, owasp-a05-2021, cwe-16, cis-control-4]
+    tags: [cakephp, security-config, host-header, owasp-a05-2021, cwe-346, asvs-14.4.3]
     owasp: "A05:2021"
-    cwe: "CWE-16"
+    cwe: "CWE-346"
     patterns:
       - type: regex
-        target: any
-        pattern: 'allowOrigin\s*\(\s*\[\s*[\"]\*[\"]\s*\]\s*\)|skipCheckCallback'
+        target: config-files
+        pattern: "['\"]fullBaseUrl['\"]\\s*=>\\s*['\"]\\s*['\"]"
     remediation: |
-      Apply secure-by-default framework configuration profiles and maintain environment-specific hardening baselines with periodic review.
+      Set `App.fullBaseUrl` explicitly for each environment and keep trusted
+      proxy handling narrowly scoped.
     references:
+      - "https://book.cakephp.org/4/en/development/configuration.html"
+      - "https://cwe.mitre.org/data/definitions/346.html"
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
-      - "https://cwe.mitre.org/data/definitions/16.html"
-      - "https://owasp.org/www-project-application-security-verification-standard/"
-      - "https://book.cakephp.org/4/en/index.html"
-
   - id: CAKE-SECCFG-002
-    title: "Overly Permissive CORS Policy Indicator"
+    title: "Manual wildcard CORS response header"
     description: >
-      CORS configuration appears overly permissive and may expose authenticated data across origins.
+      Application code emits a wildcard CORS origin header directly. This can
+      expose sensitive responses cross-origin when applied to authenticated or
+      sensitive endpoints.
     severity: high
     confidence: high
     cvss_v3:
@@ -57,7 +60,7 @@ rules:
     patterns:
       - type: regex
         target: any
-        pattern: 'allowOrigin\s*\(\s*\[\s*[''"]\*[''"]\s*\]\s*\)|Access-Control-Allow-Origin'
+        pattern: "['\"]Access-Control-Allow-Origin['\"]\\s*=>\\s*['\"]\\*['\"]|header\\s*\\(\\s*['\"]Access-Control-Allow-Origin:\\s*\\*"
     remediation: |
       Use strict origin allowlists and avoid wildcard origins for sensitive or credentialed endpoints.
     references:

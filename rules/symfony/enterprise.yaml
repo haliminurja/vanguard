@@ -1,0 +1,75 @@
+meta:
+  category: Symfony Enterprise Security
+  version: "4.1.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - OWASP-ASVS-4.0.3
+    - CWE-Top25-2024
+    - NIST-SP-800-53r5
+    - PCI-DSS-v4.0.1
+rules:
+  - id: SYM-ENT-101
+    title: "Symfony trusted_hosts explicitly left empty"
+    description: >
+      Symfony trusted host validation is configured as an empty array. Per the
+      framework configuration, this means the application can respond to any host
+      header value, increasing exposure to host header poisoning in absolute URL
+      generation and security-sensitive flows.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 6.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:N"
+    category: Host Header Hardening
+    enabled: true
+    tags: [symfony, host-header, owasp-a05-2021, cwe-20, asvs-14.4.3]
+    owasp: "A05:2021"
+    cwe: "CWE-20"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'trusted_hosts:\s*\[\s*\]'
+      - type: regex
+        target: php-files
+        pattern: '[''"]trusted_hosts[''"]\s*=>\s*\[\s*\]'
+    remediation: |
+      Define an explicit list of trusted host regular expressions for the
+      application and its legitimate subdomains.
+    references:
+      - "https://symfony.com/doc/current/reference/configuration/framework.html#trusted-hosts"
+      - "https://cwe.mitre.org/data/definitions/20.html"
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+
+  - id: SYM-ENT-102
+    title: "Symfony trusted_hosts configured as catch-all wildcard"
+    description: >
+      Symfony trusted host validation accepts any host because the allowed
+      regular expression is a catch-all wildcard. This defeats host header
+      protection and weakens the security boundary for absolute URL generation.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.4
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Host Header Poisoning
+    enabled: true
+    tags: [symfony, host-header, wildcard, owasp-a05-2021, cwe-20, asvs-14.4.3]
+    owasp: "A05:2021"
+    cwe: "CWE-20"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'trusted_hosts:\s*(\[\s*[''"](\.\*|\^\.\*\$)[''"]\s*\]|[''"](\.\*|\^\.\*\$)[''"])'
+      - type: regex
+        target: php-files
+        pattern: 'Request::setTrustedHosts\s*\(\s*\[\s*[''"](\.\*|\^\.\*\$)[''"]'
+    remediation: |
+      Replace wildcard host patterns with strict canonical host regexes such as
+      `^example\.com$` and specific allowed subdomain patterns only where needed.
+    references:
+      - "https://symfony.com/doc/current/reference/configuration/framework.html#trusted-hosts"
+      - "https://cwe.mitre.org/data/definitions/20.html"
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"

@@ -1,7 +1,7 @@
 
 meta:
   category: WordPress Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "WordPress 5.0-6.x, PHP 8.0-8.4"
@@ -83,33 +83,6 @@ rules:
     references:
       - "https://owasp.org/Top10/A03_2021-Injection/"
       - "https://cwe.mitre.org/data/definitions/89.html"
-  - id: WP-ENT-003
-    title: "Unauthenticated Admin-Ajax Hooks Performing Privileged Actions"
-    description: >
-      Hooks defined with `add_action('wp_ajax_nopriv_*', ...)` bypass authentication and execute actions for guest users. If a developer uses a `wp_ajax_nopriv_` hook to perform a sensitive CRUD action intended only for admins, any unauthenticated attacker can execute it.
-    severity: critical
-    confidence: high
-    cvss_v3:
-      score: 9.1
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-    category: Authentication Bypass
-    enabled: true
-    tags: [auth-bypass, wordpress, owasp-a01-2021, cwe-285, cwe-306]
-    owasp: "A01:2021"
-    cwe: "CWE-285"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: 'add_action\s*\(\s*["'']wp_ajax_nopriv_(update|delete|insert|save|edit|admin|remove|set|create|upload)[^"'']*["'']'
-      - type: regex
-        target: php-files
-        pattern: 'wp_ajax_nopriv_[^\s]+[^}]*(wp_update_user|wp_set_current_user|wp_set_auth_cookie|add_user_to_blog)'
-    remediation: |
-      Ensure administrative or destructive tasks are only ever bound to `wp_ajax_` hooks (which require the user to be logged in) AND the handler function calls `current_user_can()`.
-
-    references:
-      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
-      - "https://cwe.mitre.org/data/definitions/285.html"
   - id: WP-ENT-004
     title: "CSRF - State-Changing Request Without wp_verify_nonce() Validation"
     description: >
@@ -194,34 +167,6 @@ rules:
     references:
       - "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_(SSRF)/"
       - "https://cwe.mitre.org/data/definitions/918.html"
-  - id: WP-ENT-007
-    title: "XML-RPC Enabled (Bruteforce & Pingback SSRF)"
-    description: >
-      The legacy xmlrpc.php endpoint allows attackers to perform massive, amplified
-      bruteforce attacks against `wp_users` via the `system.multicall` method. It
-      also enables Pingback SSRF (`pingback.ping`).
-    severity: medium
-    confidence: medium
-    cvss_v3:
-      score: 6.5
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L"
-    category: Configuration / SSRF
-    enabled: true
-    tags: [xmlrpc, bruteforce, ssrf, pingback, wordpress]
-    owasp: "A10:2021"
-    cwe: "CWE-918"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: 'add_filter\s*\(\s*[''"]xmlrpc_enabled[''"]\s*,\s*[''"]__return_true[''"]'
-    remediation: |
-      Disable XML-RPC entirely if not actively used by an external app (like the WordPress mobile app).
-      ```php
-      add_filter('xmlrpc_enabled', '__return_false');
-      ```
-    references:
-      - "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_(SSRF)/"
-      - "https://cwe.mitre.org/data/definitions/918.html"
   - id: WP-ENT-008
     title: "Potential Sensitive Configuration Export via wp-config.php Path Disclosure"
     description: >
@@ -280,32 +225,6 @@ rules:
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/20.html"
-  - id: WP-ENT-011
-    title: "REST API Route with permission_callback set to __return_true"
-    description: >
-      `register_rest_route()` exposes endpoints with `permission_callback => __return_true`,
-      making sensitive actions publicly accessible without authentication or authorization checks.
-    severity: critical
-    confidence: high
-    cvss_v3:
-      score: 9.1
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-    category: Broken Access Control
-    tags: [wordpress, rest-api, authz, owasp-a01-2021, cwe-862, asvs-4.1.3, nist-ac-3]
-    owasp: "A01:2021"
-    cwe: "CWE-862"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: "register_rest_route\\s*\\([^;]*(permission_callback)\\s*=>\\s*['\\\"]__return_true['\\\"]"
-    remediation: |
-      Use authorization callbacks that check for capability/role/ownership. 
-      Do not use `__return_true` for endpoints processing sensitive data.
-    references:
-      - "https://developer.wordpress.org/rest-api/extending-the-rest-api/adding-custom-endpoints/"
-      - "https://cwe.mitre.org/data/definitions/862.html"
-      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
-
   - id: WP-ENT-012
     title: "wp_handle_upload() Without MIME or Extension Validation"
     description: >

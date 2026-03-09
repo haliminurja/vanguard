@@ -543,7 +543,7 @@ func (s *RulesScanner) checkFileExists(rule config.RuleDefinition, pat config.Pa
 func (s *RulesScanner) checkLineContent(rule config.RuleDefinition, pat config.PatternDef, fc *fileContent, fpath, rel string) []models.Finding {
 	re := s.reCache[pat.Pattern]
 	exRe := s.reCache[pat.ExcludePattern]
-	if exRe != nil && exRe.MatchString(filepath.ToSlash(fpath)) {
+	if excludeMatchesPath(exRe, fpath) {
 		return nil
 	}
 
@@ -577,15 +577,8 @@ func (s *RulesScanner) checkLineContent(rule config.RuleDefinition, pat config.P
 		}
 
 		if isMatch {
-			if exRe != nil {
-				window := buildLineWindow(fc.codeLines, i, 6)
-				if exRe.MatchString(line) || exRe.MatchString(window) {
-					continue
-				}
-
-				if strings.ToLower(strings.TrimSpace(pat.Scope)) == "project" && exRe.MatchString(fc.codeText) {
-					continue
-				}
+			if matchExcluded(pat, exRe, fc, i, i, line, 6) {
+				continue
 			}
 			matched = true
 			if !pat.Negative {
@@ -605,15 +598,9 @@ func (s *RulesScanner) checkLineContent(rule config.RuleDefinition, pat config.P
 			endLine := startLine + strings.Count(fc.codeText[loc[0]:loc[1]], "\n")
 			lineIdx := startLine - 1
 
-			if exRe != nil {
-				matchText := fc.codeText[loc[0]:loc[1]]
-				window := buildRangeWindow(fc.codeLines, lineIdx, endLine-1, 6)
-				if exRe.MatchString(matchText) || exRe.MatchString(window) {
-					continue
-				}
-				if strings.ToLower(strings.TrimSpace(pat.Scope)) == "project" && exRe.MatchString(fc.codeText) {
-					continue
-				}
+			matchText := fc.codeText[loc[0]:loc[1]]
+			if matchExcluded(pat, exRe, fc, lineIdx, endLine-1, matchText, 6) {
+				continue
 			}
 
 			matched = true
@@ -641,34 +628,42 @@ func (s *RulesScanner) checkMultilineContent(rule config.RuleDefinition, pat con
 	}
 
 	exRe := s.reCache[pat.ExcludePattern]
-	if exRe != nil {
-		if exRe.MatchString(fc.codeText) || exRe.MatchString(filepath.ToSlash(fpath)) {
-			return nil
-		}
+	if excludeMatchesPath(exRe, fpath) {
+		return nil
 	}
 
 	indexes := re.FindAllStringIndex(fc.codeText, -1)
-	if len(indexes) == 0 {
-		if pat.Negative {
-			return []models.Finding{s.buildFinding(rule, rel, 0, "[PATTERN NOT FOUND]", nil, 0)}
-		}
-		return nil
-	}
-	if pat.Negative {
-		return nil
-	}
-
 	var findings []models.Finding
+	matched := false
 	for _, loc := range indexes {
 		start := loc[0]
 		lineNum := 1 + strings.Count(fc.codeText[:start], "\n")
+		endLine := lineNum + strings.Count(fc.codeText[loc[0]:loc[1]], "\n")
+		lineIdx := lineNum - 1
+		matchText := fc.codeText[loc[0]:loc[1]]
 
-		text := "[MULTI-LINE MATCH]"
-		if lineNum-1 < len(fc.lines) {
-			text = strings.TrimSpace(fc.lines[lineNum-1])
+		if matchExcluded(pat, exRe, fc, lineIdx, endLine-1, matchText, 0) {
+			continue
 		}
 
-		findings = append(findings, s.buildFinding(rule, rel, lineNum, text, fc.lines, lineNum-1))
+		matched = true
+		if pat.Negative {
+			return nil
+		}
+
+		text := "[MULTI-LINE MATCH]"
+		if lineIdx >= 0 && lineIdx < len(fc.lines) {
+			text = strings.TrimSpace(fc.lines[lineIdx])
+		}
+
+		findings = append(findings, s.buildFinding(rule, rel, lineNum, text, fc.lines, lineIdx))
+	}
+
+	if pat.Negative && !matched {
+		return []models.Finding{s.buildFinding(rule, rel, 0, "[PATTERN NOT FOUND]", nil, 0)}
+	}
+	if !matched {
+		return nil
 	}
 
 	return findings
@@ -1472,6 +1467,33 @@ func buildRangeWindow(lines []string, start, end, pad int) string {
 	}
 
 	return strings.Join(lines[start:end+1], "\n")
+}
+
+func excludeMatchesPath(exRe *regexp.Regexp, fpath string) bool {
+	if exRe == nil {
+		return false
+	}
+	return exRe.MatchString(filepath.ToSlash(fpath))
+}
+
+func matchExcluded(pat config.PatternDef, exRe *regexp.Regexp, fc *fileContent, startLine, endLine int, matchText string, pad int) bool {
+	if exRe == nil {
+		return false
+	}
+	if exRe.MatchString(matchText) {
+		return true
+	}
+
+	window := buildRangeWindow(fc.codeLines, startLine, endLine, pad)
+	if exRe.MatchString(window) {
+		return true
+	}
+
+	if strings.ToLower(strings.TrimSpace(pat.Scope)) == "project" && exRe.MatchString(fc.codeText) {
+		return true
+	}
+
+	return false
 }
 
 func patternAppliesToFile(pat config.PatternDef, relPath string) bool {

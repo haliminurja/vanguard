@@ -1,6 +1,6 @@
 meta:
   category: Yii2 Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Yii2 2.0.x, PHP 8.0-8.4"
@@ -157,49 +157,6 @@ rules:
     references:
       - "https://owasp.org/Top10/A03_2021-Injection/"
       - "https://cwe.mitre.org/data/definitions/1336.html"
-  - id: YII-ENT-006
-    title: "Broken Access Control (Missing checkAccess in Controller)"
-    description: >
-      Yii2 Controller uses RBAC but does not call `Yii::$app->user->can()` or `checkAccess()` for sensitive CRUD actions. This allows IDOR where users can manipulate data that does not belong to them.
-    severity: high
-    confidence: high
-    category: Broken Access Control
-    tags: [auth, rbac, yii2, cwe-284]
-    owasp: "A07:2021"
-    cwe: "CWE-284"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: 'public\s+function\s+action(Update|Delete|Edit)\s*\(.*\)\s*\{[^}]*(findModel|findOne)'
-        exclude_pattern: '(can\(|checkAccess)'
-    remediation: |
-      Always check user permissions before performing actions on models:
-      `if (!Yii::$app->user->can('updatePost', ['post' => $model])) { throw new ForbiddenHttpException(); }`
-
-    references:
-      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
-      - "https://cwe.mitre.org/data/definitions/284.html"
-  - id: YII-ENT-007
-    title: "YII_DEBUG Active in Production Environment"
-    description: >
-      `defined('YII_DEBUG') or define('YII_DEBUG', true);` in `index.php` exposes internal system details, stack traces, and SQL queries on error pages. This provides valuable information for attackers to design further attacks.
-    severity: high
-    confidence: high
-    category: Information Disclosure
-    tags: [debug, disclosure, yii2, cwe-489]
-    owasp: "A05:2021"
-    cwe: "CWE-489"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: "define\\(\\s*['\"]YII_DEBUG['\"]\\s*,\\s*true\\s*\\)"
-    remediation: |
-      Ensure `YII_DEBUG` is set to false in the production `web/index.php` file:
-      `defined('YII_DEBUG') or define('YII_DEBUG', false);`
-    references:
-      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
-      - "https://cwe.mitre.org/data/definitions/489.html"
-
   - id: YII-ENT-008
     title: "CORS Wildcard Origin with Credentials Enabled"
     description: >

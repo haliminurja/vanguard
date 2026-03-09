@@ -1,6 +1,6 @@
 ﻿meta:
   category: Laravel - Security Configuration
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Laravel 10-12, PHP 8.0-8.4"
@@ -17,9 +17,11 @@
 
 rules:
   - id: LAR-SECCFG-001
-    title: "High-Risk Security Configuration Detected"
+    title: "Wildcard credentialed CORS policy in Laravel configuration"
     description: >
-      Security-critical configuration appears to weaken default protections such as CSRF, origin controls, or privileged admin hardening.
+      Laravel CORS configuration combines `allowed_origins => ['*']` with
+      `supports_credentials => true`. This weakens browser origin isolation for
+      authenticated requests.
     severity: high
     confidence: high
     cvss_v3:
@@ -29,12 +31,17 @@ rules:
     tags: [laravel, security-config, hardening, owasp-a05-2021, cwe-16, cis-control-4]
     owasp: "A05:2021"
     cwe: "CWE-16"
+    condition: all
     patterns:
       - type: regex
-        target: any
-        pattern: '[\"]allowed_origins[\"]\s*=>\s*\[\s*[\"]\*[\"]\s*\]|[\"]supports_credentials[\"]\s*=>\s*true'
+        target: config-files
+        pattern: "['\"]allowed_origins['\"]\\s*=>\\s*\\[\\s*['\"]\\*['\"]\\s*\\]"
+      - type: regex
+        target: config-files
+        pattern: "['\"]supports_credentials['\"]\\s*=>\\s*true"
     remediation: |
-      Apply secure-by-default framework configuration profiles and maintain environment-specific hardening baselines with periodic review.
+      Restrict credentialed CORS to explicit trusted origins.
+      Do not combine wildcard origins with cookies or other browser credentials.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/16.html"
@@ -42,9 +49,11 @@ rules:
       - "https://laravel.com/docs"
 
   - id: LAR-SECCFG-002
-    title: "Overly Permissive CORS Policy Indicator"
+    title: "Manual wildcard CORS response header"
     description: >
-      CORS configuration appears overly permissive and may expose authenticated data across origins.
+      Application code emits a wildcard CORS origin header directly. This can
+      expose sensitive responses cross-origin when applied to authenticated or
+      sensitive endpoints.
     severity: high
     confidence: high
     cvss_v3:
@@ -57,7 +66,7 @@ rules:
     patterns:
       - type: regex
         target: any
-        pattern: '[''"]Access-Control-Allow-Origin[''"]\s*=>\s*[''"]\*[''"]|[''"]allowed_origins[''"]\s*=>\s*\[\s*[''"]\*[''"]\s*\]'
+        pattern: "['\"]Access-Control-Allow-Origin['\"]\\s*=>\\s*['\"]\\*['\"]|header\\s*\\(\\s*['\"]Access-Control-Allow-Origin:\\s*\\*"
     remediation: |
       Use strict origin allowlists and avoid wildcard origins for sensitive or credentialed endpoints.
     references:

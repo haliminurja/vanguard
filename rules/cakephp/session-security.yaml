@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: CakePHP - Session Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CakePHP 3.0-5.x, PHP 8.0-8.4"
@@ -17,9 +17,11 @@
 
 rules:
   - id: CAKE-SESSION-001
-    title: "Insecure Session Cookie or Session Transport Setting"
+    title: "CakePHP session cookie configuration is weak"
     description: >
-      Session security flags appear weak or disabled, potentially exposing authenticated sessions to interception or misuse.
+      CakePHP session configuration disables secure or HttpOnly cookies, or
+      leaves SameSite overly permissive. This increases exposure to theft and
+      cross-site abuse.
     severity: high
     confidence: high
     cvss_v3:
@@ -31,36 +33,66 @@ rules:
     cwe: "CWE-614"
     patterns:
       - type: regex
-        target: any
-        pattern: '[\"](cookieSecure|session.cookie_secure)[\"]\s*=>\s*false'
+        target: config-files
+        pattern: '["''](cookieSecure|session\.cookie_secure)["'']\s*=>\s*false|["'']cookieHttpOnly["'']\s*=>\s*false|["'']session\.cookie_samesite["'']\s*=>\s*[''"]?none[''"]?'
     remediation: |
-      Enforce secure cookie attributes (Secure, HttpOnly, SameSite), require HTTPS everywhere, and rotate session identifiers after privilege changes.
+      Keep CakePHP session cookies secure, HttpOnly, and SameSite-restricted in
+      production configuration.
     references:
       - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
       - "https://cwe.mitre.org/data/definitions/614.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://book.cakephp.org/4/en/index.html"
+      - "https://book.cakephp.org/5/en/development/sessions.html"
 
   - id: CAKE-SESSION-002
-    title: "Session Identifier Exposure via URL or User Input"
+    title: "CakePHP session configuration allows non-cookie transport"
     description: >
-      Session identifiers may be propagated via URL/query input, increasing hijacking and fixation risk.
+      CakePHP session configuration weakens cookie-only session handling through
+      low-level PHP session ini options. This increases fixation exposure.
     severity: high
     confidence: high
     cvss_v3:
-      score: 7.4
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+      score: 7.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
     category: Session Security
-    tags: [cakephp, session-security, owasp-a07-2021, cwe-384, asvs-3.4.2]
+    tags: [cakephp, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
     owasp: "A07:2021"
     cwe: "CWE-384"
     patterns:
       - type: regex
-        target: any
-        pattern: 'session_id\s*\(\s*\$_(?:GET|POST|REQUEST)\)|PHPSESSID='
+        target: config-files
+        pattern: '["'']session\.use_only_cookies["'']\s*=>\s*(false|0)|["'']session\.use_trans_sid["'']\s*=>\s*(true|1)'
+      - type: regex
+        target: php-files
+        pattern: 'session_id\s*\(\s*(\$this->request->get(Query|Data)\s*\(|\$_(?:GET|POST|REQUEST|COOKIE))|->id\s*\(\s*\$this->request->get(Query|Data)\s*\('
     remediation: |
-      Never transport session IDs in URLs. Regenerate IDs on privilege change and enforce secure session cookies.
+      Restrict CakePHP sessions to secure cookies only and never accept
+      request-controlled identifiers.
     references:
       - "https://cwe.mitre.org/data/definitions/384.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://book.cakephp.org/4/en/index.html"
+      - "https://book.cakephp.org/5/en/development/sessions.html"
+
+  - id: CAKE-SESSION-003
+    title: "CakePHP session regeneration preserves the old session"
+    description: >
+      Session rotation is performed without destroying the old session, weakening
+      expected fixation protection during authentication or privilege changes.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 6.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: Session Security
+    tags: [cakephp, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
+    owasp: "A07:2021"
+    cwe: "CWE-384"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'session_regenerate_id\s*\(\s*(false|0)\s*\)'
+    remediation: |
+      Destroy the old session when rotating identifiers after login or other
+      privileged transitions.
+    references:
+      - "https://cwe.mitre.org/data/definitions/384.html"
+      - "https://www.php.net/manual/en/function.session-regenerate-id.php"

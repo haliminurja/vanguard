@@ -1,0 +1,70 @@
+meta:
+  category: WordPress Enterprise Security
+  version: "4.1.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "WordPress 5.0-6.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - OWASP-ASVS-4.0.3
+    - CWE-Top25-2024
+    - NIST-SP-800-53r5
+    - PCI-DSS-v4.0.1
+rules:
+  - id: WP-ENT-101
+    title: "Privileged wp_ajax_ handler without capability check"
+    description: >
+      A privileged WordPress AJAX action is registered for authenticated users
+      but there is no clear capability enforcement such as current_user_can().
+      Any logged-in user may be able to reach the action regardless of intended
+      role boundaries.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Broken Access Control
+    enabled: true
+    tags: [wordpress, ajax, authz, owasp-a01-2021, cwe-862, asvs-4.1.3]
+    owasp: "A01:2021"
+    cwe: "CWE-862"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'add_action\s*\(\s*[''"]wp_ajax_(update|delete|save|edit|remove|create|upload|settings|options|role|user|plugin|theme)[^''"]*[''"]'
+        exclude_pattern: '(current_user_can|user_can|manage_options|edit_users|delete_users|activate_plugins|install_plugins|upload_files)'
+    remediation: |
+      Enforce capability checks in every privileged AJAX handler, for example
+      with current_user_can(), and combine them with nonce validation.
+    references:
+      - "https://developer.wordpress.org/reference/functions/check_ajax_referer/"
+      - "https://cwe.mitre.org/data/definitions/862.html"
+      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+
+  - id: WP-ENT-102
+    title: "check_ajax_referer() used without a specific action"
+    description: >
+      check_ajax_referer() is called with the default `-1` action or without an
+      explicit action string. This weakens CSRF token scoping and makes it
+      easier to reuse nonces across unrelated operations.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 6.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:L/I:H/A:N"
+    category: CSRF
+    enabled: true
+    tags: [wordpress, ajax, csrf, nonce, owasp-a05-2021, cwe-352, asvs-4.3.2]
+    owasp: "A05:2021"
+    cwe: "CWE-352"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'check_ajax_referer\s*\(\s*(-1|[''"]-1[''"])?\s*(,|\))'
+    remediation: |
+      Always pass a specific action string to check_ajax_referer() and pair it
+      with explicit authorization checks such as current_user_can().
+    references:
+      - "https://developer.wordpress.org/reference/functions/check_ajax_referer/"
+      - "https://cwe.mitre.org/data/definitions/352.html"
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"

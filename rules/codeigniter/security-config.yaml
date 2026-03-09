@@ -1,6 +1,6 @@
 ﻿meta:
   category: CodeIgniter 3 - Security Configuration
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CodeIgniter 2.x-3.x, PHP 8.0-8.4"
@@ -17,30 +17,31 @@
 
 rules:
   - id: CI-SECCFG-001
-    title: "High-Risk Security Configuration Detected"
+    title: "CodeIgniter trusted proxy configuration is overly broad"
     description: >
-      Security-critical configuration appears to weaken default protections such as CSRF, origin controls, or privileged admin hardening.
+      CodeIgniter trusted proxy settings allow all proxies or an effectively
+      unbounded range. This weakens trust decisions based on forwarded headers
+      such as client IP, scheme, or host.
     severity: high
     confidence: high
     cvss_v3:
-      score: 8.0
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:N"
     category: Security Configuration
-    tags: [codeigniter, security-config, hardening, owasp-a05-2021, cwe-16, cis-control-4]
+    tags: [codeigniter, security-config, proxy, owasp-a05-2021, cwe-346, asvs-14.4.3]
     owasp: "A05:2021"
-    cwe: "CWE-16"
+    cwe: "CWE-346"
     patterns:
       - type: regex
-        target: any
-        pattern: '\$config\[\s*[\"]csrf_protection[\"]\s*\]\s*=\s*(FALSE|false|0)'
+        target: config-files
+        pattern: '\$config\[''proxy_ips''\]\s*=\s*[''"](\*|0\.0\.0\.0/0|::/0)[''"]'
     remediation: |
-      Apply secure-by-default framework configuration profiles and maintain environment-specific hardening baselines with periodic review.
+      Restrict trusted proxies to the specific addresses or CIDR ranges of your
+      reverse-proxy infrastructure.
     references:
+      - "https://codeigniter.com/userguide3/general/urls.html"
+      - "https://cwe.mitre.org/data/definitions/346.html"
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
-      - "https://cwe.mitre.org/data/definitions/16.html"
-      - "https://owasp.org/www-project-application-security-verification-standard/"
-      - "https://codeigniter.com/userguide3/"
-
   - id: CI-SECCFG-002
     title: "Overly Permissive CORS Policy Indicator"
     description: >

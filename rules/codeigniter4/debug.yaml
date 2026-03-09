@@ -1,6 +1,6 @@
 ﻿meta:
   category: CodeIgniter 4 - Information Disclosure
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CodeIgniter 4.x, PHP 8.0-8.4"
@@ -32,7 +32,7 @@ rules:
     patterns:
       - type: regex
         target: any
-        pattern: 'CI_ENVIRONMENT\s*=\s*development|public\s+\$enabled\s*=\s*true'
+        pattern: 'CI_ENVIRONMENT\s*=\s*development'
     remediation: |
       Disable debug features in production and route diagnostics into secure observability tooling with strict access controls.
     references:
@@ -40,28 +40,30 @@ rules:
       - "https://cwe.mitre.org/data/definitions/489.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
       - "https://codeigniter.com/user_guide/"
-
   - id: CI4-DEBUG-002
-    title: "Debug Functions Present in Runtime Code"
+    title: "CodeIgniter 4 getLastQuery() exposed to runtime output"
     description: >
-      Debug helper functions are present and may expose sensitive runtime data if reached in production paths.
+      CodeIgniter 4 database debugging helpers are exposed in runtime code.
+      Returning or printing the last executed SQL query can leak schema details,
+      table names, and raw query fragments to users.
     severity: medium
     confidence: high
     cvss_v3:
       score: 6.0
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
     category: Information Disclosure
-    tags: [codeigniter4, debug, owasp-a05-2021, cwe-489, asvs-14.3.1]
+    tags: [codeigniter4, debug, sql-disclosure, owasp-a05-2021, cwe-209, asvs-14.3.1]
     owasp: "A05:2021"
-    cwe: "CWE-489"
+    cwe: "CWE-209"
     patterns:
       - type: regex
         target: php-files
-        pattern: '\b(var_dump|print_r|var_export)\s*\('
-        exclude_pattern: '(//|#\s|/\*|test|Test|spec|hexdump|mysqldump|mongodump|pg_dump)'
+        pattern: '(echo|print|return|die|exit)[^;\n]*->getLastQuery\s*\('
+        exclude_pattern: '(log_message|logger|test|Test|spec)'
     remediation: |
-      Remove debug statements from production code and use controlled logging with sanitization and access controls.
+      Do not expose getLastQuery() to users. Keep query diagnostics in secured
+      logs or local-only debugging workflows.
     references:
-      - "https://cwe.mitre.org/data/definitions/489.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
-      - "https://codeigniter.com/user_guide/"
+      - "https://codeigniter4.github.io/userguide/database/helpers.html"
+      - "https://cwe.mitre.org/data/definitions/209.html"
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"

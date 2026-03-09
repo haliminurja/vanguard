@@ -1,0 +1,74 @@
+meta:
+  category: CakePHP Enterprise Security
+  version: "4.1.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "CakePHP 3.0-5.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - OWASP-ASVS-4.0.3
+    - CWE-Top25-2024
+    - NIST-SP-800-53r5
+    - PCI-DSS-v4.0.1
+rules:
+  - id: CAKE-ENT-101
+    title: "DebugKit loaded without a debug environment guard"
+    description: >
+      CakePHP DebugKit is loaded directly without a surrounding debug guard.
+      DebugKit exposes runtime diagnostics, SQL queries, configuration details,
+      and other sensitive data that should never be broadly accessible.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
+    category: Information Disclosure
+    enabled: true
+    tags: [cakephp, debugkit, diagnostics, owasp-a05-2021, cwe-200, cwe-489, asvs-14.3.2]
+    owasp: "A05:2021"
+    cwe: "CWE-200"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(addPlugin|Plugin::load)\s*\(\s*[''"]DebugKit[''"]\s*\)'
+        exclude_pattern: '(Configure::read\(\s*[''"]debug[''"]\s*\)|if\s*\(\s*Configure::read)'
+    remediation: |
+      Load DebugKit only when debug mode is explicitly enabled for local
+      development and keep it disabled in shared or production-like environments.
+    references:
+      - "https://book.cakephp.org/debugkit/"
+      - "https://cwe.mitre.org/data/definitions/200.html"
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+
+  - id: CAKE-ENT-102
+    title: "CakePHP redirect helper with untrusted target"
+    description: >
+      CakePHP redirect helpers receive the destination directly from request
+      query or body values. Attackers can abuse this to bounce users to external
+      domains or manipulate trusted user navigation.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 6.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+    category: Open Redirect
+    enabled: true
+    tags: [cakephp, redirect, phishing, owasp-a01-2021, cwe-601, asvs-5.1.5]
+    owasp: "A01:2021"
+    cwe: "CWE-601"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->redirect\s*\(\s*\$this->request->getQuery\s*\(\s*[''"](redirect|next|url|return|return_url)[''"]'
+        exclude_pattern: '(filter_var|parse_url|Router::url|in_array)'
+      - type: regex
+        target: php-files
+        pattern: '->redirect\s*\(\s*\$this->request->getData\s*\(\s*[''"](redirect|next|url|return|return_url)[''"]'
+        exclude_pattern: '(filter_var|parse_url|Router::url|in_array)'
+    remediation: |
+      Redirect only to internal allowlisted paths or route arrays.
+      Validate destination values before invoking redirect().
+    references:
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"
+      - "https://cwe.mitre.org/data/definitions/601.html"
+      - "https://book.cakephp.org/4/en/controllers/request-response.html"

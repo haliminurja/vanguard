@@ -1,7 +1,7 @@
 
 meta:
   category: CodeIgniter 3 Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CodeIgniter 2.x-3.x, PHP 8.0-8.4"
@@ -182,26 +182,6 @@ rules:
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/22.html"
-  - id: CI-ENT-007
-    title: "CSRF Protection Disabled"
-    description: >
-      CodeIgniter's built-in CSRF protection is disabled in `config.php`. Without this, all POST forms in the application are vulnerable to Cross-Site Request Forgery attacks.
-    severity: critical
-    confidence: high
-    category: CSRF
-    tags: [csrf, codeigniter, cwe-352]
-    owasp: "A05:2021"
-    cwe: "CWE-352"
-    patterns:
-      - type: regex
-        target: config-files
-        pattern: '\$config\[''csrf_protection''\]\s*=\s*(FALSE|false|0)\s*;'
-    remediation: |
-      Enable CSRF protection: `$config['csrf_protection'] = TRUE;`
-
-    references:
-      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
-      - "https://cwe.mitre.org/data/definitions/352.html"
   - id: CI-ENT-008
     title: "Base URL Not Defined (Auto-detection Risk)"
     description: >
@@ -247,53 +227,3 @@ rules:
       - "https://cwe.mitre.org/data/definitions/16.html"
       - "https://codeigniter.com/userguide3/general/urls.html"
 
-  - id: CI-ENT-010
-    title: "Database Debug Enabled"
-    description: >
-      `db_debug` enabled can leak SQL errors and internal schema details to users,
-      aiding exploitation and reconnaissance.
-    severity: high
-    confidence: high
-    cvss_v3:
-      score: 7.5
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"
-    category: Information Disclosure
-    tags: [codeigniter, db, disclosure, owasp-a05-2021, cwe-209, asvs-9.5.1]
-    owasp: "A05:2021"
-    cwe: "CWE-209"
-    patterns:
-      - type: regex
-        target: config-files
-        pattern: '\$db\[[^\]]+\]\[''db_debug''\]\s*=\s*(TRUE|true|1)\s*;'
-    remediation: |
-      Set `db_debug` to FALSE in production and centralize database error logging.
-    references:
-      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
-      - "https://cwe.mitre.org/data/definitions/209.html"
-      - "https://codeigniter.com/userguide3/database/configuration.html"
-
-  - id: CI-ENT-011
-    title: "Session Cookie Not Forced to Secure Channel"
-    description: >
-      If `cookie_secure` is disabled, session cookies can be transmitted over plaintext HTTP,
-      exposing authentication material to interception.
-    severity: high
-    confidence: high
-    cvss_v3:
-      score: 7.4
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-    category: Session Security
-    tags: [codeigniter, cookie, session, owasp-a07-2021, cwe-614, asvs-3.4.3]
-    owasp: "A07:2021"
-    cwe: "CWE-614"
-    patterns:
-      - type: regex
-        target: config-files
-        pattern: '\$config\[''cookie_secure''\]\s*=\s*(FALSE|false|0)\s*;'
-    remediation: |
-      Enable secure cookies and enforce HTTPS everywhere:
-      `$config['cookie_secure'] = TRUE;`
-    references:
-      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
-      - "https://cwe.mitre.org/data/definitions/614.html"
-      - "https://codeigniter.com/userguide3/libraries/sessions.html"

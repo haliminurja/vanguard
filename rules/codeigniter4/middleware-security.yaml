@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: CodeIgniter 4 - Middleware Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CodeIgniter 4.x, PHP 8.0-8.4"
@@ -17,11 +17,12 @@
 
 rules:
   - id: CI4-MID-001
-    title: "Sensitive Route Without Clear Middleware Guard"
+    title: "Sensitive CodeIgniter 4 route without clear auth filter"
     description: >
-      Sensitive or privileged route/action patterns are detected without explicit middleware/access guard indicators in the same context.
+      Sensitive mutating CodeIgniter 4 routes are declared without visible auth
+      filter indicators in the same routing context.
     severity: high
-    confidence: medium
+    confidence: high
     cvss_v3:
       score: 8.2
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
@@ -31,21 +32,23 @@ rules:
     cwe: "CWE-862"
     patterns:
       - type: regex
-        target: any
+        target: routes-files
         pattern: '\$routes->(post|put|patch|delete)\(\s*[''"][^''"]*(admin|account|settings|billing|profile|payment)[^''"]*[''"]'
-        exclude_pattern: '(auth|middleware|filter|isGranted|denyAccessUnlessGranted|current_user_can|checkAccess|isAuthorized|Gate::|can\()'
+        exclude_pattern: '(filter[s]?\s*=>\s*[''"][^''"]*(auth|session|jwt|api|bearer)|group\s*\([^)]*filter)'
     remediation: |
-      Apply explicit authentication and authorization middleware for privileged routes.
-      Enforce deny-by-default access policy and verify ownership at controller/service layer.
+      Apply explicit auth filters to privileged routes and verify authorization
+      deeper in the controller or service layer.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/862.html"
       - "https://codeigniter.com/user_guide/"
 
   - id: CI4-MID-002
-    title: "Middleware Bypass or Security Filter Disabled"
+    title: "CodeIgniter 4 CSRF filter broadly bypassed"
     description: >
-      Middleware bypass patterns or disabled security filters are detected, increasing the risk of unprotected request handling.
+      CodeIgniter 4 configuration exempts every route from the CSRF filter by
+      using a wildcard exception list. This effectively disables CSRF protection
+      for browser-based state-changing requests.
     severity: high
     confidence: high
     cvss_v3:
@@ -57,11 +60,11 @@ rules:
     cwe: "CWE-16"
     patterns:
       - type: regex
-        target: any
+        target: config-files
         pattern: 'csrf\s*=>\s*\[\s*[''"]except[''"]\s*=>\s*\[\s*[''"]\*[''"]'
     remediation: |
-      Remove middleware bypass behavior from production paths and restore security filters.
-      Review exception lists and route-level overrides regularly.
+      Remove wildcard CSRF exceptions and keep exceptions narrowly scoped to
+      endpoints that are demonstrably safe or protected by a separate mechanism.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/16.html"

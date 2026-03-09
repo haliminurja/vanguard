@@ -1,6 +1,6 @@
 meta:
   category: Business Logic & Access Control
-  version: "4.0.0"
+  version: "4.1.0"
   updated: "2026"
   maintainer: "Security Engineering Team"
   scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
@@ -8,12 +8,68 @@ meta:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
 rules:
-  - id: BIZ-007
-    title: "Quantity/Amount without minimum and maximum limits"
+  - id: BIZ-001
+    title: "Sensitive business fields assigned directly from raw input"
     description: >
-      Quantity or amount from user input is not validated against minimum and maximum limits. Attackers input negative values (causing refunds or credits), zero (bypassing costs), or very large values (integer overflow, DoS, or resource exhaustion).
-
+      Role, status, price, amount, balance, or discount fields are assigned
+      directly from raw request input. This is a common source of privilege
+      abuse, pricing manipulation, and broken workflow enforcement.
     severity: high
+    confidence: high
+    category: Business Logic
+    tags: [business-logic, access-control, pricing, cwe-840, owasp-a04]
+    cwe: "CWE-840"
+    owasp: "A04:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$(price|amount|balance|discount|creditLimit|credit_limit|role|status|isAdmin|is_admin)[A-Za-z0-9_]*\s*=\s*(\$_(?:GET|POST|REQUEST)|filter_input\s*\()'
+      - type: regex
+        target: php-files
+        pattern: '["''](price|amount|balance|discount|credit_limit|role|status|is_admin)["'']\s*=>\s*(\$_(?:GET|POST|REQUEST)|filter_input\s*\()'
+    remediation: |
+      Derive privileged business values server-side. Treat client input only as
+      untrusted hints and validate it against workflow, role, and ownership
+      constraints before persistence.
+    references:
+      - "https://cwe.mitre.org/data/definitions/840.html"
+      - "https://owasp.org/www-project-top-ten/"
+
+  - id: BIZ-008
+    title: "Financial or pricing mutation uses raw request-controlled amount"
+    description: >
+      Business-sensitive operations such as refunds, credits, balance
+      adjustments, transfers, or price changes use raw request input directly as
+      the controlling amount. This can lead to negative-value abuse, overflows,
+      and unauthorized value transfer.
+    severity: high
+    confidence: high
+    category: Business Logic
+    tags: [business-logic, finance, pricing, cwe-840, owasp-a04]
+    cwe: "CWE-840"
+    owasp: "A04:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(refund|credit|debit|withdraw|transfer|adjustBalance|setPrice|applyDiscount)\s*\([^)]*(\$_(?:GET|POST|REQUEST)|filter_input\s*\()'
+      - type: regex
+        target: php-files
+        pattern: '\$(balance|wallet|credit|stock)[A-Za-z0-9_]*\s*[-+]=\s*(\$_(?:GET|POST|REQUEST)|filter_input\s*\()'
+    remediation: |
+      Normalize and bound monetary or quantity input before use. Enforce server-
+      side invariant checks for minimums, maximums, sign, currency, and object
+      ownership before any state change.
+    references:
+      - "https://cwe.mitre.org/data/definitions/840.html"
+      - "https://owasp.org/www-project-top-ten/"
+
+  - id: BIZ-007
+    title: "Quantity or amount sourced from raw input without clear normalization"
+    description: >
+      Quantity or amount values are read directly from raw input using
+      superglobals or `filter_input()` without visible normalization on the same
+      line. This often precedes negative-value, zero-value, or overflow abuse.
+    severity: medium
     confidence: medium
     category: Input Validation
     tags: [business-logic, input-validation, cwe-20, owasp-a04]
@@ -22,13 +78,10 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: '\$request->(input|get|integer)\s*\(\s*["''](quantity|qty|amount|count|units|seats|tickets|items)["'']'
-        exclude_pattern: '(validate|min:|max:|between:|gt:|gte:|integer|numeric|->integer\()'
+        pattern: '(filter_input\s*\(\s*INPUT_(GET|POST|REQUEST)\s*,\s*["''](quantity|qty|amount|count|units|seats|tickets|items)["'']|\$_(?:GET|POST|REQUEST)\s*\[\s*["''](quantity|qty|amount|count|units|seats|tickets|items)["'']\s*\])'
+        exclude_pattern: '(abs|intval|floatval|round|floor|ceil|max|min|clamp|range)'
     remediation: |
-      Always validate quantity limits with strict rules:
-        $request->validate([
-            'quantity' => 'required|integer|min:1|max:100',
-            'amount'   => 'required|numeric|min:0.01|max:999999.99',
-        ]);
+      Normalize quantity and amount values immediately after reading them and
+      apply explicit min/max bounds before they influence pricing or inventory.
     references:
       - "https://cwe.mitre.org/data/definitions/20.html"

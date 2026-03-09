@@ -1,0 +1,74 @@
+meta:
+  category: Yii2 Enterprise Security
+  version: "4.1.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Yii2 2.0.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - OWASP-ASVS-4.0.3
+    - CWE-Top25-2024
+    - NIST-SP-800-53r5
+    - PCI-DSS-v4.0.1
+rules:
+  - id: YII-ENT-101
+    title: "Yii2 debug module exposed with broad allowed IPs"
+    description: >
+      The Yii2 debug module is enabled and its IP allowlist is effectively open.
+      This exposes request details, SQL activity, logs, and runtime internals
+      beyond local development boundaries.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
+    category: Information Disclosure
+    enabled: true
+    tags: [yii2, debug, diagnostics, owasp-a05-2021, cwe-200, cwe-489, asvs-14.3.2]
+    owasp: "A05:2021"
+    cwe: "CWE-200"
+    condition: all
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '[''"]debug[''"]\s*=>\s*\[\s*[''"]class[''"]\s*=>\s*[''"]yii\\\\debug\\\\Module[''"]'
+      - type: regex
+        target: php-files
+        pattern: '[''"]allowedIPs[''"]\s*=>\s*\[\s*[''"](\*|0\.0\.0\.0|0\.0\.0\.0/0|::/0)[''"]'
+    remediation: |
+      Enable the debug module only for local development or a tightly
+      restricted allowlist of trusted developer IPs.
+    references:
+      - "https://www.yiiframework.com/extension/yiisoft/yii2-debug"
+      - "https://cwe.mitre.org/data/definitions/200.html"
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+
+  - id: YII-ENT-102
+    title: "Yii2 setReturnUrl() fed from request input"
+    description: >
+      Yii2 stores a post-login or post-action return URL directly from request
+      input. Attackers can tamper with the destination and trigger open
+      redirects after authentication or workflow completion.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 6.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+    category: Open Redirect
+    enabled: true
+    tags: [yii2, redirect, return-url, owasp-a01-2021, cwe-601, asvs-5.1.5]
+    owasp: "A01:2021"
+    cwe: "CWE-601"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Yii::\$app->user->setReturnUrl\s*\(\s*Yii::\$app->request->(get|post)\s*\('
+      - type: regex
+        target: php-files
+        pattern: '->setReturnUrl\s*\(\s*Yii::\$app->request->getReferrer\s*\('
+    remediation: |
+      Store only internal, allowlisted return URLs. Reject external absolute
+      URLs and validate paths before calling setReturnUrl().
+    references:
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"
+      - "https://cwe.mitre.org/data/definitions/601.html"

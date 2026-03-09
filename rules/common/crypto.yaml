@@ -1,6 +1,6 @@
 meta:
   category: Cryptography
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
@@ -9,12 +9,14 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: CRY-H02
-    title: "sha1() used for security-sensitive hashing"
+    title: "Weak hash used for password, token, or secret derivation"
     description: >
-      sha1() produces a 160-bit hash. SHA-1 is deprecated by NIST and IETF for security use. Known practical collision attacks exist. Using sha1() for HMAC signatures, token generation, or password storage is inadequate.
-
-    severity: medium
-    confidence: medium
+      Passwords, reset tokens, API keys, or similar secrets are derived with
+      `md5()`, `sha1()`, or `hash('md5'|'sha1', ...)`. These algorithms are too
+      weak for password or security-token handling and are easy to brute-force
+      at scale.
+    severity: high
+    confidence: high
     category: Weak Hash
     tags: [crypto, weak-hash, owasp-a02, cwe-327]
     owasp: "A02:2021"
@@ -22,20 +24,26 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: '\bsha1\s*\('
-        exclude_pattern: '(//|#\s|/\*|test|Test|spec|git|legacy|uuid|oauth)'
+        pattern: '\$(password|passwd|pwd|token|resetToken|reset_token|secret|apiKey|api_key|authKey|auth_key)[A-Za-z0-9_]*\s*=\s*(md5|sha1)\s*\('
+      - type: regex
+        target: php-files
+        pattern: '\$(password|passwd|pwd|token|resetToken|reset_token|secret|apiKey|api_key|authKey|auth_key)[A-Za-z0-9_]*\s*=\s*hash\s*\(\s*["''](md5|sha1)["'']'
+      - type: regex
+        target: php-files
+        pattern: '["''](password|passwd|pwd|token|reset_token|secret|api_key|auth_key)["'']\s*=>\s*(md5|sha1|hash\s*\(\s*["''](md5|sha1)["''])'
     remediation: |
-      Replace with SHA-256 or stronger:
-        hash('sha256', $data)
-        hash_hmac('sha256', $data, $secret)
-      For tokens: use Str::random(64) or bin2hex(random_bytes(32)).
+      Use `password_hash()` / `password_verify()` for passwords and
+      `random_bytes()` for tokens. Never derive long-lived secrets from MD5 or
+      SHA-1.
     references:
       - "https://cwe.mitre.org/data/definitions/327.html"
-  - id: CRY-C02
-    title: "Obsolete or broken cipher algorithms"
-    description: >
-      DES, 3DES, RC2, RC4, or BLOWFISH ciphers are used for encryption. These ciphers are broken (RC4), have key lengths too short for modern security (DES 56-bit), or are deprecated by NIST (3DES after 2023).
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"
 
+  - id: CRY-C02
+    title: "Obsolete cipher or ECB mode used for encryption"
+    description: >
+      Encryption uses DES, 3DES, RC2, RC4, Blowfish, or AES-ECB mode. These
+      ciphers and modes are obsolete or unsafe for modern application security.
     severity: high
     confidence: high
     category: Broken Cipher
@@ -45,20 +53,20 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: 'openssl_(encrypt|decrypt)\s*\([^,]+,[^"'']*\b(DES|3DES|RC2|RC4|BLOWFISH|des-|bf-|rc4)\b'
-        exclude_pattern: '(AES|aes)'
+        pattern: 'openssl_(encrypt|decrypt)\s*\([^,]+,\s*["''](DES|3DES|RC2|RC4|BLOWFISH|AES-128-ECB|AES-192-ECB|AES-256-ECB|des-[^"'']*|bf-[^"'']*|rc4)[^"'']*["'']'
     remediation: |
-      Use AES-256-GCM for new encryption:
-        $iv        = random_bytes(openssl_cipher_iv_length('AES-256-GCM'));
-        $encrypted = openssl_encrypt($data, 'AES-256-GCM', $key, 0, $iv, $tag);
+      Use authenticated encryption such as AES-256-GCM or ChaCha20-Poly1305.
+      Avoid ECB mode entirely and retire legacy cipher suites.
     references:
       - "https://cwe.mitre.org/data/definitions/327.html"
       - "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-131Ar2.pdf"
-  - id: CRY-C03
-    title: "Hardcoded or static initialization vector (IV / nonce)"
-    description: >
-      The IV or nonce variable is assigned a hardcoded string or byte sequence. A fixed IV with the same key encrypts identical plaintext to identical ciphertext, breaking IND-CPA security and enabling block-alignment attacks (e.g., CBC byte-flipping).
 
+  - id: CRY-C03
+    title: "Hardcoded initialization vector, nonce, or salt"
+    description: >
+      IV, nonce, or salt values are assigned from hardcoded literals instead of
+      generated randomness. Reusing fixed values breaks key cryptographic
+      security properties and can expose plaintext relationships.
     severity: high
     confidence: high
     category: Hardcoded IV
@@ -68,20 +76,19 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: '\$\w*(iv|nonce|salt)\w*\s*=\s*["''][^"''\$]{8,}["'']'
-        exclude_pattern: '(random|openssl_random_pseudo_bytes|random_bytes|bin2hex)'
+        pattern: '\$(iv|nonce|salt)[A-Za-z0-9_]*\s*=\s*["''][^"''\$]{8,}["'']'
+        exclude_pattern: '(random|openssl_random_pseudo_bytes|random_bytes|bin2hex|base64_decode\s*\()'
     remediation: |
-      Always create an unique random IV for each encryption operation:
-        $iv        = random_bytes(openssl_cipher_iv_length('AES-256-CBC'));
-        $encrypted = openssl_encrypt($data, 'AES-256-CBC', $key, 0, $iv);
-        $stored    = base64_encode($iv . $encrypted);
+      Generate fresh random IV or nonce values for every encryption operation
+      with `random_bytes()` or an equivalent CSPRNG-backed API.
     references:
       - "https://cwe.mitre.org/data/definitions/330.html"
 
   - id: CRY-C04
-    title: "Weak RSA Padding (PKCS#1 v1.5) Vulnerable to Bleichenbacher Oracle"
+    title: "Weak RSA padding with PKCS#1 v1.5"
     description: >
-      openssl_public_encrypt() or openssl_private_decrypt() is used with OPENSSL_PKCS1_PADDING (or padding is left at default). PKCS1 v1.5 padding is vulnerable to Bleichenbacher's Oracle attacks, where an attacker can decrypt ciphertext or forge signatures by observing error responses (padding oracle).
+      RSA encryption or decryption uses PKCS#1 v1.5 padding, which is vulnerable
+      to padding-oracle style attacks and should be replaced for new designs.
     severity: high
     confidence: high
     category: Weak Padding
@@ -94,8 +101,8 @@ rules:
         pattern: 'openssl_(public_encrypt|private_decrypt)\s*\([^,]+,\s*[^,]+,\s*[^,]+(?:,\s*OPENSSL_PKCS1_PADDING)?\s*\)'
         exclude_pattern: '(OPENSSL_PKCS1_OAEP_PADDING)'
     remediation: |
-      Use secure OAEP padding to prevent adaptive chosen-ciphertext attacks:
-      `openssl_public_encrypt($data, $encrypted, $pubKey, OPENSSL_PKCS1_OAEP_PADDING);`
+      Use OAEP padding for encryption and modern signature schemes instead of
+      PKCS#1 v1.5 where compatibility requirements do not force legacy behavior.
     references:
       - "https://cwe.mitre.org/data/definitions/327.html"
       - "https://robotattack.org/"

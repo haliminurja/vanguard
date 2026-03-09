@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -128,6 +129,42 @@ func TestAllRulesHaveUniqueIDs(t *testing.T) {
 			continue
 		}
 		seen[id] = item.File
+	}
+}
+
+func TestRuleFilesDoNotContainDuplicateRuleSignatures(t *testing.T) {
+	root := filepath.Join("..", "..", "rules")
+	var files []string
+	if err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml") {
+			files = append(files, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("failed walking rules dir: %v", err)
+	}
+
+	for _, file := range files {
+		rules, err := LoadRulesFromFile(file)
+		if err != nil {
+			t.Fatalf("failed to parse rule file %s: %v", file, err)
+		}
+
+		seen := make(map[string]string, len(rules))
+		for _, rule := range rules {
+			sig := duplicateSignature(rule)
+			if prev, ok := seen[sig]; ok {
+				t.Errorf("duplicate rule signature in %s for rules %s and %s", file, prev, rule.ID)
+				continue
+			}
+			seen[sig] = rule.ID
+		}
 	}
 }
 
@@ -514,4 +551,32 @@ func hasOWASPCategoryTag(tags []string) bool {
 		}
 	}
 	return false
+}
+
+func duplicateSignature(rule RuleDefinition) string {
+	parts := make([]string, 0, len(rule.Patterns))
+	for _, p := range rule.Patterns {
+		parts = append(parts, strings.Join([]string{
+			strings.ToLower(strings.TrimSpace(p.Type)),
+			strings.ToLower(strings.TrimSpace(p.Target)),
+			strings.TrimSpace(p.Pattern),
+			strings.ToLower(strings.TrimSpace(p.Scope)),
+			strings.TrimSpace(p.ExcludePattern),
+			boolString(p.Negative),
+		}, "|"))
+	}
+	sort.Strings(parts)
+
+	return strings.Join([]string{
+		strings.ToLower(strings.TrimSpace(rule.Category)),
+		strings.ToLower(strings.TrimSpace(rule.Condition)),
+		strings.Join(parts, "||"),
+	}, "###")
+}
+
+func boolString(v bool) string {
+	if v {
+		return "true"
+	}
+	return "false"
 }

@@ -1,7 +1,7 @@
 
 meta:
   category: CodeIgniter 4 Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CodeIgniter 4.x, PHP 8.0-8.4"
@@ -150,26 +150,6 @@ rules:
     references:
       - "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/"
       - "https://cwe.mitre.org/data/definitions/15.html"
-  - id: CI4-ENT-006
-    title: "Cookie Secure Not Enabled"
-    description: >
-      In CodeIgniter 4, if `public $cookieSecure = false;` in `app/Config/App.php`, session cookies will be sent over plain HTTP. This allows session hijacking via network sniffing.
-    severity: high
-    confidence: high
-    category: Session Security
-    tags: [cookie, codeigniter4, cwe-614]
-    owasp: "A07:2021"
-    cwe: "CWE-614"
-    patterns:
-      - type: regex
-        target: config-files
-        pattern: 'public\s+\$cookieSecure\s*=\s*false'
-    remediation: |
-      Set `public $cookieSecure = true;` in `app/Config/App.php` or via the environment variable `app.cookieSecure = true`.
-
-    references:
-      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
-      - "https://cwe.mitre.org/data/definitions/614.html"
   - id: CI4-ENT-007
     title: "Weak Encryption Key in CI4"
     description: >

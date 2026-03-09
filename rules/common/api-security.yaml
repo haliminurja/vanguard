@@ -109,3 +109,60 @@ rules:
         }
     references:
       - "https://cwe.mitre.org/data/definitions/209.html"
+  - id: API-006
+    title: "GraphQL developer IDE or playground enabled"
+    description: >
+      A GraphQL interactive IDE such as GraphiQL or Playground is enabled in
+      configuration. These tools are useful for development but expose schema
+      discovery, query experimentation, and endpoint behavior to unauthorized
+      parties when left available outside controlled environments.
+
+    severity: medium
+    confidence: high
+    category: GraphQL Exposure
+    tags: [api, graphql, graphiql, playground, owasp-a05, cwe-200]
+    owasp: "A05:2021"
+    cwe: "CWE-200"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: "['\"](playground|graphiql)['\"]\\s*=>\\s*(true|env\\([^)]*,\\s*true\\))"
+    remediation: |
+      Disable GraphQL IDE tooling in production and expose it only in local or
+      tightly controlled development environments.
+    references:
+      - "https://cwe.mitre.org/data/definitions/200.html"
+      - "https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/"
+
+  - id: API-007
+    title: "Webhook or callback endpoint without signature verification evidence"
+    description: >
+      A function that appears to process webhook, callback, or notification
+      traffic reads request body input but no signature or HMAC verification
+      indicators are present in the same file. This can allow attackers to forge
+      trusted upstream events and trigger unauthorized state changes.
+
+    severity: high
+    confidence: medium
+    category: Webhook Authentication
+    tags: [api, webhook, callback, integrity, owasp-a08, cwe-345]
+    owasp: "A08:2021"
+    cwe: "CWE-345"
+    condition: all
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(function|public\s+function)\s+\w*(webhook|callback|notify|notification)\w*\s*\('
+      - type: regex
+        target: php-files
+        pattern: '(\$request->getContent\s*\(\)|file_get_contents\s*\(\s*["'']php://input["'']\s*\)|\$request->all\s*\(\)|\$_POST|\$_REQUEST)'
+      - type: regex
+        target: php-files
+        pattern: '(hash_equals|hash_hmac|signature|x-signature|x-hub-signature|webhook_secret|shared_secret)'
+        negative: true
+    remediation: |
+      Verify webhook authenticity using a shared secret or asymmetric signature,
+      compare signatures with hash_equals(), and reject unsigned or stale events.
+    references:
+      - "https://cwe.mitre.org/data/definitions/345.html"
+      - "https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/"

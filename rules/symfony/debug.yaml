@@ -1,6 +1,6 @@
 ﻿meta:
   category: Symfony - Information Disclosure
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
@@ -32,7 +32,7 @@ rules:
     patterns:
       - type: regex
         target: any
-        pattern: 'APP_DEBUG\s*=\s*1|web_profiler:\s*[\s\S]*toolbar:\s*true'
+        pattern: 'APP_DEBUG\s*=\s*(1|true)'
     remediation: |
       Disable debug features in production and route diagnostics into secure observability tooling with strict access controls.
     references:

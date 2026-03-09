@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Symfony - Cryptographic Failure
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
@@ -17,34 +17,41 @@
 
 rules:
   - id: SYM-CRYPTO-001
-    title: "Weak or Legacy Cryptographic Primitive Usage"
+    title: "Symfony uses weak password or token hashing"
     description: >
-      Weak hashing or deprecated cryptographic options are present. This can reduce resistance to cracking and tampering attacks.
+      Symfony security configuration or application code uses plaintext, MD5, or
+      SHA-1 hashing for password or token material. This materially weakens
+      resistance to offline cracking.
     severity: high
     confidence: high
     cvss_v3:
-      score: 7.7
+      score: 7.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Cryptographic Failure
-    tags: [symfony, crypto, hashing, owasp-a02-2021, cwe-327, asvs-6.2.5]
+    tags: [symfony, crypto, hashing, owasp-a02-2021, cwe-327, asvs-2.4.4]
     owasp: "A02:2021"
     cwe: "CWE-327"
     patterns:
       - type: regex
-        target: any
-        pattern: 'algorithm:\s*(plaintext|md5|sha1)|\b(md5|sha1)\s*\('
+        target: config-files
+        pattern: 'algorithm:\s*(plaintext|md5|sha1)'
+      - type: regex
+        target: php-files
+        pattern: '\$(password|passwd|pwd|token|resetToken|reset_token|secret|apiKey|api_key)[A-Za-z0-9_]*\s*=\s*(md5|sha1|hash\s*\(\s*["''](md5|sha1)["''])'
     remediation: |
-      Replace weak algorithms with modern primitives such as Argon2id, bcrypt, AES-GCM, and strong key management. Enforce organization crypto policy and periodic rotation.
+      Use Symfony password hashers with modern algorithms and never derive
+      security tokens from MD5 or SHA-1.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/327.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
-      - "https://symfony.com/doc/current/index.html"
+      - "https://symfony.com/doc/current/security/passwords.html"
 
   - id: SYM-CRYPTO-002
-    title: "TLS Certificate Verification Disabled"
+    title: "Symfony outbound HTTP disables TLS verification"
     description: >
-      TLS certificate or host verification appears disabled in outbound communication settings.
+      Symfony HTTP client configuration disables peer or host certificate
+      verification. This allows man-in-the-middle attacks against upstream API
+      traffic.
     severity: high
     confidence: high
     cvss_v3:
@@ -56,11 +63,45 @@ rules:
     cwe: "CWE-295"
     patterns:
       - type: regex
-        target: any
-        pattern: '[''"]verify_(peer|host)[''"]\s*=>\s*false'
+        target: config-files
+        pattern: 'verify_(peer|host):\s*false'
+      - type: regex
+        target: php-files
+        pattern: '["'']verify_(peer|host)["'']\s*=>\s*false'
     remediation: |
-      Always verify TLS peer and hostname. Use trusted CA stores and block insecure overrides in production.
+      Keep peer and host verification enabled in Symfony HttpClient and fix CA
+      or hostname problems at the trust layer instead of suppressing checks.
     references:
       - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
       - "https://cwe.mitre.org/data/definitions/295.html"
-      - "https://symfony.com/doc/current/index.html"
+      - "https://symfony.com/doc/current/http_client.html"
+
+  - id: SYM-CRYPTO-003
+    title: "Symfony code uses ECB mode or hardcoded IV/nonce"
+    description: >
+      Symfony application code uses insecure ECB mode or static IV/nonce values
+      in low-level encryption calls. This breaks expected confidentiality
+      properties.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.9
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Cryptographic Failure
+    tags: [symfony, crypto, encryption, owasp-a02-2021, cwe-327, asvs-6.2.5]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'openssl_(encrypt|decrypt)\s*\([^,]+,\s*["'']AES-(128|192|256)-ECB["'']'
+      - type: regex
+        target: php-files
+        pattern: '\$(iv|nonce|salt)[A-Za-z0-9_]*\s*=\s*["''][^"''\$]{8,}["'']'
+        exclude_pattern: '(random_bytes|bin2hex|base64_decode\s*\()'
+    remediation: |
+      Use modern AEAD encryption and generate a fresh random IV or nonce for
+      every encryption operation.
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/327.html"

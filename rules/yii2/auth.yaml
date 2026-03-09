@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Yii2 - Authentication
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Yii2 2.0.x, PHP 8.0-8.4"
@@ -17,52 +17,87 @@
 
 rules:
   - id: YII-AUTH-001
-    title: "User-Controlled Authentication Flow"
+    title: "Yii2 login established from request-controlled identity"
     description: >
-      Authentication identity or privilege context is derived from user-controlled input without strict verification. This can enable account takeover or privilege escalation.
+      Yii2 authentication is created directly from request-controlled tokens or
+      model lookups. This bypasses normal credential verification and can enable
+      impersonation or account takeover.
     severity: critical
     confidence: high
     cvss_v3:
       score: 9.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Authentication
-    tags: [yii2, auth, authorization, owasp-a07-2021, cwe-287, asvs-2.1.1]
+    tags: [yii2, auth, impersonation, owasp-a07-2021, cwe-287, asvs-2.1.1]
     owasp: "A07:2021"
     cwe: "CWE-287"
     patterns:
       - type: regex
         target: php-files
         pattern: 'Yii::\$app->user->loginByAccessToken\s*\(\s*(Yii::\$app->request->|\$_(?:GET|POST|REQUEST))'
-        exclude_pattern: '(authorize|policy|current_user_can|denyAccessUnlessGranted|checkAccess|isAuthorized|Gate::|can\()'
+      - type: regex
+        target: php-files
+        pattern: 'Yii::\$app->user->login\s*\(\s*.*findOne\s*\(\s*Yii::\$app->request->(get|post)\s*\('
     remediation: |
-      Enforce strong authentication checks before setting identity or session context. Use framework-native guards, policies, and MFA for privileged flows.
+      Authenticate through verified credentials, signed tokens, or trusted
+      identity providers first. Only then resolve the Yii2 user object
+      server-side and establish the session.
     references:
       - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
       - "https://cwe.mitre.org/data/definitions/287.html"
-      - "https://owasp.org/www-project-application-security-verification-standard/"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/security-authentication"
 
   - id: YII-AUTH-002
-    title: "Privileged Endpoint Without Clear Auth Guard"
+    title: "Sensitive Yii2 action without clear access-control enforcement"
     description: >
-      Potential privileged endpoint patterns are detected without clear access control indicators in the same context.
+      A privileged Yii2 controller action is present without nearby evidence of
+      `AccessControl`, `checkAccess()`, or `can()` checks.
     severity: high
-    confidence: medium
+    confidence: high
     cvss_v3:
-      score: 8.3
+      score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-    category: Authentication
-    tags: [yii2, auth, authorization, owasp-a01-2021, cwe-862, asvs-4.1.3]
+    category: Authorization
+    tags: [yii2, auth, access-control, owasp-a01-2021, cwe-862, asvs-4.1.3]
     owasp: "A01:2021"
     cwe: "CWE-862"
     patterns:
       - type: regex
-        target: php-files
-        pattern: 'public\s+function\s+action(Update|Delete|Profile|Settings|Password|Billing)\b'
-        exclude_pattern: '(auth|middleware|authorize|isAuthorized|current_user_can|denyAccessUnlessGranted|checkAccess|Gate::|can\()'
+        target: controller-files
+        pattern: 'public\s+function\s+action(Update|Delete|Profile|Settings|Password|Billing|Admin)\b'
+        exclude_pattern: '(AccessControl|checkAccess\s*\(|Yii::\$app->user->can\s*\(|->can\s*\()'
     remediation: |
-      Protect privileged endpoints with explicit authentication and authorization middleware/policies. Enforce deny-by-default.
+      Protect privileged Yii2 actions with explicit access-control filters and
+      object-level authorization checks.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/862.html"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/security-authorization"
+
+  - id: YII-AUTH-003
+    title: "Yii2 login or recovery action without clear rate limiting"
+    description: >
+      Login, password reset, OTP, or verification actions are present without
+      visible rate-limiting controls. These endpoints are common brute-force
+      targets.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"
+    category: Authentication
+    tags: [yii2, auth, rate-limit, bruteforce, owasp-a07-2021, cwe-307, asvs-2.2.4]
+    owasp: "A07:2021"
+    cwe: "CWE-307"
+    patterns:
+      - type: regex
+        target: controller-files
+        pattern: 'public\s+function\s+action(Login|ForgotPassword|ResetPassword|Otp|Verify)\b'
+        exclude_pattern: '(RateLimiter|TooManyRequestsHttpException|yii\\filters\\RateLimiter|Captcha)'
+    remediation: |
+      Apply a Yii2 rate-limiting filter or equivalent server-side throttle to
+      every interactive authentication and recovery flow.
+    references:
+      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+      - "https://cwe.mitre.org/data/definitions/307.html"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/rest-rate-limiting"

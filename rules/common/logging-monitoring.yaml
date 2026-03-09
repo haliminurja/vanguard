@@ -1,6 +1,6 @@
 meta:
   category: Logging & Monitoring
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
@@ -9,9 +9,12 @@ meta:
     - CWE-SANS-Top25
 rules:
   - id: LOG-001
-    title: "Sensitive data passed to Log facade"
+    title: "Sensitive data passed to application logs"
     description: >
-      Log::* calls include variables named password, secret, token, credit_card, or similar. Log files are often less protected than databases and can be accessed by support staff, log aggregators, and attackers with filesystem access. Credentials in logs persist for the full log retention period.
+      Logging calls include variables or keys that look like passwords, tokens,
+      API keys, or card data. Log sinks are usually wider and longer-lived than
+      transactional databases, so secret exposure in logs materially increases
+      blast radius.
     severity: high
     confidence: high
     category: Sensitive Data in Logs
@@ -21,15 +24,14 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: 'Log::(info|debug|warning|error|critical|notice|alert)\s*\([^;]*\$(password|passwd|secret|token|credit_card|ssn|cvv|card_number|api_key|private_key|pin|otp)'
+        pattern: '(Log::|logger\s*\(|error_log\s*\(|\$[A-Za-z_][A-Za-z0-9_]*->(info|debug|warning|error|critical|notice|alert))[^;]*\$(password|passwd|secret|token|credit_card|ssn|cvv|card_number|api_key|private_key|pin|otp)'
+      - type: regex
+        target: php-files
+        pattern: '(Log::|logger\s*\(|error_log\s*\(|\$[A-Za-z_][A-Za-z0-9_]*->(info|debug|warning|error|critical|notice|alert))[^;]*["''](password|passwd|secret|token|credit_card|ssn|cvv|card_number|api_key|private_key|pin|otp)["'']'
     remediation: |
-      Redact or remove sensitive fields before logging:
-        Log::info('User authenticated', [
-            'email'    => $email,
-            'password' => '[REDACTED]',
-        ]);
-        // Or use redact helper:
-        Log::info('Payment', Arr::except($data, ['card_number', 'cvv']));
+      Redact or omit secrets before they enter logs. Keep only the minimum
+      identifiers needed for incident response and correlate sensitive actions
+      with stable request or user IDs instead of raw credentials.
     references:
       - "https://cwe.mitre.org/data/definitions/532.html"
       - "https://owasp.org/www-project-logging-vocabulary/"
@@ -37,7 +39,9 @@ rules:
   - id: LOG-002
     title: "Raw user input logged without sanitization"
     description: >
-      User input from $request->all() or $request->getContent() is passed directly to the Log facade. Unsanitized log entries enable log injection (fake log lines via CRLF) and XSS in web-based log viewers.
+      User-controlled request bodies or parameter collections are written
+      directly to the log sink. This enables log injection, leaks PII, and can
+      create XSS risk in web-based log viewers.
     severity: medium
     confidence: high
     category: Log Injection
@@ -47,21 +51,19 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: 'Log::(info|debug|warning|error)\s*\(\s*[^,]*,\s*\[?\s*[^\]]*\$request->(all|getContent)\(\)'
+        pattern: '(Log::|logger\s*\(|\$[A-Za-z_][A-Za-z0-9_]*->(info|debug|warning|error))[^;]*(\$request->(all|getContent)\(\)|\$_(?:GET|POST|REQUEST)|filter_input\s*\(|php://input)'
     remediation: |
-      Log only sanitized and limited fields:
-        Log::info('Request', [
-            'path'  => $request->path(),
-            'query' => Str::limit(strip_tags($request->query('q', '')), 200),
-            'ip'    => $request->ip(),
-        ]);
+      Log only bounded, sanitized, and context-specific fields such as path,
+      request ID, actor ID, and normalized error codes.
     references:
       - "https://cwe.mitre.org/data/definitions/117.html"
 
   - id: LOG-006
     title: "Exception handler displays detailed error to user instead of logging"
     description: >
-      Exception handler returns detailed error messages ($e->getMessage()) or stack traces to HTTP responses instead of logging to the server. This exposes internal information to users and fails to store information necessary for debugging and monitoring.
+      Exception handlers return detailed messages or traces to the client
+      without clear evidence that the event is recorded on the server. This
+      leaks internals and weakens investigation capability.
     severity: high
     confidence: high
     category: Error Handling
@@ -71,25 +73,20 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: 'catch\s*\([^)]*\$e\s*\)\s*\{[^}]*return\s+.*\$e->getMessage\(\)'
-        exclude_pattern: '(Log::|logger\(|report\()'
+        pattern: 'catch\s*\([^)]*\$e\s*\)\s*\{[^}]*return\s+.*\$e->(getMessage|getTraceAsString)\(\)'
+        exclude_pattern: '(Log::|logger\(|report\(|error_log\s*\()'
     remediation: |
-      Log detailed errors on the server and return generic messages to the client:
-        catch (\Throwable $e) {
-            Log::error('Operation failed', [
-                'exception' => $e->getMessage(),
-                'trace'     => $e->getTraceAsString(),
-                'user_id'   => auth()->id(),
-            ]);
-            return response()->json(['error' => 'An internal error occurred.'], 500);
-        }
+      Record full exception details on the server and return only generic
+      messages to users and API clients.
     references:
       - "https://cwe.mitre.org/data/definitions/209.html"
 
   - id: LOG-007
-    title: "Changes to financial/payment data not logged"
+    title: "Changes to financial or payment data not logged"
     description: >
-      Operations that modify financial data (refunds, balance adjustments, price changes, order modifications) lack audit logging. Without logging, internal fraud, successful attacks, and operational errors on financial data go undetected.
+      Code modifies financial balances, refunds, or payouts without clear audit
+      logging nearby. These events need durable telemetry for fraud detection,
+      reconciliation, and incident response.
     severity: high
     confidence: medium
     category: Financial Audit Trail
@@ -100,18 +97,37 @@ rules:
       - type: regex
         target: php-files
         pattern: '(->refund|->adjustBalance|->credit|->debit|->withdraw|->transfer|->payout)\s*\('
-        exclude_pattern: '(Log::|event\(|audit|activity|ActivityLog|dispatch\(.*Audit)'
+        exclude_pattern: '(Log::|logger\(|error_log\s*\(|event\(|audit|activity|ActivityLog|dispatch\(.*Audit)'
     remediation: |
-      Log all financial operations with complete details:
-        Log::info('Financial operation', [
-            'type'       => 'refund',
-            'amount'     => $amount,
-            'currency'   => $currency,
-            'order_id'   => $order->id,
-            'user_id'    => auth()->id(),
-            'ip'         => request()->ip(),
-            'reason'     => $reason,
-            'timestamp'  => now()->toIso8601String(),
-        ]);
+      Emit structured audit logs for every financial mutation with actor,
+      object, amount, reason, correlation ID, and request origin details.
     references:
       - "https://cwe.mitre.org/data/definitions/778.html"
+
+  - id: LOG-008
+    title: "Privilege or identity state changes lack audit logging"
+    description: >
+      Code changes roles, permissions, password-like fields, or account status
+      without clear audit logging nearby. These operations are high-value from
+      both incident response and insider-risk perspectives.
+    severity: high
+    confidence: medium
+    category: Audit Trail
+    tags: [logging, audit, authz, owasp-a09, cwe-778]
+    cwe: "CWE-778"
+    owasp: "A09:2021"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(assignRole|syncRoles|removeRole|givePermissionTo|revokePermissionTo|syncPermissions)\s*\('
+        exclude_pattern: '(Log::|logger\(|error_log\s*\(|audit|activity|event\()'
+      - type: regex
+        target: php-files
+        pattern: '->update\s*\(\s*\[[^\]]*["''](email|password|is_admin|role|status|two_factor_secret|mfa_secret)["'']'
+        exclude_pattern: '(Log::|logger\(|error_log\s*\(|audit|activity|event\()'
+    remediation: |
+      Record role, permission, password, MFA, and account-status changes in a
+      structured audit trail with actor ID, target ID, source IP, and reason.
+    references:
+      - "https://cwe.mitre.org/data/definitions/778.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"

@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Yii2 - Business Logic
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Yii2 2.0.x, PHP 8.0-8.4"
@@ -17,9 +17,11 @@
 
 rules:
   - id: YII-BIZ-001
-    title: "State-Changing Business Action Without Authorization Guard"
+    title: "Sensitive Yii2 business action without clear authorization check"
     description: >
-      Business-critical operations such as update, delete, approve, or refund are defined without explicit ownership or role checks. This can lead to horizontal or vertical privilege abuse.
+      Yii2 controller actions for refunds, approvals, cancellations, price
+      updates, or destructive mutations are present without nearby authorization
+      enforcement.
     severity: high
     confidence: medium
     cvss_v3:
@@ -31,37 +33,67 @@ rules:
     cwe: "CWE-840"
     patterns:
       - type: regex
-        target: php-files
-        pattern: 'public\s+function\s+action(Update|Delete|Approve|Refund)\b'
-        exclude_pattern: '(authorize|can\(|Gate::|policy|current_user_can|denyAccessUnlessGranted|checkAccess|isAuthorized)'
+        target: controller-files
+        pattern: 'public\s+function\s+action(Update|Delete|Approve|Refund|Cancel|Capture|ChangeRole|SetStatus|UpdatePrice)\b'
+        exclude_pattern: '(checkAccess\s*\(|Yii::\$app->user->can\s*\(|->can\s*\(|AccessControl)'
     remediation: |
-      Apply object-level authorization checks for every state-changing operation. Validate resource ownership and enforce deny-by-default policy design.
+      Keep authorization explicit for every business-critical Yii2 action and
+      enforce object ownership close to the write path.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/840.html"
-      - "https://owasp.org/www-project-application-security-verification-standard/"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/security-authorization"
 
   - id: YII-BIZ-002
-    title: "Sensitive Business Field Controlled by Request Input"
+    title: "Sensitive business fields assigned from Yii2 request input"
     description: >
-      Request input appears to directly control sensitive business fields such as price, role, status, or amount.
+      Price, amount, balance, discount, role, or status values are copied
+      directly from Yii2 request input into model properties or persistence
+      arrays.
     severity: high
     confidence: high
     cvss_v3:
       score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Business Logic
-    tags: [yii2, business-logic, owasp-a04-2021, cwe-840, asvs-4.2.4]
+    tags: [yii2, business-logic, pricing, owasp-a04-2021, cwe-840, asvs-4.2.4]
     owasp: "A04:2021"
     cwe: "CWE-840"
     patterns:
       - type: regex
         target: php-files
-        pattern: 'Yii::\$app->request->(get|post)\(\s*[''"](price|amount|role|is_admin|status)[''"]'
+        pattern: '->(price|amount|balance|discount|role|status)\s*=\s*Yii::\$app->request->(get|post)\('
+      - type: regex
+        target: php-files
+        pattern: '["''](price|amount|balance|discount|role|status)["'']\s*=>\s*Yii::\$app->request->(get|post)\('
     remediation: |
-      Never trust client-provided values for privileged business fields. Compute sensitive values server-side and enforce strict authorization.
+      Derive privileged business values server-side or constrain them with
+      strict validation plus workflow-aware authorization logic.
+    references:
+      - "https://cwe.mitre.org/data/definitions/840.html"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/input-validation"
+
+  - id: YII-BIZ-003
+    title: "Yii2 refund or balance mutation uses request-controlled amount"
+    description: >
+      Refund, credit, debit, transfer, or price adjustment methods receive raw
+      Yii2 request values directly as the controlling amount or quantity.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Business Logic
+    tags: [yii2, business-logic, finance, owasp-a04-2021, cwe-840, asvs-4.2.4]
+    owasp: "A04:2021"
+    cwe: "CWE-840"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(refund|credit|debit|withdraw|transfer|adjustBalance|setPrice|applyDiscount)\s*\([^)]*Yii::\$app->request->(get|post)\('
+    remediation: |
+      Normalize and bound financial input before use and re-check business
+      invariants such as ownership, state, and maximum allowed adjustment.
     references:
       - "https://cwe.mitre.org/data/definitions/840.html"
       - "https://owasp.org/www-project-top-ten/"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"

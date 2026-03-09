@@ -1,0 +1,345 @@
+meta:
+  category: Enterprise Security Standards
+  version: "4.1.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
+  compliance:
+    - OWASP-Top10-2021
+    - OWASP-API-Security-2023
+    - CWE-Top25-2024
+    - OWASP-ASVS
+    - NIST-SP-800-53r5
+    - NIST-CSF-2.0
+    - NIST-SSDF-1.1
+    - CIS-Controls-v8
+    - PCI-DSS-v4.0.1
+    - SLSA-v1.0
+rules:
+  - id: ENT-NET-001
+    title: "TLS certificate verification disabled for outbound connections"
+    description: >
+      Outbound HTTPS requests disable peer or host certificate verification
+      through cURL or SSL stream context options. This allows man-in-the-middle
+      attacks, forged upstream responses, and silent downgrade of transport trust.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Cryptographic Failure
+    enabled: true
+    tags: [tls, mitm, crypto, owasp-a02-2021, cwe-295, asvs-9.1.1, nist-sc-8]
+    owasp: "A02:2021"
+    cwe: "CWE-295"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'CURLOPT_SSL_VERIFYPEER\s*,\s*(false|0)\b'
+      - type: regex
+        target: php-files
+        pattern: 'CURLOPT_SSL_VERIFYHOST\s*,\s*(false|0|1)\b'
+      - type: regex
+        target: php-files
+        pattern: '["'']verify_peer(_name)?["'']\s*=>\s*(false|0)\b'
+    remediation: |
+      Keep certificate and hostname verification enabled for every outbound TLS
+      connection. Use a valid trust store and rotate broken certificates instead
+      of suppressing verification failures.
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/295.html"
+      - "https://www.php.net/manual/en/function.curl-setopt.php"
+      - "https://www.php.net/manual/en/context.ssl.php"
+
+  - id: ENT-WEB-002
+    title: "Open redirect via header('Location') with untrusted input"
+    description: >
+      The response Location header is built directly from request data or the
+      HTTP Referer header. Attackers can redirect users to phishing sites,
+      bypass navigation assumptions, or abuse redirect-based trust flows such as
+      login return URLs and password reset follow-up pages.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 6.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+    category: Open Redirect
+    enabled: true
+    tags: [redirect, phishing, owasp-a01-2021, cwe-601, asvs-5.1.5]
+    owasp: "A01:2021"
+    cwe: "CWE-601"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'header\s*\(\s*["'']Location:\s*["'']\s*\.\s*(\$_GET|\$_POST|\$_REQUEST|filter_input\s*\()'
+        exclude_pattern: '(filter_var|parse_url|preg_match|str_starts_with|strncmp|in_array)'
+      - type: regex
+        target: php-files
+        pattern: 'header\s*\(\s*["'']Location:\s*["'']\s*\.\s*\$_SERVER\s*\[\s*["'']HTTP_REFERER["'']\s*\]'
+    remediation: |
+      Redirect only to allowlisted internal paths or canonical route names.
+      Reject absolute external URLs unless a business requirement explicitly
+      permits them and they are validated against a strict allowlist.
+    references:
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"
+      - "https://cwe.mitre.org/data/definitions/601.html"
+
+  - id: ENT-CRY-003
+    title: "Predictable security token generated with uniqid(), rand(), or mt_rand()"
+    description: >
+      Variables that look like tokens, reset secrets, CSRF values, or API keys
+      are generated from predictable functions such as uniqid(), rand(), or
+      mt_rand(). These functions are not cryptographically secure and can be
+      brute-forced or predicted from timing and state.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Weak Randomness
+    enabled: true
+    tags: [crypto, token, randomness, owasp-a02-2021, cwe-330, asvs-3.2.2]
+    owasp: "A02:2021"
+    cwe: "CWE-330"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$(token|resetToken|reset_token|nonce|csrf|csrfToken|secret|apiKey|api_key)[A-Za-z0-9_]*\s*=\s*(md5|sha1)?\s*\(?\s*(uniqid|mt_rand|rand)\s*\('
+      - type: regex
+        target: php-files
+        pattern: '["''](token|reset_token|nonce|csrf_token|secret|api_key)["'']\s*=>\s*(md5|sha1)?\s*\(?\s*(uniqid|mt_rand|rand)\s*\('
+    remediation: |
+      Use cryptographically secure randomness for all secrets:
+        $token = bin2hex(random_bytes(32));
+        $code  = random_int(100000, 999999);
+      Never derive security tokens from clocks, counters, or weak PRNG output.
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/330.html"
+      - "https://www.php.net/manual/en/function.random-bytes.php"
+      - "https://www.php.net/manual/en/function.random-int.php"
+
+  - id: ENT-CRY-004
+    title: "md5() used for password, token, or secret derivation"
+    description: >
+      md5() is used to derive or store password-like values, reset tokens,
+      secrets, or API keys. MD5 is unsuitable for password storage and weak for
+      security-sensitive derivation because it is fast, collision-prone, and
+      easy to brute-force at scale.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Weak Hashing
+    enabled: true
+    tags: [crypto, md5, password, token, owasp-a02-2021, cwe-327, asvs-2.4.4]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$(password|passwd|pwd|token|resetToken|reset_token|secret|apiKey|api_key)[A-Za-z0-9_]*\s*=\s*md5\s*\('
+      - type: regex
+        target: php-files
+        pattern: '["''](password|passwd|pwd|token|reset_token|secret|api_key)["'']\s*=>\s*md5\s*\('
+    remediation: |
+      Use password_hash() / password_verify() for passwords and random_bytes()
+      for tokens. If legacy MD5 values exist, migrate them with staged rehashing
+      on successful authentication or at reset time.
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/327.html"
+      - "https://www.php.net/manual/en/function.password-hash.php"
+      - "https://www.php.net/manual/en/function.password-verify.php"
+
+  - id: ENT-SES-005
+    title: "session.use_strict_mode disabled"
+    description: >
+      PHP session strict mode is disabled in configuration or at runtime. This
+      weakens protection against session fixation by allowing the application to
+      accept attacker-supplied session IDs more readily than necessary.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.4
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: Session Security
+    enabled: true
+    tags: [session, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
+    owasp: "A07:2021"
+    cwe: "CWE-384"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'session\.use_strict_mode\s*=\s*(0|Off|off|false|FALSE)\b'
+      - type: regex
+        target: php-files
+        pattern: 'ini_set\s*\(\s*["'']session\.use_strict_mode["'']\s*,\s*["'']?(0|off|false)["'']?\s*\)'
+    remediation: |
+      Enable strict mode globally:
+        session.use_strict_mode = 1
+      Regenerate the session ID after authentication and major privilege changes.
+    references:
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
+      - "https://cwe.mitre.org/data/definitions/384.html"
+      - "https://www.php.net/manual/en/session.configuration.php"
+
+  - id: ENT-CONF-006
+    title: "display_errors enabled in runtime or PHP configuration"
+    description: >
+      Error display is enabled through php.ini or ini_set(). Stack traces,
+      filesystem paths, SQL messages, and secret-bearing variables can leak to
+      browsers and API clients, materially improving attacker reconnaissance.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"
+    category: Information Disclosure
+    enabled: true
+    tags: [debug, disclosure, owasp-a05-2021, cwe-209, asvs-14.3.2]
+    owasp: "A05:2021"
+    cwe: "CWE-209"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'display_errors\s*=\s*(On|1|true|TRUE)\b'
+      - type: regex
+        target: php-files
+        pattern: 'ini_set\s*\(\s*["'']display_errors["'']\s*,\s*["'']?(1|on|true)["'']?\s*\)'
+        exclude_pattern: '(test|Test|local|dev)'
+    remediation: |
+      Disable error display in production and route full details to protected
+      logs and monitoring systems:
+        display_errors = Off
+      Return generic error responses to users and API clients.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/209.html"
+      - "https://www.php.net/manual/en/errorfunc.configuration.php"
+
+  - id: ENT-CONF-007
+    title: "allow_url_include enabled"
+    description: >
+      PHP configuration enables allow_url_include, allowing include/require to
+      fetch code from URL wrappers. This dramatically increases remote file
+      inclusion and remote code execution risk if any path handling is exposed.
+    severity: critical
+    confidence: high
+    cvss_v3:
+      score: 9.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: Security Misconfiguration
+    enabled: true
+    tags: [rfi, configuration, owasp-a05-2021, cwe-98, asvs-14.1.1]
+    owasp: "A05:2021"
+    cwe: "CWE-98"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: 'allow_url_include\s*=\s*(On|1|true|TRUE)\b'
+    remediation: |
+      Disable allow_url_include in every non-test environment:
+        allow_url_include = Off
+      Load code only from local, reviewed sources and avoid dynamic include paths.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/98.html"
+      - "https://www.php.net/manual/en/filesystem.configuration.php"
+
+  - id: ENT-SUP-008
+    title: "Composer plugin execution broadly allowed"
+    description: >
+      composer.json allows plugin execution globally or via wildcard matching.
+      Composer plugins execute PHP code during install/update and therefore sit
+      directly in the software supply chain trust boundary.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.0
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Supply Chain
+    enabled: true
+    tags: [supply-chain, composer, plugin, owasp-a08-2021, cwe-829, ssdf, slsa]
+    owasp: "A08:2021"
+    cwe: "CWE-829"
+    patterns:
+      - type: regex
+        target: any
+        scope: project
+        pattern: '"allow-plugins"\s*:\s*true'
+      - type: regex-multiline
+        target: any
+        scope: project
+        pattern: '(?s)"allow-plugins"\s*:\s*\{[^}]*"[^"]*\*[^"]*"\s*:\s*true'
+    remediation: |
+      Allow only explicitly reviewed plugins by exact package name. Audit plugin
+      update paths, pin trusted sources, and keep install/update execution inside
+      controlled CI environments.
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/829.html"
+      - "https://getcomposer.org/doc/06-config.md#allow-plugins"
+
+  - id: ENT-SUP-009
+    title: "Composer production dependencies pinned to dev branches"
+    description: >
+      composer.json requires packages from dev branches or @dev channels inside
+      the production dependency set. This increases exposure to unreviewed code,
+      non-reproducible builds, and sudden upstream behavior changes.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 6.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:L"
+    category: Supply Chain
+    enabled: true
+    tags: [supply-chain, composer, dependencies, owasp-a06-2021, cwe-829, ssdf, slsa]
+    owasp: "A06:2021"
+    cwe: "CWE-829"
+    patterns:
+      - type: regex-multiline
+        target: any
+        scope: project
+        pattern: '(?s)"require"\s*:\s*\{[^}]*"[^"]+"\s*:\s*"(dev-[^"]+|[^"]+@dev)"'
+    remediation: |
+      Pin production packages to reviewed stable releases and enforce dependency
+      audit gates in CI. Reserve dev branches for isolated development workflows
+      and never for release artifacts.
+    references:
+      - "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/"
+      - "https://cwe.mitre.org/data/definitions/829.html"
+      - "https://getcomposer.org/doc/articles/versions.md"
+
+  - id: ENT-SUP-010
+    title: "Composer repositories configured over plain HTTP"
+    description: >
+      composer.json defines package repositories over plain HTTP. This exposes
+      package metadata and downloadable artifacts to tampering or substitution by
+      a network attacker inside the dependency acquisition path.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Supply Chain
+    enabled: true
+    tags: [supply-chain, composer, transport-security, owasp-a08-2021, cwe-494, ssdf, slsa]
+    owasp: "A08:2021"
+    cwe: "CWE-494"
+    patterns:
+      - type: regex-multiline
+        target: any
+        scope: project
+        pattern: '(?s)"repositories"\s*:\s*\[[^\]]*"url"\s*:\s*"http://'
+    remediation: |
+      Use HTTPS for every package source and keep Composer secure-http enabled.
+      Remove or quarantine repositories that cannot provide authenticated and
+      integrity-protected transport.
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/494.html"
+      - "https://getcomposer.org/doc/05-repositories.md"
+      - "https://getcomposer.org/doc/06-config.md#secure-http"

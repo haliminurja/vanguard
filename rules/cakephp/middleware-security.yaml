@@ -1,6 +1,6 @@
 ﻿meta:
   category: CakePHP - Middleware Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CakePHP 3.0-5.x, PHP 8.0-8.4"
@@ -17,31 +17,30 @@
 
 rules:
   - id: CAKE-MID-001
-    title: "Sensitive Route Without Clear Middleware Guard"
+    title: "CakePHP authorization bypass helper used in runtime path"
     description: >
-      Sensitive or privileged route/action patterns are detected without explicit middleware/access guard indicators in the same context.
+      Runtime code explicitly calls authorization skip helpers, creating a risk
+      that sensitive actions bypass normal policy enforcement.
     severity: high
-    confidence: medium
+    confidence: high
     cvss_v3:
-      score: 8.2
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+      score: 8.0
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
     category: Middleware Security
-    tags: [cakephp, middleware-security, access-control, owasp-a01-2021, cwe-862, asvs-4.1.3]
+    tags: [cakephp, middleware-security, authorization, owasp-a01-2021, cwe-862, asvs-4.1.3]
     owasp: "A01:2021"
     cwe: "CWE-862"
     patterns:
       - type: regex
-        target: any
-        pattern: 'public\s+function\s+(edit|delete|admin|settings|billing|payment)\b'
-        exclude_pattern: '(auth|middleware|filter|isGranted|denyAccessUnlessGranted|current_user_can|checkAccess|isAuthorized|Gate::|can\()'
+        target: php-files
+        pattern: 'skipAuthorization\s*\(|skipAuthentication\s*\('
     remediation: |
-      Apply explicit authentication and authorization middleware for privileged routes.
-      Enforce deny-by-default access policy and verify ownership at controller/service layer.
+      Keep authorization and authentication skips narrowly scoped to routes that
+      are intentionally public and document the exception explicitly.
     references:
-      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+      - "https://book.cakephp.org/authorization/2/en/index.html"
       - "https://cwe.mitre.org/data/definitions/862.html"
-      - "https://book.cakephp.org/4/en/index.html"
-
+      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
   - id: CAKE-MID-002
     title: "Middleware Bypass or Security Filter Disabled"
     description: >

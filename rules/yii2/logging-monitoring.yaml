@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Yii2 - Logging and Monitoring
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Yii2 2.0.x, PHP 8.0-8.4"
@@ -17,13 +17,14 @@
 
 rules:
   - id: YII-LOG-001
-    title: "Sensitive Data Written to Application Logs"
+    title: "Sensitive data written to Yii2 logs"
     description: >
-      Logging statements appear to include credentials or sensitive tokens. This can create downstream data exposure and lateral movement risk.
-    severity: medium
+      Yii2 logging calls include credentials, secrets, or authorization
+      material. This creates durable downstream disclosure risk.
+    severity: high
     confidence: high
     cvss_v3:
-      score: 6.8
+      score: 7.4
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N"
     category: Logging and Monitoring
     tags: [yii2, logging, monitoring, owasp-a09-2021, cwe-532, asvs-9.3.3]
@@ -32,36 +33,75 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: 'Yii::(debug|info|warning|error)\s*\([^)]*(password|token|secret|authorization)'
+        pattern: 'Yii::(debug|info|warning|error)\s*\([^)]*(password|token|secret|authorization|api_key|private_key|otp)'
     remediation: |
-      Mask or hash sensitive values before logging and enforce centralized redaction policies in logging pipelines.
+      Redact or omit secret-bearing fields before they enter Yii2 logs and log
+      only the minimum metadata required for investigation.
     references:
       - "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/"
       - "https://cwe.mitre.org/data/definitions/532.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/runtime-logging"
 
   - id: YII-LOG-002
-    title: "Runtime Error Visibility/Logging Misconfiguration"
+    title: "Yii2 exception details returned to clients without clear logging"
     description: >
-      Error reporting configuration may suppress or misroute critical security events, reducing detection and incident response capability.
-    severity: medium
+      Controller or action code returns raw exception messages or traces to the
+      client without nearby logging. This leaks internal details and weakens
+      incident response.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"
+    category: Logging and Monitoring
+    tags: [yii2, logging, exception-handling, owasp-a09-2021, cwe-209, asvs-9.1.1]
+    owasp: "A09:2021"
+    cwe: "CWE-209"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'catch\s*\([^)]*\$e\s*\)\s*\{[^}]*return\s+\$this->as(Json|json)\s*\([^}]*\$e->(getMessage|getTraceAsString)\(\)'
+        exclude_pattern: 'Yii::(error|warning)|->log\s*\('
+      - type: regex
+        target: php-files
+        pattern: 'catch\s*\([^)]*\$e\s*\)\s*\{[^}]*throw\s+new\s+[A-Za-z0-9_\\]*HttpException\s*\([^)]*\$e->getMessage\(\)'
+        exclude_pattern: 'Yii::(error|warning)|->log\s*\('
+    remediation: |
+      Log the exception on the server and return only normalized, generic error
+      details to users and API clients.
+    references:
+      - "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/"
+      - "https://cwe.mitre.org/data/definitions/209.html"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/runtime-handling-errors"
+
+  - id: YII-LOG-003
+    title: "Yii2 privilege or account-state changes without audit logging"
+    description: >
+      RBAC or account-state changes appear without nearby audit logging or event
+      emission. These are high-value events for incident response and insider-
+      risk monitoring.
+    severity: high
     confidence: medium
     cvss_v3:
-      score: 6.2
-      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N"
+      score: 7.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Logging and Monitoring
-    tags: [yii2, logging, monitoring, owasp-a09-2021, cwe-778, asvs-9.1.1]
+    tags: [yii2, logging, audit, owasp-a09-2021, cwe-778, asvs-9.2.1]
     owasp: "A09:2021"
     cwe: "CWE-778"
     patterns:
       - type: regex
-        target: any
-        pattern: 'error_reporting\s*\(\s*0\s*\)|ini_set\s*\(\s*[''"]display_errors[''"]\s*,\s*[''"]?1[''"]?\s*\)'
-        exclude_pattern: '(test|Test|spec)'
+        target: php-files
+        pattern: 'Yii::\$app->authManager->(assign|revoke|revokeAll)\s*\('
+        exclude_pattern: '(Yii::info|Yii::warning|Yii::error|audit|event\()'
+      - type: regex
+        target: php-files
+        pattern: '->updateAttributes\s*\(\s*\[[^\]]*[''"](status|role|password_hash|email|auth_key)[''"]'
+        exclude_pattern: '(Yii::info|Yii::warning|Yii::error|audit|event\()'
     remediation: |
-      Route errors to centralized logs with retention and alerting. Do not suppress events needed for security monitoring.
+      Emit structured audit records for RBAC, password, auth key, email, and
+      account-status changes with actor, target, origin, and reason metadata.
     references:
       - "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/"
       - "https://cwe.mitre.org/data/definitions/778.html"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"
+      - "https://www.yiiframework.com/doc/guide/2.0/en/security-authorization"

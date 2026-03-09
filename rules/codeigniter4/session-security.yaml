@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: CodeIgniter 4 - Session Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "CodeIgniter 4.x, PHP 8.0-8.4"
@@ -17,9 +17,10 @@
 
 rules:
   - id: CI4-SESSION-001
-    title: "Insecure Session Cookie or Session Transport Setting"
+    title: "CodeIgniter 4 session cookie configuration is weak"
     description: >
-      Session security flags appear weak or disabled, potentially exposing authenticated sessions to interception or misuse.
+      CodeIgniter 4 session or cookie settings disable secure or HttpOnly
+      cookies, or use SameSite=None. This weakens session theft protections.
     severity: high
     confidence: high
     cvss_v3:
@@ -31,36 +32,65 @@ rules:
     cwe: "CWE-614"
     patterns:
       - type: regex
-        target: any
-        pattern: 'public\s+\$cookieSecure\s*=\s*false'
+        target: config-files
+        pattern: 'public\s+\$cookieSecure\s*=\s*false|public\s+\$cookieHTTPOnly\s*=\s*false|public\s+\$cookieSameSite\s*=\s*[''"]?None[''"]?'
     remediation: |
-      Enforce secure cookie attributes (Secure, HttpOnly, SameSite), require HTTPS everywhere, and rotate session identifiers after privilege changes.
+      Keep CodeIgniter 4 cookies secure, HttpOnly, and SameSite-restricted in
+      production configuration.
     references:
       - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
       - "https://cwe.mitre.org/data/definitions/614.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://codeigniter.com/user_guide/"
+      - "https://codeigniter4.github.io/userguide/libraries/sessions.html"
 
   - id: CI4-SESSION-002
-    title: "Session Identifier Exposure via URL or User Input"
+    title: "CodeIgniter 4 session rotation is disabled or preserves old sessions"
     description: >
-      Session identifiers may be propagated via URL/query input, increasing hijacking and fixation risk.
+      CodeIgniter 4 session ID rotation is disabled or configured to retain old
+      sessions, weakening fixation protection after sensitive transitions.
     severity: high
     confidence: high
     cvss_v3:
-      score: 7.4
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+      score: 7.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
     category: Session Security
-    tags: [codeigniter4, session-security, owasp-a07-2021, cwe-384, asvs-3.4.2]
+    tags: [codeigniter4, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
     owasp: "A07:2021"
     cwe: "CWE-384"
     patterns:
       - type: regex
-        target: any
-        pattern: 'session_id\s*\(\s*\$_(?:GET|POST|REQUEST)\)|PHPSESSID='
+        target: config-files
+        pattern: 'public\s+\$timeToUpdate\s*=\s*0|public\s+\$regenerateDestroy\s*=\s*false'
     remediation: |
-      Never transport session IDs in URLs. Regenerate IDs on privilege change and enforce secure session cookies.
+      Keep session rotation enabled and destroy the old session when the
+      framework rotates the identifier.
+    references:
+      - "https://cwe.mitre.org/data/definitions/384.html"
+      - "https://codeigniter4.github.io/userguide/libraries/sessions.html"
+
+  - id: CI4-SESSION-003
+    title: "CodeIgniter 4 accepts session IDs from request input"
+    description: >
+      CodeIgniter 4 code sources the session ID from GET, POST, or cookie input.
+      This is a direct session fixation risk.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: Session Security
+    tags: [codeigniter4, session-security, fixation, owasp-a07-2021, cwe-384, asvs-3.3.2]
+    owasp: "A07:2021"
+    cwe: "CWE-384"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'session_id\s*\(\s*(\$this->request->get(Get|Post|Cookie)\s*\(|\$_(?:GET|POST|REQUEST|COOKIE))'
+      - type: regex
+        target: php-files
+        pattern: '["''][^"'']*PHPSESSID='
+    remediation: |
+      Accept session identifiers only from framework-managed secure cookies and
+      never from request-controlled parameters.
     references:
       - "https://cwe.mitre.org/data/definitions/384.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
-      - "https://codeigniter.com/user_guide/"

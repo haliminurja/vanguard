@@ -1,6 +1,6 @@
 ﻿meta:
   category: Yii2 - Security Configuration
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Yii2 2.0.x, PHP 8.0-8.4"
@@ -17,9 +17,10 @@
 
 rules:
   - id: YII-SECCFG-001
-    title: "High-Risk Security Configuration Detected"
+    title: "Yii2 CSRF validation disabled in configuration"
     description: >
-      Security-critical configuration appears to weaken default protections such as CSRF, origin controls, or privileged admin hardening.
+      Yii2 configuration disables `enableCsrfValidation`, removing a built-in
+      browser defense for state-changing requests.
     severity: high
     confidence: high
     cvss_v3:
@@ -31,10 +32,11 @@ rules:
     cwe: "CWE-16"
     patterns:
       - type: regex
-        target: any
-        pattern: 'enableCsrfValidation\s*=>\s*false|Origin\s*=>\s*\[\s*[\"]\*[\"]\s*\]'
+        target: config-files
+        pattern: 'enableCsrfValidation\s*=>\s*false'
     remediation: |
-      Apply secure-by-default framework configuration profiles and maintain environment-specific hardening baselines with periodic review.
+      Keep CSRF validation enabled for browser workflows unless an equivalent
+      compensating control is applied to every state-changing endpoint.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/16.html"
@@ -42,9 +44,11 @@ rules:
       - "https://www.yiiframework.com/doc/guide/2.0/en"
 
   - id: YII-SECCFG-002
-    title: "Overly Permissive CORS Policy Indicator"
+    title: "Manual wildcard CORS response header"
     description: >
-      CORS configuration appears overly permissive and may expose authenticated data across origins.
+      Application code emits a wildcard CORS origin header directly. This can
+      expose sensitive responses cross-origin when applied to authenticated or
+      sensitive endpoints.
     severity: high
     confidence: high
     cvss_v3:
@@ -57,7 +61,7 @@ rules:
     patterns:
       - type: regex
         target: any
-        pattern: 'Origin[''"]\s*=>\s*\[\s*[''"]\*[''"]\s*\]|Access-Control-Allow-Origin'
+        pattern: "['\"]Access-Control-Allow-Origin['\"]\\s*=>\\s*['\"]\\*['\"]|header\\s*\\(\\s*['\"]Access-Control-Allow-Origin:\\s*\\*"
     remediation: |
       Use strict origin allowlists and avoid wildcard origins for sensitive or credentialed endpoints.
     references:

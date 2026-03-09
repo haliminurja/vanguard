@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: WordPress - Middleware Security
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "WordPress 5.0-6.x, PHP 8.0-8.4"
@@ -17,35 +17,39 @@
 
 rules:
   - id: WP-MID-001
-    title: "Sensitive Route Without Clear Middleware Guard"
+    title: "Privileged WordPress AJAX action without visible capability check"
     description: >
-      Sensitive or privileged route/action patterns are detected without explicit middleware/access guard indicators in the same context.
+      A privileged `wp_ajax_*` action is registered but no obvious capability
+      check is present in the same file. Any authenticated user may be able to
+      reach the action regardless of intended role boundaries.
     severity: high
     confidence: medium
     cvss_v3:
       score: 8.2
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Middleware Security
     tags: [wordpress, middleware-security, access-control, owasp-a01-2021, cwe-862, asvs-4.1.3]
     owasp: "A01:2021"
     cwe: "CWE-862"
     patterns:
       - type: regex
-        target: any
+        target: php-files
         pattern: 'add_action\s*\(\s*[''"]wp_ajax_[^''"]+[''"]'
-        exclude_pattern: '(auth|middleware|filter|isGranted|denyAccessUnlessGranted|current_user_can|checkAccess|isAuthorized|Gate::|can\(|wp_ajax_nopriv_)'
+        exclude_pattern: '(current_user_can|user_can|manage_options|edit_posts|delete_posts|upload_files|wp_ajax_nopriv_)'
     remediation: |
-      Apply explicit authentication and authorization middleware for privileged routes.
-      Enforce deny-by-default access policy and verify ownership at controller/service layer.
+      Add explicit capability checks to every privileged AJAX handler and pair
+      them with nonce validation for state-changing operations.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/862.html"
       - "https://developer.wordpress.org"
 
   - id: WP-MID-002
-    title: "Middleware Bypass or Security Filter Disabled"
+    title: "WordPress guest AJAX action bound to sensitive operation names"
     description: >
-      Middleware bypass patterns or disabled security filters are detected, increasing the risk of unprotected request handling.
+      A guest-accessible `wp_ajax_nopriv_*` action uses a name associated with
+      destructive or privileged behavior such as update, delete, save, create,
+      upload, or admin functionality.
     severity: high
     confidence: high
     cvss_v3:
@@ -57,11 +61,11 @@ rules:
     cwe: "CWE-16"
     patterns:
       - type: regex
-        target: any
-        pattern: 'add_action\s*\(\s*[''"]wp_ajax_nopriv_[^''"]+[''"]'
+        target: php-files
+        pattern: 'add_action\s*\(\s*[''"]wp_ajax_nopriv_(delete|update|save|edit|create|upload|admin|settings|role|user)[^''"]*[''"]'
     remediation: |
-      Remove middleware bypass behavior from production paths and restore security filters.
-      Review exception lists and route-level overrides regularly.
+      Remove guest-accessible bindings from sensitive AJAX operations and expose
+      public AJAX only for explicitly intended low-risk functions.
     references:
       - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
       - "https://cwe.mitre.org/data/definitions/16.html"

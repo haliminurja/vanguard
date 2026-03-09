@@ -1,0 +1,75 @@
+meta:
+  category: Middleware & Request Boundary Security
+  version: "4.1.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
+  compliance:
+    - OWASP-Top10-2021
+    - OWASP-ASVS-4.0.3
+    - CWE-Top25-2024
+    - NIST-SP-800-53r5
+rules:
+  - id: MID-TRUST-001
+    title: "Direct trust of X-Forwarded-* headers from the client request"
+    description: >
+      Application logic reads X-Forwarded-For, X-Forwarded-Host, X-Forwarded-Proto,
+      or related forwarding headers directly from request data. Unless these
+      headers are accepted only from explicitly trusted reverse proxies, attackers
+      can spoof client IP, scheme, or host information and influence rate limits,
+      audit trails, access decisions, or absolute URL generation.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.4
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Proxy Header Trust
+    enabled: true
+    tags: [proxy, forwarded-headers, host-header, owasp-a05-2021, cwe-345, asvs-14.4.3]
+    owasp: "A05:2021"
+    cwe: "CWE-345"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$_SERVER\s*\[\s*["'']HTTP_X_FORWARDED_(FOR|HOST|PROTO|PORT)["'']\s*\]'
+      - type: regex
+        target: php-files
+        pattern: 'getallheaders\s*\(\s*\)\s*\[\s*["'']X-Forwarded-(For|Host|Proto|Port)["'']\s*\]'
+    remediation: |
+      Accept forwarded headers only from explicitly trusted reverse proxies or
+      load balancers. For security decisions, prefer canonical server-side values
+      after proxy trust validation is applied.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/345.html"
+      - "https://owasp.org/www-project-application-security-verification-standard/"
+
+  - id: MID-HDR-002
+    title: "Security response headers explicitly removed"
+    description: >
+      Response processing removes browser security headers such as CSP, HSTS,
+      X-Frame-Options, or X-Content-Type-Options. Removing these headers weakens
+      the browser-side security boundary and increases exposure to XSS,
+      clickjacking, mixed transport, or MIME confusion attacks.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N"
+    category: Missing Security Headers
+    enabled: true
+    tags: [headers, hardening, csp, hsts, owasp-a05-2021, cwe-16, asvs-14.4.1]
+    owasp: "A05:2021"
+    cwe: "CWE-16"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'header_remove\s*\(\s*["''](Content-Security-Policy|Strict-Transport-Security|X-Frame-Options|X-Content-Type-Options|Referrer-Policy|Permissions-Policy)["'']\s*\)'
+    remediation: |
+      Keep security headers enforced by default. If a specific route needs a
+      different policy, replace it with a stricter route-specific value instead
+      of removing the header entirely.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/16.html"
+      - "https://owasp.org/www-project-application-security-verification-standard/"

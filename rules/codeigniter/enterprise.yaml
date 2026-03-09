@@ -1,0 +1,72 @@
+meta:
+  category: CodeIgniter 3 Enterprise Security
+  version: "4.1.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "CodeIgniter 2.x-3.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - OWASP-ASVS-4.0.3
+    - CWE-Top25-2024
+    - NIST-SP-800-53r5
+    - PCI-DSS-v4.0.1
+rules:
+  - id: CI-ENT-101
+    title: "CodeIgniter CSRF token regeneration disabled"
+    description: >
+      CodeIgniter is configured to reuse the same CSRF token across requests by
+      setting csrf_regenerate to false. The official documentation notes that
+      regenerating on every submission provides stricter security.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 6.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:H/A:N"
+    category: CSRF Hardening
+    enabled: true
+    tags: [codeigniter, csrf, token, owasp-a05-2021, cwe-352, asvs-4.3.2]
+    owasp: "A05:2021"
+    cwe: "CWE-352"
+    patterns:
+      - type: regex
+        target: config-files
+        pattern: '\$config\[''csrf_regenerate''\]\s*=\s*(FALSE|false|0)\s*;'
+    remediation: |
+      Keep CSRF token regeneration enabled unless a narrowly justified workflow
+      requires otherwise and compensating controls are in place.
+    references:
+      - "https://codeigniter.com/userguide3/libraries/security.html"
+      - "https://cwe.mitre.org/data/definitions/352.html"
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+
+  - id: CI-ENT-102
+    title: "CodeIgniter redirect() fed from raw input"
+    description: >
+      CodeIgniter redirect helpers receive the destination directly from GET,
+      POST, or request variables. Attackers can abuse this to create open
+      redirects and redirect users to external phishing destinations.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 6.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+    category: Open Redirect
+    enabled: true
+    tags: [codeigniter, redirect, phishing, owasp-a01-2021, cwe-601, asvs-5.1.5]
+    owasp: "A01:2021"
+    cwe: "CWE-601"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'redirect\s*\(\s*\$this->input->(get|post)\s*\(\s*[''"](next|redirect|url|return|return_url|redirect_to)[''"]'
+        exclude_pattern: '(filter_var|parse_url|site_url|base_url|prep_url|in_array)'
+      - type: regex
+        target: php-files
+        pattern: 'redirect\s*\(\s*(\$_GET|\$_POST|\$_REQUEST)'
+        exclude_pattern: '(filter_var|parse_url|site_url|base_url|prep_url|in_array)'
+    remediation: |
+      Redirect only to internal allowlisted paths or canonical application URLs.
+      Reject absolute external URLs unless explicitly approved by policy.
+    references:
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"
+      - "https://cwe.mitre.org/data/definitions/601.html"

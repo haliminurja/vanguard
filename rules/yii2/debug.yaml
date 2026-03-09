@@ -1,6 +1,6 @@
 ﻿meta:
   category: Yii2 - Information Disclosure
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Yii2 2.0.x, PHP 8.0-8.4"
@@ -40,28 +40,29 @@ rules:
       - "https://cwe.mitre.org/data/definitions/489.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
       - "https://www.yiiframework.com/doc/guide/2.0/en"
-
   - id: YII-DEBUG-002
-    title: "Debug Functions Present in Runtime Code"
+    title: "Yii2 VarDumper diagnostic helpers present in runtime code"
     description: >
-      Debug helper functions are present and may expose sensitive runtime data if reached in production paths.
+      Yii2 VarDumper helpers are present in runtime paths and may expose raw
+      object graphs, request data, or secrets if reached in production.
     severity: medium
     confidence: high
     cvss_v3:
       score: 6.0
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
     category: Information Disclosure
-    tags: [yii2, debug, owasp-a05-2021, cwe-489, asvs-14.3.1]
+    tags: [yii2, debug, vardumper, owasp-a05-2021, cwe-489, asvs-14.3.1]
     owasp: "A05:2021"
     cwe: "CWE-489"
     patterns:
       - type: regex
         target: php-files
-        pattern: '\b(var_dump|print_r|var_export)\s*\('
-        exclude_pattern: '(//|#\s|/\*|test|Test|spec|hexdump|mysqldump|mongodump|pg_dump)'
+        pattern: 'VarDumper::(dump|dumpAsString)\s*\('
+        exclude_pattern: '(//|#\s|/\*|test|Test|spec)'
     remediation: |
-      Remove debug statements from production code and use controlled logging with sanitization and access controls.
+      Remove VarDumper diagnostics from runtime code and route needed insight
+      through controlled logging or local-only debugging paths.
     references:
       - "https://cwe.mitre.org/data/definitions/489.html"
+      - "https://www.yiiframework.com/doc/api/2.0/yii-helpers-vardumper"
       - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
-      - "https://www.yiiframework.com/doc/guide/2.0/en"

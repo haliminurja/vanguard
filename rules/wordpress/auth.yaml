@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: WordPress - Authentication
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "WordPress 5.0-6.x, PHP 8.0-8.4"
@@ -17,52 +17,89 @@
 
 rules:
   - id: WP-AUTH-001
-    title: "User-Controlled Authentication Flow"
+    title: "WordPress auth cookie or current user set from request-controlled ID"
     description: >
-      Authentication identity or privilege context is derived from user-controlled input without strict verification. This can enable account takeover or privilege escalation.
+      WordPress authentication state is established directly from request
+      parameters. This can allow account takeover or unauthorized impersonation.
     severity: critical
     confidence: high
     cvss_v3:
       score: 9.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Authentication
-    tags: [wordpress, auth, authorization, owasp-a07-2021, cwe-287, asvs-2.1.1]
+    tags: [wordpress, auth, impersonation, owasp-a07-2021, cwe-287, asvs-2.1.1]
     owasp: "A07:2021"
     cwe: "CWE-287"
     patterns:
       - type: regex
         target: php-files
-        pattern: '(wp_set_auth_cookie|wp_signon)\s*\(\s*(\$_(?:GET|POST|REQUEST)|\$request)'
-        exclude_pattern: '(authorize|policy|current_user_can|denyAccessUnlessGranted|checkAccess|isAuthorized|Gate::|can\()'
+        pattern: '(wp_set_auth_cookie|wp_set_current_user)\s*\(\s*(absint|intval)?\s*\(?\s*(\$_(?:GET|POST|REQUEST)|filter_input\s*\()'
     remediation: |
-      Enforce strong authentication checks before setting identity or session context. Use framework-native guards, policies, and MFA for privileged flows.
+      Authenticate through WordPress credential, nonce, or signed token flows
+      before setting user state. Never trust a client-supplied user ID as the
+      source of identity.
     references:
       - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
       - "https://cwe.mitre.org/data/definitions/287.html"
-      - "https://owasp.org/www-project-application-security-verification-standard/"
-      - "https://developer.wordpress.org"
+      - "https://developer.wordpress.org/reference/functions/wp_set_auth_cookie/"
 
   - id: WP-AUTH-002
-    title: "Privileged Endpoint Without Clear Auth Guard"
+    title: "Privileged WordPress AJAX or admin-post action exposed to nopriv users"
     description: >
-      Potential privileged endpoint patterns are detected without clear access control indicators in the same context.
+      Unauthenticated WordPress hooks are registered for account, billing,
+      password, role, or profile actions. Without strict internal authorization
+      and nonce validation this can expose privileged workflows to anonymous
+      callers.
     severity: high
     confidence: medium
     cvss_v3:
-      score: 8.3
+      score: 8.0
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-    category: Authentication
-    tags: [wordpress, auth, authorization, owasp-a01-2021, cwe-862, asvs-4.1.3]
+    category: Authorization
+    tags: [wordpress, auth, access-control, owasp-a01-2021, cwe-862, asvs-4.1.3]
     owasp: "A01:2021"
     cwe: "CWE-862"
     patterns:
       - type: regex
         target: php-files
-        pattern: 'add_action\s*\(\s*[''"]wp_ajax_nopriv_[^''"]+[''"]'
-        exclude_pattern: '(auth|middleware|authorize|isAuthorized|current_user_can|denyAccessUnlessGranted|checkAccess|Gate::|can\()'
+        pattern: 'add_action\s*\(\s*[''"](?:wp_ajax_nopriv_|admin_post_nopriv_)[^''"]*(account|profile|password|billing|role|user|admin)[^''"]*[''"]'
+        exclude_pattern: '(check_ajax_referer|wp_verify_nonce|current_user_can)'
     remediation: |
-      Protect privileged endpoints with explicit authentication and authorization middleware/policies. Enforce deny-by-default.
+      Avoid exposing privileged handlers through `nopriv` hooks. Require nonce
+      validation plus explicit capability checks for every sensitive action.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/862.html"
-      - "https://developer.wordpress.org"
+      - "https://developer.wordpress.org/plugins/javascript/ajax/"
+
+  - id: WP-AUTH-003
+    title: "WordPress role or capability changes sourced directly from request input"
+    description: >
+      Roles, capabilities, or privileged account attributes are updated from raw
+      request parameters. This is a high-risk privilege-escalation pattern.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Authorization
+    tags: [wordpress, auth, privilege-escalation, owasp-a01-2021, cwe-266, asvs-4.2.1]
+    owasp: "A01:2021"
+    cwe: "CWE-266"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->set_role\s*\(\s*(\$_(?:GET|POST|REQUEST)|sanitize_text_field\s*\(\s*\$_(?:GET|POST|REQUEST))'
+      - type: regex
+        target: php-files
+        pattern: 'wp_update_user\s*\(\s*\[[^\]]*[''"]role[''"]\s*=>\s*(\$_(?:GET|POST|REQUEST)|sanitize_text_field\s*\(\s*\$_(?:GET|POST|REQUEST))'
+      - type: regex
+        target: php-files
+        pattern: 'update_user_meta\s*\([^,]+,\s*[''"]wp_capabilities[''"]\s*,\s*(\$_(?:GET|POST|REQUEST)|filter_input\s*\()'
+    remediation: |
+      Resolve capability changes from server-side policy and trusted role maps.
+      Never let client input directly choose the target role or capability set.
+    references:
+      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+      - "https://cwe.mitre.org/data/definitions/266.html"
+      - "https://developer.wordpress.org/reference/classes/wp_user/set_role/"

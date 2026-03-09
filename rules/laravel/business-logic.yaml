@@ -1,6 +1,6 @@
-﻿meta:
+meta:
   category: Laravel - Business Logic
-  version: "4.0.0"
+  version: "4.1.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
   scope: "Laravel 10-12, PHP 8.0-8.4"
@@ -17,9 +17,11 @@
 
 rules:
   - id: LAR-BIZ-001
-    title: "State-Changing Business Action Without Authorization Guard"
+    title: "Sensitive Laravel business action without clear authorization check"
     description: >
-      Business-critical operations such as update, delete, approve, or refund are defined without explicit ownership or role checks. This can lead to horizontal or vertical privilege abuse.
+      Controller methods for refund, approval, cancellation, price updates, or
+      destructive mutations are present without nearby evidence of Laravel
+      authorization enforcement.
     severity: high
     confidence: medium
     cvss_v3:
@@ -31,37 +33,69 @@ rules:
     cwe: "CWE-840"
     patterns:
       - type: regex
-        target: php-files
-        pattern: 'public\s+function\s+(update|destroy|delete|approve|refund)\b'
-        exclude_pattern: '(authorize|can\(|Gate::|policy|current_user_can|denyAccessUnlessGranted|checkAccess|isAuthorized)'
+        target: controller-files
+        pattern: 'public\s+function\s+(update|destroy|delete|approve|refund|cancel|capture|changeRole|setStatus|updatePrice)\b'
+        exclude_pattern: '(authorize\s*\(|Gate::|can\s*\(|middleware.*can:|authorizeResource|policy)'
     remediation: |
-      Apply object-level authorization checks for every state-changing operation. Validate resource ownership and enforce deny-by-default policy design.
+      Apply explicit policy or gate checks for every business-critical mutation
+      and keep object ownership validation close to the write path.
     references:
       - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
       - "https://cwe.mitre.org/data/definitions/840.html"
-      - "https://owasp.org/www-project-application-security-verification-standard/"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/11.x/authorization"
 
   - id: LAR-BIZ-002
-    title: "Sensitive Business Field Controlled by Request Input"
+    title: "Sensitive business fields assigned from Laravel request input"
     description: >
-      Request input appears to directly control sensitive business fields such as price, role, status, or amount.
+      Price, amount, balance, discount, role, or status values are copied
+      directly from a Laravel request into persistence structures.
     severity: high
     confidence: high
     cvss_v3:
       score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Business Logic
-    tags: [laravel, business-logic, owasp-a04-2021, cwe-840, asvs-4.2.4]
+    tags: [laravel, business-logic, pricing, owasp-a04-2021, cwe-840, asvs-4.2.4]
     owasp: "A04:2021"
     cwe: "CWE-840"
     patterns:
       - type: regex
         target: php-files
-        pattern: '\$request->(input|get|post)\(\s*[''"](price|amount|role|is_admin|status)[''"]'
+        pattern: '["''](price|amount|balance|discount|credit_limit|role|is_admin|status)["'']\s*=>\s*\$request->(input|get|post)\('
+      - type: regex
+        target: php-files
+        pattern: '->(price|amount|balance|discount|credit_limit|role|is_admin|status)\s*=\s*\$request->(input|get|post)\('
     remediation: |
-      Never trust client-provided values for privileged business fields. Compute sensitive values server-side and enforce strict authorization.
+      Derive privileged business fields server-side or constrain them through
+      strict allowlists and authorization-aware validation logic.
+    references:
+      - "https://cwe.mitre.org/data/definitions/840.html"
+      - "https://laravel.com/docs/11.x/validation"
+
+  - id: LAR-BIZ-003
+    title: "Laravel refund or balance mutation uses request-controlled amount"
+    description: >
+      Refund, credit, debit, transfer, or discount methods receive raw Laravel
+      request values directly as the controlling amount or quantity.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Business Logic
+    tags: [laravel, business-logic, finance, owasp-a04-2021, cwe-840, asvs-4.2.4]
+    owasp: "A04:2021"
+    cwe: "CWE-840"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->(refund|credit|debit|withdraw|transfer|adjustBalance|setPrice|applyDiscount)\s*\([^)]*\$request->(input|get|integer)\('
+      - type: regex
+        target: php-files
+        pattern: '(refund|credit|debit|withdraw|transfer|adjustBalance|setPrice|applyDiscount)\s*\([^)]*\$request->(input|get|integer)\('
+    remediation: |
+      Normalize and bound financial input before use, then re-check business
+      invariants such as ownership, max allowed adjustment, and current state.
     references:
       - "https://cwe.mitre.org/data/definitions/840.html"
       - "https://owasp.org/www-project-top-ten/"
-      - "https://laravel.com/docs"
