@@ -1,0 +1,66 @@
+﻿meta:
+  category: Symfony - PHP Compatibility
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: SYM-PHPCOMP-001
+    title: "Deprecated PHP Primitive in Security-Critical Path"
+    description: >
+      Legacy PHP functions that are removed or obsolete in modern runtime are present. This indicates technical debt that can weaken security controls and maintainability.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 5.3
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"
+    category: PHP Compatibility
+    tags: [symfony, php-compatibility, legacy, owasp-a06-2021, cwe-477, cis-control-4]
+    owasp: "A06:2021"
+    cwe: "CWE-477"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\b(mysql_query|mysql_connect|split|create_function|each)\s*\('
+    remediation: |
+      Refactor deprecated functions to modern supported APIs and enforce PHP version policy checks in CI pipelines.
+    references:
+      - "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/"
+      - "https://cwe.mitre.org/data/definitions/477.html"
+      - "https://www.php.net/manual/en/migration80.incompatible.php"
+      - "https://symfony.com/doc/current/index.html"
+
+  - id: SYM-PHPCOMP-002
+    title: "Legacy PHP Runtime Flag with Security Impact"
+    description: >
+      Legacy PHP runtime flags with known security implications are detected in configuration-like files.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 5.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"
+    category: PHP Compatibility
+    tags: [symfony, php-compatibility, runtime, owasp-a05-2021, cwe-16, cis-control-4]
+    owasp: "A05:2021"
+    cwe: "CWE-16"
+    patterns:
+      - type: regex
+        target: any
+        pattern: 'allow_url_include\s*=\s*On|register_globals\s*=\s*On|magic_quotes_gpc\s*=\s*On'
+    remediation: |
+      Disable legacy insecure runtime flags and enforce hardened PHP baselines in all environments.
+    references:
+      - "https://www.php.net/manual/en/ini.core.php"
+      - "https://cwe.mitre.org/data/definitions/16.html"
+      - "https://symfony.com/doc/current/index.html"

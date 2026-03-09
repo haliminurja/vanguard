@@ -1,0 +1,66 @@
+﻿meta:
+  category: Laravel - Session Security
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Laravel 10-12, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: LAR-SESSION-001
+    title: "Insecure Session Cookie or Session Transport Setting"
+    description: >
+      Session security flags appear weak or disabled, potentially exposing authenticated sessions to interception or misuse.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.4
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Session Security
+    tags: [laravel, session-security, cookie, owasp-a07-2021, cwe-614, asvs-3.4.3]
+    owasp: "A07:2021"
+    cwe: "CWE-614"
+    patterns:
+      - type: regex
+        target: any
+        pattern: '[\"]secure[\"]\s*=>\s*false|[\"]same_site[\"]\s*=>\s*[\"]none[\"]'
+    remediation: |
+      Enforce secure cookie attributes (Secure, HttpOnly, SameSite), require HTTPS everywhere, and rotate session identifiers after privilege changes.
+    references:
+      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+      - "https://cwe.mitre.org/data/definitions/614.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
+      - "https://laravel.com/docs"
+
+  - id: LAR-SESSION-002
+    title: "Session Identifier Exposure via URL or User Input"
+    description: >
+      Session identifiers may be propagated via URL/query input, increasing hijacking and fixation risk.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.4
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Session Security
+    tags: [laravel, session-security, owasp-a07-2021, cwe-384, asvs-3.4.2]
+    owasp: "A07:2021"
+    cwe: "CWE-384"
+    patterns:
+      - type: regex
+        target: any
+        pattern: 'session_id\s*\(\s*\$_(?:GET|POST|REQUEST)\)|PHPSESSID='
+    remediation: |
+      Never transport session IDs in URLs. Regenerate IDs on privilege change and enforce secure session cookies.
+    references:
+      - "https://cwe.mitre.org/data/definitions/384.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
+      - "https://laravel.com/docs"

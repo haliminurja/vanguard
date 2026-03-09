@@ -1,0 +1,66 @@
+﻿meta:
+  category: Symfony - Cryptographic Failure
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: SYM-CRYPTO-001
+    title: "Weak or Legacy Cryptographic Primitive Usage"
+    description: >
+      Weak hashing or deprecated cryptographic options are present. This can reduce resistance to cracking and tampering attacks.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.7
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Cryptographic Failure
+    tags: [symfony, crypto, hashing, owasp-a02-2021, cwe-327, asvs-6.2.5]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
+    patterns:
+      - type: regex
+        target: any
+        pattern: 'algorithm:\s*(plaintext|md5|sha1)|\b(md5|sha1)\s*\('
+    remediation: |
+      Replace weak algorithms with modern primitives such as Argon2id, bcrypt, AES-GCM, and strong key management. Enforce organization crypto policy and periodic rotation.
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/327.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
+      - "https://symfony.com/doc/current/index.html"
+
+  - id: SYM-CRYPTO-002
+    title: "TLS Certificate Verification Disabled"
+    description: >
+      TLS certificate or host verification appears disabled in outbound communication settings.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Cryptographic Failure
+    tags: [symfony, crypto, tls, owasp-a02-2021, cwe-295, asvs-9.1.1]
+    owasp: "A02:2021"
+    cwe: "CWE-295"
+    patterns:
+      - type: regex
+        target: any
+        pattern: '[''"]verify_(peer|host)[''"]\s*=>\s*false'
+    remediation: |
+      Always verify TLS peer and hostname. Use trusted CA stores and block insecure overrides in production.
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/295.html"
+      - "https://symfony.com/doc/current/index.html"

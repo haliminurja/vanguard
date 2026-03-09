@@ -1,0 +1,67 @@
+﻿meta:
+  category: CodeIgniter 4 - SSRF
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "CodeIgniter 4.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: CI4-SSRF-001
+    title: "Server-Side Request Forgery Sink with User-Controlled Destination"
+    description: >
+      Outbound HTTP or URL fetch appears to use user-controlled destination values, which can expose internal services and cloud metadata endpoints.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:L/A:N"
+    category: SSRF
+    tags: [codeigniter4, ssrf, network, owasp-a10-2021, cwe-918, asvs-5.3.10]
+    owasp: "A10:2021"
+    cwe: "CWE-918"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(curl_exec|file_get_contents)\s*\(\s*(\$this->request->get|\$_(?:GET|POST|REQUEST))'
+        exclude_pattern: '(allowlist|whitelist|trusted_hosts|internal_guard|validate_url)'
+    remediation: |
+      Apply strict destination allowlists, block private address space, disable unsafe redirects, and enforce egress controls at network and application layers.
+    references:
+      - "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/"
+      - "https://cwe.mitre.org/data/definitions/918.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html"
+      - "https://codeigniter.com/user_guide/"
+
+  - id: CI4-SSRF-002
+    title: "Internal Metadata/Local Service Target Indicator"
+    description: >
+      Known internal metadata or localhost service targets appear in requestable URL contexts.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.6
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:L/A:N"
+    category: SSRF
+    tags: [codeigniter4, ssrf, owasp-a10-2021, cwe-918, asvs-5.3.10]
+    owasp: "A10:2021"
+    cwe: "CWE-918"
+    patterns:
+      - type: regex
+        target: any
+        pattern: '169\.254\.169\.254|metadata\.google\.internal|localhost:2375|127\.0\.0\.1:'
+    remediation: |
+      Block internal and metadata destinations via network egress controls and strict URL allowlists.
+    references:
+      - "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/"
+      - "https://cwe.mitre.org/data/definitions/918.html"
+      - "https://codeigniter.com/user_guide/"

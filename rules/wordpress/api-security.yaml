@@ -1,0 +1,68 @@
+﻿meta:
+  category: WordPress - API Security
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "WordPress 5.0-6.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: WP-API-001
+    title: "API Endpoint Exposure Without Explicit Access Control Evidence"
+    description: >
+      API route declarations are detected without strong indicators of authentication or authorization in the same context.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: API Security
+    tags: [wordpress, api-security, access-control, owasp-a01-2021, cwe-862, asvs-4.1.3]
+    owasp: "A01:2021"
+    cwe: "CWE-862"
+    patterns:
+      - type: regex
+        target: any
+        pattern: 'register_rest_route\s*\('
+        exclude_pattern: '(auth|middleware|permission_callback|isGranted|denyAccessUnlessGranted|current_user_can|jwt|bearer|api[_-]?key)'
+    remediation: |
+      Require explicit authentication and authorization for every API route. Use centralized policy enforcement and deny by default for sensitive actions.
+    references:
+      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+      - "https://cwe.mitre.org/data/definitions/862.html"
+      - "https://owasp.org/www-project-api-security/"
+      - "https://developer.wordpress.org"
+
+  - id: WP-API-002
+    title: "API Route Without Evident Access Enforcement"
+    description: >
+      API route definitions are present while strong authz/authn indicators are not evident in nearby declarations.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: API Security
+    tags: [wordpress, api-security, owasp-a01-2021, cwe-862, asvs-4.1.3]
+    owasp: "A01:2021"
+    cwe: "CWE-862"
+    patterns:
+      - type: regex
+        target: any
+        pattern: 'register_rest_route\s*\('
+        exclude_pattern: '(auth|middleware|permission_callback|isGranted|denyAccessUnlessGranted|current_user_can|jwt|bearer|api[_-]?key)'
+    remediation: |
+      Enforce authentication and authorization on every API endpoint. Require explicit policy checks for sensitive operations.
+    references:
+      - "https://owasp.org/www-project-api-security/"
+      - "https://cwe.mitre.org/data/definitions/862.html"
+      - "https://developer.wordpress.org"

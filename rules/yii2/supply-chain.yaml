@@ -1,0 +1,66 @@
+﻿meta:
+  category: Yii2 - Supply Chain
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Yii2 2.0.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: YII-SUPPLY-001
+    title: "Supply Chain Risky Dependency Policy or Build Flag"
+    description: >
+      Build or dependency policy indicates reduced integrity assurance, such as unstable dependencies or bypassed audit checks.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Supply Chain
+    tags: [yii2, supply-chain, dependencies, owasp-a06-2021, cwe-1104, slsa]
+    owasp: "A06:2021"
+    cwe: "CWE-1104"
+    patterns:
+      - type: regex
+        target: any
+        pattern: '[\"]minimum-stability[\"]\s*:\s*[\"]dev[\"]|composer\s+(install|update)[^\n]*(--ignore-platform-reqs|--no-audit)'
+    remediation: |
+      Pin dependency versions, enforce lockfile integrity, run vulnerability checks in CI, and block risky build flags in production pipelines.
+    references:
+      - "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/"
+      - "https://cwe.mitre.org/data/definitions/1104.html"
+      - "https://slsa.dev/"
+      - "https://www.yiiframework.com/doc/guide/2.0/en"
+
+  - id: YII-SUPPLY-002
+    title: "Unstable Dependency Channel or Dev Branch Pinning"
+    description: >
+      Dependency configuration may rely on unstable channels or moving dev branches, reducing build integrity assurance.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.3
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Supply Chain
+    tags: [yii2, supply-chain, owasp-a06-2021, cwe-1104, slsa]
+    owasp: "A06:2021"
+    cwe: "CWE-1104"
+    patterns:
+      - type: regex
+        target: any
+        pattern: '[''"]minimum-stability[''"]\s*:\s*[''"]dev[''"]|[''"][^''"]+[''"]\s*:\s*[''"]dev-(master|main)[''"]'
+    remediation: |
+      Use pinned stable versions, enforce lockfile integrity, and block dev branch dependencies for production builds.
+    references:
+      - "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/"
+      - "https://cwe.mitre.org/data/definitions/1104.html"
+      - "https://www.yiiframework.com/doc/guide/2.0/en"

@@ -1,0 +1,66 @@
+﻿meta:
+  category: Symfony - Security Configuration
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: SYM-SECCFG-001
+    title: "High-Risk Security Configuration Detected"
+    description: >
+      Security-critical configuration appears to weaken default protections such as CSRF, origin controls, or privileged admin hardening.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.0
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: Security Configuration
+    tags: [symfony, security-config, hardening, owasp-a05-2021, cwe-16, cis-control-4]
+    owasp: "A05:2021"
+    cwe: "CWE-16"
+    patterns:
+      - type: regex
+        target: any
+        pattern: 'csrf_protection:\s*false|allow_origin:\s*\[\s*[\"]\*[\"]\s*\]|allow_credentials:\s*true'
+    remediation: |
+      Apply secure-by-default framework configuration profiles and maintain environment-specific hardening baselines with periodic review.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/16.html"
+      - "https://owasp.org/www-project-application-security-verification-standard/"
+      - "https://symfony.com/doc/current/index.html"
+
+  - id: SYM-SECCFG-002
+    title: "Overly Permissive CORS Policy Indicator"
+    description: >
+      CORS configuration appears overly permissive and may expose authenticated data across origins.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:L/A:N"
+    category: Security Configuration
+    tags: [symfony, security-config, cors, owasp-a05-2021, cwe-346, asvs-14.2.5]
+    owasp: "A05:2021"
+    cwe: "CWE-346"
+    patterns:
+      - type: regex
+        target: any
+        pattern: 'allow_origin:\s*\[\s*[''"]\*[''"]\s*\]|Access-Control-Allow-Origin:\s*\*'
+    remediation: |
+      Use strict origin allowlists and avoid wildcard origins for sensitive or credentialed endpoints.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/346.html"
+      - "https://symfony.com/doc/current/index.html"

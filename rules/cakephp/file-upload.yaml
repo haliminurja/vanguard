@@ -1,0 +1,68 @@
+﻿meta:
+  category: CakePHP - File Upload
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "CakePHP 3.0-5.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: CAKE-UPLOAD-001
+    title: "Upload Processing Without Strong Type Enforcement"
+    description: >
+      Upload handlers are present but robust MIME, extension, and size controls are not evident in the same flow. This can enable malicious file delivery and execution.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H"
+    category: File Upload
+    tags: [cakephp, file-upload, owasp-a05-2021, cwe-434, asvs-12.3.1]
+    owasp: "A05:2021"
+    cwe: "CWE-434"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$this->request->getUploadedFile|->moveTo\s*\('
+        exclude_pattern: '(mime|mimes|mimeTypes|extensions|maxSize|wp_check_filetype|File::class|uploaded\|mime_in)'
+    remediation: |
+      Enforce strict allowlists for MIME and extension, validate size and content signatures, store uploads outside executable paths, and run malware scanning.
+    references:
+      - "https://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload"
+      - "https://cwe.mitre.org/data/definitions/434.html"
+      - "https://owasp.org/www-project-application-security-verification-standard/"
+      - "https://book.cakephp.org/4/en/index.html"
+
+  - id: CAKE-UPLOAD-002
+    title: "Upload Destination in Web-Accessible Path"
+    description: >
+      Upload routines may place files in web-accessible directories, increasing exposure to executable payload abuse.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H"
+    category: File Upload
+    tags: [cakephp, file-upload, owasp-a05-2021, cwe-434, asvs-12.3.1]
+    owasp: "A05:2021"
+    cwe: "CWE-434"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '->moveTo\s*\([^)]*(webroot|public|uploads?)'
+        exclude_pattern: '(scan|sanitize|mime|mimes|mimeTypes|extensions|maxSize)'
+    remediation: |
+      Store uploads outside web root, enforce strict MIME/content validation, and block executable content.
+    references:
+      - "https://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload"
+      - "https://cwe.mitre.org/data/definitions/434.html"
+      - "https://book.cakephp.org/4/en/index.html"

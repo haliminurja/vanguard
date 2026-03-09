@@ -1,0 +1,67 @@
+﻿meta:
+  category: CodeIgniter 4 - Information Disclosure
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "CodeIgniter 4.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: CI4-DEBUG-001
+    title: "Debug Mode or Verbose Diagnostic Exposure"
+    description: >
+      Debug functionality appears enabled in application or runtime configuration. Production exposure can leak internals and accelerate exploitation.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 5.9
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
+    category: Information Disclosure
+    tags: [codeigniter4, debug, diagnostics, owasp-a05-2021, cwe-489, nist-si-11]
+    owasp: "A05:2021"
+    cwe: "CWE-489"
+    patterns:
+      - type: regex
+        target: any
+        pattern: 'CI_ENVIRONMENT\s*=\s*development|public\s+\$enabled\s*=\s*true'
+    remediation: |
+      Disable debug features in production and route diagnostics into secure observability tooling with strict access controls.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/489.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
+      - "https://codeigniter.com/user_guide/"
+
+  - id: CI4-DEBUG-002
+    title: "Debug Functions Present in Runtime Code"
+    description: >
+      Debug helper functions are present and may expose sensitive runtime data if reached in production paths.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 6.0
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
+    category: Information Disclosure
+    tags: [codeigniter4, debug, owasp-a05-2021, cwe-489, asvs-14.3.1]
+    owasp: "A05:2021"
+    cwe: "CWE-489"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\b(var_dump|print_r|var_export)\s*\('
+        exclude_pattern: '(//|#\s|/\*|test|Test|spec|hexdump|mysqldump|mongodump|pg_dump)'
+    remediation: |
+      Remove debug statements from production code and use controlled logging with sanitization and access controls.
+    references:
+      - "https://cwe.mitre.org/data/definitions/489.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
+      - "https://codeigniter.com/user_guide/"

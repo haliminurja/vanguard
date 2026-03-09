@@ -322,6 +322,96 @@ func TestFrameworkTemplateTargetsAreScopedToRightFramework(t *testing.T) {
 	}
 }
 
+func TestFrameworkCategoryFilesExist(t *testing.T) {
+	frameworkDirs := []string{
+		filepath.Join("..", "..", "rules", "yii2"),
+		filepath.Join("..", "..", "rules", "wordpress"),
+		filepath.Join("..", "..", "rules", "symfony"),
+		filepath.Join("..", "..", "rules", "laravel"),
+		filepath.Join("..", "..", "rules", "codeigniter4"),
+		filepath.Join("..", "..", "rules", "codeigniter"),
+		filepath.Join("..", "..", "rules", "cakephp"),
+	}
+	categoryFiles := []string{
+		"auth.yaml",
+		"business-logic.yaml",
+		"crypto.yaml",
+		"debug.yaml",
+		"deserialization.yaml",
+		"file-upload.yaml",
+		"injection.yaml",
+		"jwt-security.yaml",
+		"logging-monitoring.yaml",
+		"middleware-security.yaml",
+		"php-compatibility.yaml",
+		"secrets.yaml",
+		"security-config.yaml",
+		"session-security.yaml",
+		"ssrf.yaml",
+		"supply-chain.yaml",
+		"api-security.yaml",
+	}
+
+	for _, dir := range frameworkDirs {
+		for _, file := range categoryFiles {
+			path := filepath.Join(dir, file)
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Errorf("missing framework category file %s: %v", path, err)
+				continue
+			}
+			if info.IsDir() {
+				t.Errorf("expected file but found directory: %s", path)
+			}
+		}
+	}
+}
+
+func TestFrameworkCategoryFilesHaveAtLeastTwoRules(t *testing.T) {
+	frameworkDirs := []string{
+		filepath.Join("..", "..", "rules", "yii2"),
+		filepath.Join("..", "..", "rules", "wordpress"),
+		filepath.Join("..", "..", "rules", "symfony"),
+		filepath.Join("..", "..", "rules", "laravel"),
+		filepath.Join("..", "..", "rules", "codeigniter4"),
+		filepath.Join("..", "..", "rules", "codeigniter"),
+		filepath.Join("..", "..", "rules", "cakephp"),
+	}
+	categoryFiles := []string{
+		"auth.yaml",
+		"business-logic.yaml",
+		"crypto.yaml",
+		"debug.yaml",
+		"deserialization.yaml",
+		"file-upload.yaml",
+		"injection.yaml",
+		"jwt-security.yaml",
+		"logging-monitoring.yaml",
+		"middleware-security.yaml",
+		"php-compatibility.yaml",
+		"secrets.yaml",
+		"security-config.yaml",
+		"session-security.yaml",
+		"ssrf.yaml",
+		"supply-chain.yaml",
+		"api-security.yaml",
+	}
+
+	for _, dir := range frameworkDirs {
+		for _, file := range categoryFiles {
+			path := filepath.Join(dir, file)
+			rules, err := LoadRulesFromFile(path)
+			if err != nil {
+				t.Errorf("failed to parse framework category file %s: %v", path, err)
+				continue
+			}
+			if len(rules) < 2 {
+				t.Errorf("framework category file %s should contain at least 2 rules, got %d", path, len(rules))
+			}
+		}
+	}
+}
+
 func TestAllRulesHaveConfidence(t *testing.T) {
 	all := mustLoadAllRules(t)
 	allowed := map[string]bool{

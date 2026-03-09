@@ -1,0 +1,68 @@
+﻿meta:
+  category: Symfony - Middleware Security
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Symfony 4.4-7.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: SYM-MID-001
+    title: "Sensitive Route Without Clear Middleware Guard"
+    description: >
+      Sensitive or privileged route/action patterns are detected without explicit middleware/access guard indicators in the same context.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 8.2
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Middleware Security
+    tags: [symfony, middleware-security, access-control, owasp-a01-2021, cwe-862, asvs-4.1.3]
+    owasp: "A01:2021"
+    cwe: "CWE-862"
+    patterns:
+      - type: regex
+        target: any
+        pattern: '#\[Route\(\s*[''"][^''"]*(admin|account|settings|billing|profile|payment)[^''"]*[''"]'
+        exclude_pattern: '(auth|middleware|filter|isGranted|denyAccessUnlessGranted|current_user_can|checkAccess|isAuthorized|Gate::|can\()'
+    remediation: |
+      Apply explicit authentication and authorization middleware for privileged routes.
+      Enforce deny-by-default access policy and verify ownership at controller/service layer.
+    references:
+      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+      - "https://cwe.mitre.org/data/definitions/862.html"
+      - "https://symfony.com/doc/current/index.html"
+
+  - id: SYM-MID-002
+    title: "Middleware Bypass or Security Filter Disabled"
+    description: >
+      Middleware bypass patterns or disabled security filters are detected, increasing the risk of unprotected request handling.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.0
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+    category: Middleware Security
+    tags: [symfony, middleware-security, security-misconfiguration, owasp-a05-2021, cwe-16, asvs-14.2.1]
+    owasp: "A05:2021"
+    cwe: "CWE-16"
+    patterns:
+      - type: regex
+        target: any
+        pattern: 'roles:\s*PUBLIC_ACCESS|security:\s*false'
+    remediation: |
+      Remove middleware bypass behavior from production paths and restore security filters.
+      Review exception lists and route-level overrides regularly.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/16.html"
+      - "https://symfony.com/doc/current/index.html"

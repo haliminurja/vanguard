@@ -1,0 +1,67 @@
+﻿meta:
+  category: Yii2 - Business Logic
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "Yii2 2.0.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: YII-BIZ-001
+    title: "State-Changing Business Action Without Authorization Guard"
+    description: >
+      Business-critical operations such as update, delete, approve, or refund are defined without explicit ownership or role checks. This can lead to horizontal or vertical privilege abuse.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 8.0
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Business Logic
+    tags: [yii2, business-logic, access-control, owasp-a01-2021, cwe-840, asvs-4.1.3]
+    owasp: "A01:2021"
+    cwe: "CWE-840"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'public\s+function\s+action(Update|Delete|Approve|Refund)\b'
+        exclude_pattern: '(authorize|can\(|Gate::|policy|current_user_can|denyAccessUnlessGranted|checkAccess|isAuthorized)'
+    remediation: |
+      Apply object-level authorization checks for every state-changing operation. Validate resource ownership and enforce deny-by-default policy design.
+    references:
+      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+      - "https://cwe.mitre.org/data/definitions/840.html"
+      - "https://owasp.org/www-project-application-security-verification-standard/"
+      - "https://www.yiiframework.com/doc/guide/2.0/en"
+
+  - id: YII-BIZ-002
+    title: "Sensitive Business Field Controlled by Request Input"
+    description: >
+      Request input appears to directly control sensitive business fields such as price, role, status, or amount.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Business Logic
+    tags: [yii2, business-logic, owasp-a04-2021, cwe-840, asvs-4.2.4]
+    owasp: "A04:2021"
+    cwe: "CWE-840"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'Yii::\$app->request->(get|post)\(\s*[''"](price|amount|role|is_admin|status)[''"]'
+    remediation: |
+      Never trust client-provided values for privileged business fields. Compute sensitive values server-side and enforce strict authorization.
+    references:
+      - "https://cwe.mitre.org/data/definitions/840.html"
+      - "https://owasp.org/www-project-top-ten/"
+      - "https://www.yiiframework.com/doc/guide/2.0/en"

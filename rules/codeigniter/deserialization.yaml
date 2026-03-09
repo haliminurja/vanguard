@@ -1,0 +1,67 @@
+﻿meta:
+  category: CodeIgniter 3 - Deserialization
+  version: "4.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "CodeIgniter 2.x-3.x, PHP 8.0-8.4"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+    - PCI-DSS-v4
+    - ISO-27001
+    - OWASP-ASVS-4.0.3
+    - NIST-CSF-2.0
+    - CIS-Controls-v8
+    - SOC2-Trust-Services-Criteria
+
+rules:
+  - id: CI-DESER-001
+    title: "Unsafe Deserialization of Untrusted Input"
+    description: >
+      Request-driven deserialization is detected without strict type, schema, or allowlist controls. This can result in object injection and privilege abuse.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H"
+    category: Deserialization
+    tags: [codeigniter, deserialization, object-injection, owasp-a08-2021, cwe-502, asvs-5.5.2]
+    owasp: "A08:2021"
+    cwe: "CWE-502"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'unserialize\s*\(\s*(\$this->input->(post|get|cookie)|\$_(?:GET|POST|REQUEST|COOKIE))'
+    remediation: |
+      Use strict DTOs and validation layers. Avoid direct deserialization into privileged domain objects and reject unknown fields by default.
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/502.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Deserialization_Cheat_Sheet.html"
+      - "https://codeigniter.com/userguide3/"
+
+  - id: CI-DESER-002
+    title: "Unsafe Native Unserialize Usage"
+    description: >
+      Native unserialize usage is detected and may process untrusted input, enabling object injection risks.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.0
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H"
+    category: Deserialization
+    tags: [codeigniter, deserialization, owasp-a08-2021, cwe-502, asvs-5.5.2]
+    owasp: "A08:2021"
+    cwe: "CWE-502"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'unserialize\s*\('
+        exclude_pattern: '(allowed_classes|json_decode)'
+    remediation: |
+      Avoid native unserialize for untrusted data. Use strict JSON schemas, DTO mapping, and explicit allowlists.
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/502.html"
+      - "https://codeigniter.com/userguide3/"
