@@ -45,6 +45,7 @@ rules:
     patterns:
       - type: contains
         target: middleware-files
+        scope: project
         pattern: "X-Content-Type-Options"
         negative: true
     remediation: |
@@ -68,6 +69,7 @@ rules:
     patterns:
       - type: contains
         target: middleware-files
+        scope: project
         pattern: "Strict-Transport-Security"
         negative: true
     remediation: |
@@ -93,6 +95,7 @@ rules:
     patterns:
       - type: contains
         target: middleware-files
+        scope: project
         pattern: "X-Frame-Options"
         negative: true
     remediation: |
@@ -117,6 +120,7 @@ rules:
     patterns:
       - type: contains
         target: middleware-files
+        scope: project
         pattern: "Referrer-Policy"
         negative: true
     remediation: |
@@ -139,6 +143,7 @@ rules:
     patterns:
       - type: contains
         target: middleware-files
+        scope: project
         pattern: "Content-Security-Policy"
         negative: true
     remediation: |

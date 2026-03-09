@@ -57,6 +57,20 @@ func (s *Scanner) Scan(ctx context.Context, project models.ProjectContext, emit 
 		return nil, nil
 	}
 
+	groupedPackages := make(map[packageLookupKey][]vulnPackage)
+	var uniquePackages []packageLookupKey
+	for _, vp := range vulnPackages {
+		key := packageLookupKey{
+			name:      vp.name,
+			version:   vp.version,
+			ecosystem: vp.ecosystem,
+		}
+		if _, exists := groupedPackages[key]; !exists {
+			uniquePackages = append(uniquePackages, key)
+		}
+		groupedPackages[key] = append(groupedPackages[key], vp)
+	}
+
 	var findings []models.Finding
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -66,9 +80,9 @@ func (s *Scanner) Scan(ctx context.Context, project models.ProjectContext, emit 
 		numWorkers = 10
 	}
 
-	packageChan := make(chan vulnPackage, len(vulnPackages))
-	for _, vp := range vulnPackages {
-		packageChan <- vp
+	packageChan := make(chan packageLookupKey, len(uniquePackages))
+	for _, pkg := range uniquePackages {
+		packageChan <- pkg
 	}
 	close(packageChan)
 
@@ -76,24 +90,36 @@ func (s *Scanner) Scan(ctx context.Context, project models.ProjectContext, emit 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for vp := range packageChan {
+			for pkg := range packageChan {
 				select {
 				case <-ctx.Done():
 					return
 				default:
 				}
 
-				vulns, err := s.queryPackage(ctx, vp.name, vp.version, vp.ecosystem)
+				vulns, err := s.queryPackage(ctx, pkg.name, pkg.version, pkg.ecosystem)
 				if err != nil {
 					continue
 				}
 
+				seenVulns := make(map[string]bool)
 				for _, vuln := range vulns {
-					f := vulnToFinding(s.Name(), vp.name, vp.version, vp.ecosystem, vp.file, vuln)
-					mu.Lock()
-					findings = append(findings, f)
-					emit(f)
-					mu.Unlock()
+					vulnKey := strings.TrimSpace(vuln.ID)
+					if vulnKey == "" {
+						vulnKey = strings.TrimSpace(vuln.Summary)
+					}
+					if seenVulns[vulnKey] {
+						continue
+					}
+					seenVulns[vulnKey] = true
+
+					for _, ref := range groupedPackages[pkg] {
+						f := vulnToFinding(s.Name(), ref.name, ref.version, ref.ecosystem, ref.file, vuln)
+						mu.Lock()
+						findings = append(findings, f)
+						emit(f)
+						mu.Unlock()
+					}
 				}
 			}
 		}()
@@ -149,6 +175,12 @@ type vulnPackage struct {
 	file      string
 }
 
+type packageLookupKey struct {
+	name      string
+	version   string
+	ecosystem string
+}
+
 func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]vulnPackage, error) {
 	type query struct {
 		Package struct {
@@ -159,18 +191,40 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 	}
 
 	var allQueries []query
-	var packageOrder []vulnPackage
+	var queryOrder []packageLookupKey
+	queryRefs := make(map[packageLookupKey][]vulnPackage)
+	seenQueries := make(map[packageLookupKey]bool)
 
 	for _, p := range packages {
+		if strings.TrimSpace(p.Name) == "" || strings.TrimSpace(p.Ecosystem) == "" {
+			continue
+		}
+
 		version := normalizeVersion(p.Version)
 		if version == "" {
 			continue
 		}
+
+		key := packageLookupKey{
+			name:      p.Name,
+			version:   version,
+			ecosystem: p.Ecosystem,
+		}
+		queryRefs[key] = append(queryRefs[key], vulnPackage{name: p.Name, version: version, ecosystem: p.Ecosystem, file: p.File})
+		if seenQueries[key] {
+			continue
+		}
+		seenQueries[key] = true
+
 		q := query{Version: version}
 		q.Package.Name = p.Name
 		q.Package.Ecosystem = p.Ecosystem
 		allQueries = append(allQueries, q)
-		packageOrder = append(packageOrder, vulnPackage{name: p.Name, version: version, ecosystem: p.Ecosystem, file: p.File})
+		queryOrder = append(queryOrder, key)
+	}
+
+	if len(allQueries) == 0 {
+		return nil, nil
 	}
 
 	var affected []vulnPackage
@@ -184,10 +238,10 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 		}
 
 		batch := allQueries[i:end]
-		batchOrder := packageOrder[i:end]
+		batchOrder := queryOrder[i:end]
 
 		wg.Add(1)
-		go func(b []query, bo []vulnPackage) {
+		go func(b []query, bo []packageLookupKey) {
 			defer wg.Done()
 
 			body, _ := json.Marshal(map[string]any{"queries": b})
@@ -218,7 +272,7 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 			var batchAffected []vulnPackage
 			for j, r := range result.Results {
 				if len(r.Vulns) > 0 && j < len(bo) {
-					batchAffected = append(batchAffected, bo[j])
+					batchAffected = append(batchAffected, queryRefs[bo[j]]...)
 				}
 			}
 
@@ -316,12 +370,29 @@ func vulnToFinding(scanner, pkgName, pkgVersion, ecosystem, file string, vuln os
 			break
 		}
 	}
-	severity := parseSeverity(vuln.DatabaseSpecific.Severity)
+
+	var cvssScore float64
+	var cvssVector string
+	for _, sev := range vuln.Severity {
+		sevType := strings.ToUpper(strings.TrimSpace(sev.Type))
+		if sevType == "CVSS_V3" || sevType == "CVSS_V31" || sevType == "CVSS_V30" {
+			cvssVector = sev.Score
+			cvssScore = models.CalculateCVSSv3BaseScore(cvssVector)
+			break
+		}
+	}
+
+	severity := deriveSeverity(vuln.DatabaseSpecific.Severity, cvssScore)
 	fixedVersion := extractFixedVersion(vuln.Affected, pkgName)
 
 	var refs []string
+	seenRefs := make(map[string]bool)
 	for _, ref := range vuln.References {
 		if ref.Type == "ADVISORY" || ref.Type == "WEB" {
+			if seenRefs[ref.URL] {
+				continue
+			}
+			seenRefs[ref.URL] = true
 			refs = append(refs, ref.URL)
 		}
 	}
@@ -329,12 +400,19 @@ func vulnToFinding(scanner, pkgName, pkgVersion, ecosystem, file string, vuln os
 		refs = refs[:3]
 	}
 
-	description := vuln.Summary
-	if description == "" && len(vuln.Details) > 0 {
-		description = vuln.Details
+	summary := strings.TrimSpace(vuln.Summary)
+	description := summary
+	if description == "" {
+		description = strings.TrimSpace(vuln.Details)
 		if len(description) > 300 {
 			description = description[:300] + "..."
 		}
+	}
+	if description == "" {
+		description = "Known security vulnerability"
+	}
+	if summary == "" {
+		summary = description
 	}
 
 	remediation := fmt.Sprintf("Run: composer update %s", pkgName)
@@ -359,19 +437,9 @@ func vulnToFinding(scanner, pkgName, pkgVersion, ecosystem, file string, vuln os
 		}
 	}
 
-	var cvssScore float64
-	var cvssVector string
-	for _, sev := range vuln.Severity {
-		if sev.Type == "CVSS_V3" {
-			cvssVector = sev.Score
-			cvssScore = models.CalculateCVSSv3BaseScore(cvssVector)
-			break
-		}
-	}
-
 	return models.Finding{
 		ID:          cveID,
-		Title:       fmt.Sprintf("[%s] %s@%s - %s", cveID, pkgName, pkgVersion, vuln.Summary),
+		Title:       fmt.Sprintf("[%s] %s@%s - %s", cveID, pkgName, pkgVersion, summary),
 		Description: description,
 		Severity:    severity,
 		Category:    "Dependencies",
@@ -417,10 +485,36 @@ func parseSeverity(s string) models.Severity {
 	}
 }
 
+func deriveSeverity(osvSeverity string, cvssScore float64) models.Severity {
+	if strings.TrimSpace(osvSeverity) != "" {
+		return parseSeverity(osvSeverity)
+	}
+
+	switch {
+	case cvssScore >= 9.0:
+		return models.SeverityCritical
+	case cvssScore >= 7.0:
+		return models.SeverityHigh
+	case cvssScore >= 4.0:
+		return models.SeverityMedium
+	case cvssScore > 0:
+		return models.SeverityLow
+	default:
+		return models.SeverityMedium
+	}
+}
+
 func normalizeVersion(v string) string {
+	v = strings.TrimSpace(v)
 	v = strings.TrimPrefix(v, "v")
 	v = strings.TrimPrefix(v, "V")
-	if strings.HasPrefix(v, "dev-") || v == "" {
+	if idx := strings.IndexAny(v, " \t"); idx > 0 {
+		v = v[:idx]
+	}
+	if strings.HasPrefix(v, "dev-") || strings.HasSuffix(v, "-dev") || strings.Contains(v, "x-dev") {
+		return ""
+	}
+	if strings.ContainsAny(v, "^~*<>|,") || v == "" {
 		return ""
 	}
 	return v

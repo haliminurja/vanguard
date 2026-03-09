@@ -38,8 +38,6 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 
 	scanner.SetExtraSkipDirs(o.cfg.Scanners.IgnoreDirs)
 
-	scanners = o.filterScanners(scanners)
-
 	o.bus.Publish(eventbus.NewEvent(eventbus.EventScanStarted, eventbus.ScanStartedData{
 		ProjectPath:  o.target,
 		ProjectName:  o.target,
@@ -102,6 +100,10 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 				Level: "info", Message: fmt.Sprintf("Loading common security rules: %d rules", len(commonRules)),
 			}))
 			allRules = append(allRules, commonRules...)
+		} else {
+			o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
+				Level: "warn", Message: fmt.Sprintf("Failed to load common rules from %s: %v", commonDir, err),
+			}))
 		}
 
 		frameworkKey := normalizeFrameworkRuleKey(pc.FrameworkType)
@@ -113,12 +115,20 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 						Level: "info", Message: fmt.Sprintf("Loading framework specific rules (%s): %d rules", frameworkKey, len(fwRules)),
 					}))
 					allRules = append(allRules, fwRules...)
+				} else {
+					o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
+						Level: "warn", Message: fmt.Sprintf("Failed to load framework rules from %s: %v", fwDir, err),
+					}))
 				}
 			}
 		}
 
 		if rootRules, err := config.LoadRulesFromDir(rulesDir); err == nil {
 			allRules = append(allRules, rootRules...)
+		} else {
+			o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
+				Level: "warn", Message: fmt.Sprintf("Failed to load rules from %s: %v", rulesDir, err),
+			}))
 		}
 
 		if len(allRules) > 0 {
@@ -130,6 +140,8 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 			}
 		}
 	}
+
+	scanners = o.filterScanners(scanners)
 
 	o.stageComplete(models.StageResolvers)
 	o.stageStart(models.StageScanners)
@@ -348,7 +360,7 @@ func deduplicate(findings []models.Finding) []models.Finding {
 	seen := make(map[string]bool)
 	result := make([]models.Finding, 0, len(findings))
 	for _, f := range findings {
-		key := f.ID + "|" + f.File + "|" + fmt.Sprintf("%d", f.Line)
+		key := fmt.Sprintf("%s|%d|%s", f.Scanner, f.Line, f.Fingerprint())
 		if seen[key] {
 			continue
 		}

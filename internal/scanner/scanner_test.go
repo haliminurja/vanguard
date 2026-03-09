@@ -18,6 +18,8 @@ func TestNormalizeVersion(t *testing.T) {
 		{"V2.0.0", "2.0.0"},
 		{"1.0.0", "1.0.0"},
 		{"dev-main", ""},
+		{"1.0.x-dev", ""},
+		{"^1.4.0", ""},
 		{"", ""},
 	}
 
@@ -45,6 +47,28 @@ func TestParseSeverity(t *testing.T) {
 	for _, tt := range tests {
 		if got := parseSeverity(tt.input); got != tt.want {
 			t.Errorf("parseSeverity(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestDeriveSeverity(t *testing.T) {
+	tests := []struct {
+		name      string
+		osv       string
+		cvss      float64
+		wantLevel models.Severity
+	}{
+		{name: "OSV precedence", osv: "HIGH", cvss: 9.8, wantLevel: models.SeverityHigh},
+		{name: "Critical from CVSS", osv: "", cvss: 9.1, wantLevel: models.SeverityCritical},
+		{name: "High from CVSS", osv: "", cvss: 7.2, wantLevel: models.SeverityHigh},
+		{name: "Medium from CVSS", osv: "", cvss: 5.0, wantLevel: models.SeverityMedium},
+		{name: "Low from CVSS", osv: "", cvss: 2.5, wantLevel: models.SeverityLow},
+		{name: "Default medium", osv: "", cvss: 0, wantLevel: models.SeverityMedium},
+	}
+
+	for _, tt := range tests {
+		if got := deriveSeverity(tt.osv, tt.cvss); got != tt.wantLevel {
+			t.Errorf("%s: deriveSeverity(%q, %v) = %v, want %v", tt.name, tt.osv, tt.cvss, got, tt.wantLevel)
 		}
 	}
 }

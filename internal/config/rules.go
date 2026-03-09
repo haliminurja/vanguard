@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -37,6 +39,7 @@ type PatternDef struct {
 	Type           string `yaml:"type"`
 	Target         string `yaml:"target"`
 	Pattern        string `yaml:"pattern"`
+	Scope          string `yaml:"scope"`
 	Negative       bool   `yaml:"negative"`
 	ExcludePattern string `yaml:"exclude_pattern"`
 }
@@ -86,7 +89,7 @@ func LoadRulesFromFile(filePath string) ([]RuleDefinition, error) {
 
 	var wrapped rulesFile
 	if err := yaml.Unmarshal(data, &wrapped); err == nil && len(wrapped.Rules) > 0 {
-		return wrapped.Rules, nil
+		return normalizeAndValidateRules(wrapped.Rules, filePath)
 	}
 
 	var rules []RuleDefinition
@@ -94,9 +97,65 @@ func LoadRulesFromFile(filePath string) ([]RuleDefinition, error) {
 		return nil, fmt.Errorf("parsing YAML: %w", err)
 	}
 
-	return rules, nil
+	return normalizeAndValidateRules(rules, filePath)
 }
 
 func isYAMLFile(name string) bool {
 	return filepath.Ext(name) == ".yaml" || filepath.Ext(name) == ".yml"
+}
+
+func normalizeAndValidateRules(rules []RuleDefinition, filePath string) ([]RuleDefinition, error) {
+	normalized := make([]RuleDefinition, 0, len(rules))
+
+	for _, rule := range rules {
+		rule.ID = strings.TrimSpace(rule.ID)
+		rule.Title = strings.TrimSpace(rule.Title)
+		rule.Severity = strings.TrimSpace(rule.Severity)
+		rule.Category = strings.TrimSpace(rule.Category)
+
+		condition := strings.ToLower(strings.TrimSpace(rule.Condition))
+		if condition == "" {
+			rule.Condition = "any"
+		} else {
+			if condition != "any" && condition != "all" {
+				return nil, fmt.Errorf("%s: invalid condition %q for rule %q", filePath, rule.Condition, rule.ID)
+			}
+			rule.Condition = condition
+		}
+
+		for j := range rule.Patterns {
+			pat := &rule.Patterns[j]
+			pat.Type = strings.ToLower(strings.TrimSpace(pat.Type))
+			pat.Target = strings.TrimSpace(pat.Target)
+			pat.Scope = strings.ToLower(strings.TrimSpace(pat.Scope))
+
+			if pat.Scope != "" && pat.Scope != "file" && pat.Scope != "project" && pat.Scope != "global" {
+				return nil, fmt.Errorf("%s: invalid scope %q in rule %q pattern #%d", filePath, pat.Scope, rule.ID, j+1)
+			}
+
+			switch pat.Type {
+			case "regex", "regex-multiline":
+				if strings.TrimSpace(pat.Pattern) == "" {
+					return nil, fmt.Errorf("%s: empty regex pattern in rule %q pattern #%d", filePath, rule.ID, j+1)
+				}
+				if _, err := regexp.Compile(pat.Pattern); err != nil {
+					return nil, fmt.Errorf("%s: invalid regex in rule %q pattern #%d: %w", filePath, rule.ID, j+1, err)
+				}
+			case "contains", "file-exists", "entropy":
+				// Valid pattern types.
+			default:
+				return nil, fmt.Errorf("%s: unsupported pattern type %q in rule %q pattern #%d", filePath, pat.Type, rule.ID, j+1)
+			}
+
+			if strings.TrimSpace(pat.ExcludePattern) != "" {
+				if _, err := regexp.Compile(pat.ExcludePattern); err != nil {
+					return nil, fmt.Errorf("%s: invalid exclude_pattern in rule %q pattern #%d: %w", filePath, rule.ID, j+1, err)
+				}
+			}
+		}
+
+		normalized = append(normalized, rule)
+	}
+
+	return normalized, nil
 }

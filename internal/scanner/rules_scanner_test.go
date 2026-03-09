@@ -76,6 +76,34 @@ func TestRulesScanner_ContainsMatch(t *testing.T) {
 	}
 }
 
+func TestRulesScanner_TargetAny(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "composer.json"), []byte(`{
+  "minimum-stability": "dev"
+}`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-ANY-001",
+			Title:   "Minimum stability dev",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "any", Pattern: `"minimum-stability"\s*:\s*"dev"`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding for target any, got %d", len(findings))
+	}
+}
+
 func TestRulesScanner_NegativePattern(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "app"), 0755)
@@ -412,14 +440,248 @@ func TestRulesScanner_ComposerFile(t *testing.T) {
 	}
 }
 
+func TestRulesScanner_ConditionAllReturnsSingleFinding(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "app"), 0755)
+	os.WriteFile(filepath.Join(dir, "app", "Auth.php"), []byte(`<?php
+if (Auth::attempt($credentials)) {
+    return true;
+}
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:        "TEST-ALL-001",
+			Title:     "Missing login failure logging",
+			Severity:  "medium",
+			Enabled:   boolPtr(true),
+			Condition: "all",
+			Patterns: []config.PatternDef{
+				{Type: "contains", Target: "php-files", Pattern: "Auth::attempt("},
+				{Type: "regex", Target: "php-files", Pattern: `Log::(warning|error|info)`, Negative: true},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding for condition all, got %d", len(findings))
+	}
+	if findings[0].Line != 2 {
+		t.Fatalf("expected anchored line 2, got %d", findings[0].Line)
+	}
+}
+
+func TestRulesScanner_ProjectScopeNegativeMissing(t *testing.T) {
+	dir := t.TempDir()
+	middlewareDir := filepath.Join(dir, "app", "Http", "Middleware")
+	os.MkdirAll(middlewareDir, 0755)
+	os.WriteFile(filepath.Join(middlewareDir, "A.php"), []byte(`<?php
+class A {}
+`), 0644)
+	os.WriteFile(filepath.Join(middlewareDir, "B.php"), []byte(`<?php
+class B {}
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-SCOPE-001",
+			Title:   "Missing security header",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "contains", Target: "middleware-files", Scope: "project", Pattern: "X-Frame-Options", Negative: true},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 project-scope finding, got %d", len(findings))
+	}
+	if findings[0].File != "app/Http/Middleware" {
+		t.Fatalf("expected aggregated location app/Http/Middleware, got %q", findings[0].File)
+	}
+	if findings[0].Line != 0 {
+		t.Fatalf("expected line 0 for project-scope finding, got %d", findings[0].Line)
+	}
+}
+
+func TestRulesScanner_ProjectScopeNegativeSatisfied(t *testing.T) {
+	dir := t.TempDir()
+	middlewareDir := filepath.Join(dir, "app", "Http", "Middleware")
+	os.MkdirAll(middlewareDir, 0755)
+	os.WriteFile(filepath.Join(middlewareDir, "SecurityHeaders.php"), []byte(`<?php
+$response->headers->set('X-Frame-Options', 'SAMEORIGIN');
+`), 0644)
+	os.WriteFile(filepath.Join(middlewareDir, "Other.php"), []byte(`<?php
+class Other {}
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-SCOPE-002",
+			Title:   "Missing security header",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "contains", Target: "middleware-files", Scope: "project", Pattern: "X-Frame-Options", Negative: true},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings when project-scope header exists, got %d", len(findings))
+	}
+}
+
+func TestRulesScanner_CommentedCodeIgnored(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "app"), 0755)
+	os.WriteFile(filepath.Join(dir, "app", "Debug.php"), []byte(`<?php
+// exec($_GET['cmd']);
+# system($_POST['x']);
+/* passthru($_REQUEST['run']); */
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-COMMENT-001",
+			Title:   "Dangerous command execution",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "php-files", Pattern: `\b(exec|system|passthru)\s*\(`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings for commented code, got %d", len(findings))
+	}
+}
+
+func TestRulesScanner_MultiTargetPatternIsolation(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "app"), 0755)
+	os.WriteFile(filepath.Join(dir, "app", "Service.php"), []byte(`<?php
+Route::get('/token/{token}', fn () => 'ok');
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-MULTI-001",
+			Title:   "Token in URL route pattern",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "routes-files", Pattern: `Route::(get|any)\s*\([^)]*\{token\}`},
+				{Type: "regex", Target: "php-files", Pattern: `\$request->query\s*\(\s*["']?token["']?\s*\)`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings because routes-target pattern must not run on php-files fallback, got %d", len(findings))
+	}
+}
+
+func TestRulesScanner_ExcludePatternUsesContextWindow(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "app"), 0755)
+	os.WriteFile(filepath.Join(dir, "app", "HttpClient.php"), []byte(`<?php
+$allowed = parse_url($request->url, PHP_URL_HOST);
+curl_setopt($ch, CURLOPT_URL, $request->url);
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-EXCLUDE-001",
+			Title:   "Potential SSRF",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{
+					Type:           "regex",
+					Target:         "php-files",
+					Pattern:        `curl_setopt\s*\([^,]+,\s*CURLOPT_URL\s*,\s*\$`,
+					ExcludePattern: `parse_url`,
+				},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings due nearby parse_url exclusion, got %d", len(findings))
+	}
+}
+
+func TestRulesScanner_TargetAnySkipsEngineRulesDirectory(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "rules"), 0755)
+	os.WriteFile(filepath.Join(dir, "rules", "sample.yaml"), []byte(`{
+  "minimum-stability": "dev"
+}`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-ANY-SKIP-001",
+			Title:   "Minimum stability dev",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "any", Scope: "project", Pattern: `"minimum-stability"\s*:\s*"dev"`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings because root rules dir should be ignored by target:any, got %d", len(findings))
+	}
+}
+
 func TestRulesScanner_Parallel(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "app"), 0755)
 	os.WriteFile(filepath.Join(dir, "app", "A.php"), []byte(`<?php
-// nothing
+$a = "nothing";
 `), 0644)
 	os.WriteFile(filepath.Join(dir, "app", "B.php"), []byte(`<?php
-// nothing
+$b = "nothing";
 `), 0644)
 
 	rules := []config.RuleDefinition{}

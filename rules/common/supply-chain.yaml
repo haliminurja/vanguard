@@ -23,6 +23,7 @@ rules:
     patterns:
       - type: regex
         target: any
+        scope: project
         pattern: '"require"[^}]*"\\*"'
     remediation: |
       Gunakan constraint versi yang spesifik dan commit composer.lock:
@@ -50,6 +51,7 @@ rules:
     patterns:
       - type: regex
         target: any
+        scope: project
         pattern: '"minimum-stability"\s*:\s*"dev"'
         exclude_pattern: '"prefer-stable"\s*:\s*true'
     remediation: |
@@ -97,6 +99,7 @@ rules:
     patterns:
       - type: regex
         target: any
+        scope: project
         pattern: '"(post-install-cmd|post-update-cmd)"[^}]*(curl|wget|bash|sh\s+-c|exec|system)'
     remediation: |
       Review semua Composer script dan batasi ke command yang dikenal:
