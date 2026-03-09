@@ -248,7 +248,7 @@ rules:
       - type: regex
         target: php-files
         pattern: '->(find|findOne|where|orWhere)\(\s*\[\s*[''"]\w+[''"]\s*=>\s*(\$_GET|\$_POST|\$request->)'
-        exclude_pattern: '(intval|string|strval|\(string\)|sanitize)'
+        exclude_pattern: '(intval|strval|\(string\)|filter_var|sanitize|cast)'
     remediation: |
       Strictly type-cast user input to strings or integers before using them in NoSQL queries:
       `$user = User::where('username', (string) $request->input('username'))->first();`

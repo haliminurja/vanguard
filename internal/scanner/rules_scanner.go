@@ -21,10 +21,22 @@ const (
 	RegexTimeout = 2 * time.Second
 )
 
+var (
+	entropyCandidatePattern = regexp.MustCompile(`[A-Za-z0-9_+/=-]{20,}`)
+	uuidLikePattern         = regexp.MustCompile(`(?i)^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$`)
+	hexOnlyPattern          = regexp.MustCompile(`(?i)^[a-f0-9]+$`)
+)
+
 type fileContent struct {
-	data  []byte
-	text  string
-	lines []string
+	data      []byte
+	text      string
+	codeText  string
+	lines     []string
+	codeLines []string
+}
+
+type commentStripState struct {
+	inBlock bool
 }
 
 type ruleEvidence struct {
@@ -209,12 +221,19 @@ func (s *RulesScanner) loadFileContent(fpath string) (*fileContent, error) {
 	if err != nil {
 		return nil, err
 	}
+	if isLikelyBinaryContent(data) {
+		return nil, fmt.Errorf("binary file is not scannable")
+	}
 
 	text := string(data)
+	lines := strings.Split(text, "\n")
+	codeLines := stripComments(lines)
 	return &fileContent{
-		data:  data,
-		text:  text,
-		lines: strings.Split(text, "\n"),
+		data:      data,
+		text:      text,
+		codeText:  strings.Join(codeLines, "\n"),
+		lines:     lines,
+		codeLines: codeLines,
 	}, nil
 }
 
@@ -531,8 +550,8 @@ func (s *RulesScanner) checkLineContent(rule config.RuleDefinition, pat config.P
 	var findings []models.Finding
 	matched := false
 
-	for i, line := range fc.lines {
-		if isLikelyCommentLine(line) {
+	for i, line := range fc.codeLines {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 
@@ -545,18 +564,22 @@ func (s *RulesScanner) checkLineContent(rule config.RuleDefinition, pat config.P
 
 		if isMatch {
 			if exRe != nil {
-				window := buildLineWindow(fc.lines, i, 6)
+				window := buildLineWindow(fc.codeLines, i, 6)
 				if exRe.MatchString(line) || exRe.MatchString(window) {
 					continue
 				}
 
-				if strings.ToLower(strings.TrimSpace(pat.Scope)) == "project" && exRe.Match(fc.data) {
+				if strings.ToLower(strings.TrimSpace(pat.Scope)) == "project" && exRe.MatchString(fc.codeText) {
 					continue
 				}
 			}
 			matched = true
 			if !pat.Negative {
-				findings = append(findings, s.buildFinding(rule, rel, i+1, strings.TrimSpace(line), fc.lines, i))
+				snippet := strings.TrimSpace(fc.lines[i])
+				if snippet == "" {
+					snippet = strings.TrimSpace(line)
+				}
+				findings = append(findings, s.buildFinding(rule, rel, i+1, snippet, fc.lines, i))
 			}
 		}
 	}
@@ -576,12 +599,12 @@ func (s *RulesScanner) checkMultilineContent(rule config.RuleDefinition, pat con
 
 	exRe := s.reCache[pat.ExcludePattern]
 	if exRe != nil {
-		if exRe.Match(fc.data) || exRe.MatchString(filepath.ToSlash(fpath)) {
+		if exRe.MatchString(fc.codeText) || exRe.MatchString(filepath.ToSlash(fpath)) {
 			return nil
 		}
 	}
 
-	indexes := re.FindAllStringIndex(fc.text, -1)
+	indexes := re.FindAllStringIndex(fc.codeText, -1)
 	if len(indexes) == 0 {
 		if pat.Negative {
 			return []models.Finding{s.buildFinding(rule, rel, 0, "[PATTERN NOT FOUND]", nil, 0)}
@@ -595,7 +618,7 @@ func (s *RulesScanner) checkMultilineContent(rule config.RuleDefinition, pat con
 	var findings []models.Finding
 	for _, loc := range indexes {
 		start := loc[0]
-		lineNum := 1 + strings.Count(fc.text[:start], "\n")
+		lineNum := 1 + strings.Count(fc.codeText[:start], "\n")
 
 		text := "[MULTI-LINE MATCH]"
 		if lineNum-1 < len(fc.lines) {
@@ -616,15 +639,27 @@ func (s *RulesScanner) checkEntropy(rule config.RuleDefinition, pat config.Patte
 
 	var findings []models.Finding
 	matched := false
-	for i, line := range fc.lines {
-		words := strings.FieldsFunc(line, func(r rune) bool {
-			return r == '"' || r == '\'' || r == ' ' || r == '=' || r == ':'
-		})
+	for i, line := range fc.codeLines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if containsPlaceholderToken(line) {
+			continue
+		}
+
+		words := entropyCandidatePattern.FindAllString(line, -1)
 		for _, word := range words {
-			if len(word) > 16 && calculateEntropy(word) > threshold {
+			if !isLikelySecretToken(word, line) {
+				continue
+			}
+			if calculateEntropy(word) > threshold {
 				matched = true
 				if !pat.Negative {
-					findings = append(findings, s.buildFinding(rule, rel, i+1, strings.TrimSpace(line), fc.lines, i))
+					snippet := strings.TrimSpace(fc.lines[i])
+					if snippet == "" {
+						snippet = strings.TrimSpace(line)
+					}
+					findings = append(findings, s.buildFinding(rule, rel, i+1, snippet, fc.lines, i))
 				}
 				break
 			}
@@ -750,11 +785,26 @@ func resolveTarget(target, root string) []string {
 		case "php-files":
 			walkRoots = []string{root}
 		case "blade-files":
-			walkRoots = []string{filepath.Join(root, "resources", "views")}
+			walkRoots = []string{
+				filepath.Join(root, "resources", "views"),
+				filepath.Join(root, "modules"),
+				root,
+			}
 		case "twig-files":
-			walkRoots = []string{filepath.Join(root, "templates")}
+			walkRoots = []string{
+				filepath.Join(root, "templates"),
+				filepath.Join(root, "views"),
+				root,
+			}
 		case "js-files":
-			walkRoots = []string{filepath.Join(root, "resources", "js")}
+			walkRoots = []string{
+				filepath.Join(root, "resources", "js"),
+				filepath.Join(root, "assets", "js"),
+				filepath.Join(root, "public", "js"),
+				filepath.Join(root, "src"),
+				filepath.Join(root, "webroot", "js"),
+				root,
+			}
 		case "config-files":
 			walkRoots = []string{
 				filepath.Join(root, "config"),
@@ -762,7 +812,11 @@ func resolveTarget(target, root string) []string {
 				filepath.Join(root, "app", "Config"),
 			}
 		case "routes-files":
-			walkRoots = []string{filepath.Join(root, "routes")}
+			walkRoots = []string{
+				filepath.Join(root, "routes"),
+				filepath.Join(root, "app", "Config"),
+				filepath.Join(root, "application", "config"),
+			}
 		case "migration-files":
 			walkRoots = []string{filepath.Join(root, "database", "migrations")}
 		case "middleware-files":
@@ -874,7 +928,7 @@ func isAnyTargetFile(path string) bool {
 	}
 
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".php", ".js", ".ts", ".jsx", ".tsx", ".twig", ".json", ".yaml", ".yml", ".xml", ".ini", ".conf", ".lock", ".sql", ".toml":
+	case ".php", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs", ".twig", ".json", ".yaml", ".yml", ".xml", ".ini", ".conf", ".lock", ".sql", ".toml":
 		return true
 	default:
 		return false
@@ -888,7 +942,10 @@ func targetGlobs(target, root string) []string {
 	case "blade-files":
 		return []string{filepath.Join(root, "resources", "views", "*.blade.php")}
 	case "twig-files":
-		return []string{filepath.Join(root, "templates", "*.twig")}
+		return []string{
+			filepath.Join(root, "templates", "*.twig"),
+			filepath.Join(root, "views", "*.twig"),
+		}
 	case "config-files":
 		return []string{
 			filepath.Join(root, "config", "*.php"),
@@ -900,11 +957,26 @@ func targetGlobs(target, root string) []string {
 	case "env-files":
 		return []string{filepath.Join(root, ".env"), filepath.Join(root, ".env.*")}
 	case "routes-files":
-		return []string{filepath.Join(root, "routes", "*.php")}
+		return []string{
+			filepath.Join(root, "routes", "*.php"),
+			filepath.Join(root, "app", "Config", "Routes.php"),
+			filepath.Join(root, "application", "config", "routes.php"),
+		}
 	case "migration-files":
 		return []string{filepath.Join(root, "database", "migrations", "*.php")}
 	case "js-files":
-		return []string{filepath.Join(root, "resources", "js", "*.js"), filepath.Join(root, "resources", "js", "*.ts")}
+		return []string{
+			filepath.Join(root, "resources", "js", "*.js"),
+			filepath.Join(root, "resources", "js", "*.ts"),
+			filepath.Join(root, "assets", "js", "*.js"),
+			filepath.Join(root, "assets", "js", "*.ts"),
+			filepath.Join(root, "public", "js", "*.js"),
+			filepath.Join(root, "public", "js", "*.ts"),
+			filepath.Join(root, "*.js"),
+			filepath.Join(root, "*.ts"),
+			filepath.Join(root, "*.mjs"),
+			filepath.Join(root, "*.cjs"),
+		}
 	case "composer-files":
 		return []string{filepath.Join(root, "composer.json"), filepath.Join(root, "composer.lock")}
 	case "middleware-files":
@@ -945,7 +1017,7 @@ func targetExts(target string) []string {
 	case "twig-files":
 		return []string{".twig"}
 	case "config-files":
-		return []string{".php", ".yaml", ".yml", ".xml"}
+		return []string{".php", ".yaml", ".yml", ".xml", ".json", ".ini", ".conf", ".toml"}
 	default:
 		return nil
 	}
@@ -962,7 +1034,8 @@ func matchesExt(path, ext string) bool {
 	}
 	if ext == ".js" {
 		return strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".ts") ||
-			strings.HasSuffix(path, ".jsx") || strings.HasSuffix(path, ".tsx")
+			strings.HasSuffix(path, ".jsx") || strings.HasSuffix(path, ".tsx") ||
+			strings.HasSuffix(path, ".mjs") || strings.HasSuffix(path, ".cjs")
 	}
 	return strings.HasSuffix(path, ext)
 }
@@ -980,6 +1053,216 @@ func skipDir(name string) bool {
 	}
 	for _, d := range extraSkipDirs {
 		if name == d {
+			return true
+		}
+	}
+	return false
+}
+
+func stripComments(lines []string) []string {
+	sanitized := make([]string, len(lines))
+	state := &commentStripState{}
+	for i, line := range lines {
+		sanitized[i] = stripCommentsFromLine(line, state)
+	}
+	return sanitized
+}
+
+func stripCommentsFromLine(line string, state *commentStripState) string {
+	if line == "" {
+		return ""
+	}
+
+	var out strings.Builder
+	out.Grow(len(line))
+
+	inSingle := false
+	inDouble := false
+	escaped := false
+
+	for i := 0; i < len(line); i++ {
+		ch := line[i]
+		next := byte(0)
+		if i+1 < len(line) {
+			next = line[i+1]
+		}
+
+		if state.inBlock {
+			if ch == '*' && next == '/' {
+				state.inBlock = false
+				i++
+			}
+			continue
+		}
+
+		if escaped {
+			out.WriteByte(ch)
+			escaped = false
+			continue
+		}
+
+		if (inSingle || inDouble) && ch == '\\' {
+			out.WriteByte(ch)
+			escaped = true
+			continue
+		}
+
+		if !inDouble && ch == '\'' {
+			inSingle = !inSingle
+			out.WriteByte(ch)
+			continue
+		}
+		if !inSingle && ch == '"' {
+			inDouble = !inDouble
+			out.WriteByte(ch)
+			continue
+		}
+
+		if !inSingle && !inDouble {
+			if ch == '/' && next == '/' {
+				break
+			}
+			if ch == '#' {
+				break
+			}
+			if ch == '/' && next == '*' {
+				state.inBlock = true
+				i++
+				continue
+			}
+		}
+
+		out.WriteByte(ch)
+	}
+
+	return out.String()
+}
+
+func isLikelyBinaryContent(data []byte) bool {
+	if len(data) == 0 {
+		return false
+	}
+
+	sample := data
+	if len(sample) > 8192 {
+		sample = sample[:8192]
+	}
+
+	nonPrintable := 0
+	for _, b := range sample {
+		if b == 0 {
+			return true
+		}
+		if b < 0x09 || (b > 0x0d && b < 0x20) {
+			nonPrintable++
+		}
+	}
+
+	return float64(nonPrintable)/float64(len(sample)) > 0.30
+}
+
+func containsPlaceholderToken(line string) bool {
+	lower := strings.ToLower(line)
+	placeholders := []string{
+		"example", "placeholder", "replace_me", "changeme", "dummy", "sample", "fake", "lorem",
+	}
+	for _, p := range placeholders {
+		if strings.Contains(lower, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func isLikelySecretToken(token, line string) bool {
+	token = strings.TrimSpace(strings.Trim(token, `"'`))
+	if len(token) < 20 {
+		return false
+	}
+
+	lowerToken := strings.ToLower(token)
+	if strings.HasPrefix(lowerToken, "http://") || strings.HasPrefix(lowerToken, "https://") {
+		return false
+	}
+	if uuidLikePattern.MatchString(token) {
+		return false
+	}
+
+	if hexOnlyPattern.MatchString(token) {
+		switch len(token) {
+		case 32, 40, 64, 96, 128:
+			if isLikelyHashContext(line) && !containsSecretHint(line) {
+				return false
+			}
+		}
+	}
+
+	classCount := countCharacterClasses(token)
+	if classCount < 2 {
+		return false
+	}
+	if classCount < 3 && !containsSecretHint(line) {
+		return false
+	}
+
+	if strings.Count(token, "_") > len(token)/3 {
+		return false
+	}
+
+	return true
+}
+
+func countCharacterClasses(s string) int {
+	hasLower := false
+	hasUpper := false
+	hasDigit := false
+	hasSymbol := false
+
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z':
+			hasLower = true
+		case r >= 'A' && r <= 'Z':
+			hasUpper = true
+		case r >= '0' && r <= '9':
+			hasDigit = true
+		default:
+			hasSymbol = true
+		}
+	}
+
+	count := 0
+	if hasLower {
+		count++
+	}
+	if hasUpper {
+		count++
+	}
+	if hasDigit {
+		count++
+	}
+	if hasSymbol {
+		count++
+	}
+	return count
+}
+
+func isLikelyHashContext(line string) bool {
+	lower := strings.ToLower(line)
+	keywords := []string{"sha1", "sha256", "sha384", "sha512", "md5", "hash", "checksum", "digest", "fingerprint"}
+	for _, kw := range keywords {
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsSecretHint(line string) bool {
+	lower := strings.ToLower(line)
+	keywords := []string{"secret", "token", "api_key", "apikey", "access_key", "password", "passwd", "bearer", "private", "credential", "jwt"}
+	for _, kw := range keywords {
+		if strings.Contains(lower, kw) {
 			return true
 		}
 	}
@@ -1097,17 +1380,22 @@ func patternAppliesToFile(pat config.PatternDef, relPath string) bool {
 			strings.HasPrefix(relLower, "application/config/") ||
 			strings.HasPrefix(relLower, "app/config/")) &&
 			(strings.HasSuffix(relLower, ".php") || strings.HasSuffix(relLower, ".yaml") ||
-				strings.HasSuffix(relLower, ".yml") || strings.HasSuffix(relLower, ".xml"))
+				strings.HasSuffix(relLower, ".yml") || strings.HasSuffix(relLower, ".xml") ||
+				strings.HasSuffix(relLower, ".json") || strings.HasSuffix(relLower, ".ini") ||
+				strings.HasSuffix(relLower, ".conf") || strings.HasSuffix(relLower, ".toml"))
 	case "env-files":
 		return baseLower == ".env" || strings.HasPrefix(baseLower, ".env.")
 	case "routes-files":
-		return strings.HasPrefix(relLower, "routes/") && strings.HasSuffix(relLower, ".php")
+		return strings.HasSuffix(relLower, ".php") &&
+			(strings.HasPrefix(relLower, "routes/") ||
+				relLower == "routes.php" ||
+				strings.HasSuffix(relLower, "/routes.php"))
 	case "migration-files":
 		return strings.HasPrefix(relLower, "database/migrations/") && strings.HasSuffix(relLower, ".php")
 	case "js-files":
-		return strings.HasPrefix(relLower, "resources/js/") &&
-			(strings.HasSuffix(relLower, ".js") || strings.HasSuffix(relLower, ".ts") ||
-				strings.HasSuffix(relLower, ".jsx") || strings.HasSuffix(relLower, ".tsx"))
+		return strings.HasSuffix(relLower, ".js") || strings.HasSuffix(relLower, ".ts") ||
+			strings.HasSuffix(relLower, ".jsx") || strings.HasSuffix(relLower, ".tsx") ||
+			strings.HasSuffix(relLower, ".mjs") || strings.HasSuffix(relLower, ".cjs")
 	case "composer-files":
 		return baseLower == "composer.json" || baseLower == "composer.lock"
 	case "middleware-files":

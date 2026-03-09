@@ -23,10 +23,10 @@ rules:
     owasp: "A01:2021"
     cwe: "CWE-918"
     patterns:
-      - type: regex
+      - type: regex-multiline
         target: php-files
-        pattern: 'gethostbyname\s*\([^)]+\)[^;]*Http::'
-        exclude_pattern: '(CURLOPT_RESOLVE|curl_setopt.*CURLOPT_RESOLVE|pinned|->withOptions.*resolve)'
+        pattern: '(?s)gethostbyname\s*\([^)]+\).*?(Http::(get|post|put|patch|delete)|curl_setopt\s*\([^,]+,\s*CURLOPT_URL)'
+        exclude_pattern: '(CURLOPT_RESOLVE|curl_setopt\s*\([^,]+,\s*CURLOPT_RESOLVE|withOptions\s*\(\s*\[.*CURLOPT_RESOLVE|dnsPin|pinned)'
     remediation: |
       Pin resolved IP menggunakan cURL RESOLVE option untuk mencegah DNS rebinding:
         $host = parse_url($url, PHP_URL_HOST);
@@ -55,8 +55,8 @@ rules:
     patterns:
       - type: regex
         target: php-files
-        pattern: 'Http::(get|post|put)\s*\('
-        exclude_pattern: '(maxRedirects|allow_redirects.*false|withOptions.*redirect|->maxRedirects\(0\))'
+        pattern: '(Http::(get|post|put|patch|delete|send|request)\s*\(\s*(\$_GET|\$_POST|\$_REQUEST|\$request->(input|get|query|post|url|fullUrl)|request\(\)->(input|get|query)|\$\w*(url|uri|endpoint|callback|target|redirect)\w*)|curl_setopt\s*\([^,]+,\s*CURLOPT_URL\s*,\s*(\$_GET|\$_POST|\$_REQUEST|\$request->|\$\w*(url|uri|endpoint|callback|target|redirect)\w*))'
+        exclude_pattern: '(allow_redirects\s*=>\s*false|maxRedirects\s*\(\s*0\s*\)|CURLOPT_FOLLOWLOCATION\s*,\s*false|filter_var\s*\([^,]+,\s*FILTER_VALIDATE_URL\)|parse_url\s*\()'
     remediation: |
       Nonaktifkan atau batasi redirect following:
         $response = Http::withOptions([
@@ -67,3 +67,39 @@ rules:
         $response = Http::maxRedirects(0)->get($validatedUrl);
     references:
       - "https://cwe.mitre.org/data/definitions/918.html"
+
+  - id: SSRF-005
+    title: "Akses langsung ke cloud metadata endpoint"
+    description: >
+      Host metadata internal cloud provider (AWS, GCP, Azure, ECS, Alibaba) terdeteksi di source.
+      Endpoint ini sering disalahgunakan pada skenario SSRF untuk mengambil temporary credentials
+      atau identitas instance.
+    severity: critical
+    confidence: high
+    category: SSRF
+    tags: [ssrf, metadata-service, owasp-a10, cwe-918]
+    owasp: "A10:2021"
+    cwe: "CWE-918"
+    patterns:
+      - type: regex
+        target: any
+        pattern: '(https?:\/\/)?(169\.254\.169\.254|metadata\.google\.internal|metadata\.azure\.internal|169\.254\.170\.2|100\.100\.100\.200)([:\/]|$)'
+        exclude_pattern: '(example|placeholder|dummy|sample|mock|test|README|CHANGELOG|docs?)'
+    remediation: |
+      Jangan izinkan request ke host metadata internal. Terapkan denylist eksplisit
+      pada layer outbound HTTP:
+
+        $blockedHosts = [
+            '169.254.169.254',
+            'metadata.google.internal',
+            'metadata.azure.internal',
+            '169.254.170.2',
+            '100.100.100.200',
+        ];
+
+        if (in_array($host, $blockedHosts, true)) {
+            throw new SecurityException('Metadata endpoint is blocked');
+        }
+    references:
+      - "https://cwe.mitre.org/data/definitions/918.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html"

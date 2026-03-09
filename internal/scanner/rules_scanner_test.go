@@ -580,6 +580,38 @@ func TestRulesScanner_CommentedCodeIgnored(t *testing.T) {
 	}
 }
 
+func TestRulesScanner_MultilineCommentBodyIgnored(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "app"), 0755)
+	os.WriteFile(filepath.Join(dir, "app", "Commented.php"), []byte(`<?php
+/*
+exec($_GET['cmd']);
+*/
+$safe = true;
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-COMMENT-002",
+			Title:   "Dangerous command execution",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "php-files", Pattern: `\b(exec|system|passthru)\s*\(`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings for multiline commented code, got %d", len(findings))
+	}
+}
+
 func TestRulesScanner_MultiTargetPatternIsolation(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "app"), 0755)
@@ -671,6 +703,92 @@ func TestRulesScanner_TargetAnySkipsEngineRulesDirectory(t *testing.T) {
 	}
 	if len(findings) != 0 {
 		t.Fatalf("expected 0 findings because root rules dir should be ignored by target:any, got %d", len(findings))
+	}
+}
+
+func TestRulesScanner_JSFilesTargetScansSrcDirectory(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "src"), 0755)
+	os.WriteFile(filepath.Join(dir, "src", "main.ts"), []byte(`const url = userInputUrl;
+fetch(url);
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-JS-001",
+			Title:   "Dynamic outbound request",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "js-files", Pattern: `fetch\s*\(`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding for src/main.ts js-files scan, got %d", len(findings))
+	}
+}
+
+func TestRulesScanner_RoutesTargetSupportsAppConfigRoutes(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "app", "Config"), 0755)
+	os.WriteFile(filepath.Join(dir, "app", "Config", "Routes.php"), []byte(`<?php
+$routes->add('/admin', 'Admin::index');
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-ROUTES-001",
+			Title:   "Admin route exists",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "routes-files", Pattern: `admin`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding for app/Config/Routes.php target, got %d", len(findings))
+	}
+}
+
+func TestRulesScanner_BinaryFilesSkipped(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "app"), 0755)
+	// Includes NULL bytes to emulate binary payload disguised as .php file.
+	os.WriteFile(filepath.Join(dir, "app", "Binary.php"), []byte{0x00, 0x01, 0x02, 0x03, 0x04}, 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-BIN-001",
+			Title:   "Any content",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "php-files", Pattern: `.`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings for binary file, got %d", len(findings))
 	}
 }
 
