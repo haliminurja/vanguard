@@ -83,6 +83,9 @@ func (r *MarkdownReporter) Generate(_ context.Context, report *models.ScanReport
 			if f.CWE != "" {
 				sb.WriteString(fmt.Sprintf("- **CWE:** %s\n", f.CWE))
 			}
+			if f.OWASP != "" {
+				sb.WriteString(fmt.Sprintf("- **OWASP:** %s\n", f.OWASP))
+			}
 
 			if len(f.References) > 0 {
 				sb.WriteString("**References:**\n")

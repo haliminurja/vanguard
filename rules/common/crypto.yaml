@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10-12, PHP 8.0-8.4"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -17,6 +17,8 @@ rules:
     confidence: medium
     category: Weak Hash
     tags: [crypto, weak-hash, owasp-a02, cwe-327]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
     patterns:
       - type: regex
         target: php-files
@@ -38,6 +40,8 @@ rules:
     confidence: medium
     category: Weak Hash
     tags: [crypto, weak-hash, owasp-a02, cwe-327]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
     patterns:
       - type: regex
         target: php-files
@@ -59,6 +63,8 @@ rules:
     confidence: high
     category: Weak Password Hash
     tags: [crypto, password, owasp-a02, cwe-916]
+    owasp: "A02:2021"
+    cwe: "CWE-916"
     patterns:
       - type: regex
         target: php-files
@@ -79,6 +85,8 @@ rules:
     confidence: high
     category: Encoding Misused as Encryption
     tags: [crypto, owasp-a02, cwe-311]
+    owasp: "A02:2021"
+    cwe: "CWE-311"
     patterns:
       - type: regex
         target: php-files
@@ -99,6 +107,8 @@ rules:
     confidence: medium
     category: Weak Random
     tags: [crypto, weak-random, owasp-a02, cwe-338]
+    owasp: "A02:2021"
+    cwe: "CWE-338"
     patterns:
       - type: regex
         target: php-files
@@ -121,6 +131,8 @@ rules:
     confidence: high
     category: Weak Cipher Mode
     tags: [crypto, ecb, owasp-a02, cwe-327]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
     patterns:
       - type: regex
         target: php-files
@@ -141,6 +153,8 @@ rules:
     confidence: high
     category: Broken Cipher
     tags: [crypto, weak-cipher, owasp-a02, cwe-327]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
     patterns:
       - type: regex
         target: php-files
@@ -162,6 +176,8 @@ rules:
     confidence: high
     category: Hardcoded IV
     tags: [crypto, owasp-a02, cwe-330]
+    owasp: "A02:2021"
+    cwe: "CWE-330"
     patterns:
       - type: regex
         target: php-files
@@ -183,6 +199,8 @@ rules:
     confidence: medium
     category: Timing Attack
     tags: [crypto, timing-attack, owasp-a02, cwe-208]
+    owasp: "A02:2021"
+    cwe: "CWE-208"
     patterns:
       - type: regex
         target: php-files
@@ -208,6 +226,8 @@ rules:
     confidence: high
     category: Weak Padding
     tags: [crypto, rsa, padding-oracle, owasp-a02, cwe-327]
+    owasp: "A02:2021"
+    cwe: "CWE-327"
     patterns:
       - type: regex
         target: php-files

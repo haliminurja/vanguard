@@ -50,6 +50,7 @@ func (r *SARIFReporter) Generate(_ context.Context, report *models.ScanReport) e
 					Security:   severityToSARIFSecurity(f.Severity),
 					Confidence: f.Confidence,
 					CWE:        f.CWE,
+					OWASP:      f.OWASP,
 				},
 			}
 			rules = append(rules, rule)
@@ -210,6 +211,7 @@ type sarifRuleProperties struct {
 	Security   string   `json:"security-severity"`
 	Confidence string   `json:"confidence,omitempty"`
 	CWE        string   `json:"cwe,omitempty"`
+	OWASP      string   `json:"owasp,omitempty"`
 }
 
 type sarifMessage struct {
@@ -264,6 +266,10 @@ func buildSARIFTags(f models.Finding) []string {
 	if f.CWE != "" && !seen[f.CWE] {
 		seen[f.CWE] = true
 		tags = append(tags, "external/cwe/"+strings.ToLower(f.CWE))
+	}
+	if f.OWASP != "" && !seen[f.OWASP] {
+		seen[f.OWASP] = true
+		tags = append(tags, "external/owasp/"+strings.ToLower(f.OWASP))
 	}
 	for _, t := range f.Tags {
 		if !seen[t] {

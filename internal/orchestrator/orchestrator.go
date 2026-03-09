@@ -63,12 +63,6 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	}
 	defer src.Cleanup()
 
-	if !result.IsLaravel {
-		o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
-			Level: "warn", Message: "Path does not appear to be a Laravel project",
-		}))
-	}
-
 	o.stageComplete(models.StageProvider)
 	o.stageStart(models.StageResolvers)
 
@@ -92,6 +86,11 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 		FrameworkType:  pc.FrameworkType,
 		PackageCount:   len(pc.InstalledPackages),
 	}))
+	if pc.FrameworkType == "" {
+		o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
+			Level: "warn", Message: "Framework not detected, applying baseline rules only",
+		}))
+	}
 
 	rulesDir := o.getRulesDirectory()
 	if rulesDir != "" {
@@ -105,20 +104,16 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 			allRules = append(allRules, commonRules...)
 		}
 
-		if pc.FrameworkType != "" && pc.FrameworkType != "php-generic" {
-			frameworkKey := pc.FrameworkType
-			if frameworkKey == "codeigniter2" || frameworkKey == "codeigniter3" {
-				frameworkKey = "codeigniter"
-			}
-			if frameworkKey == "lumen" {
-				frameworkKey = "laravel"
-			}
+		frameworkKey := normalizeFrameworkRuleKey(pc.FrameworkType)
+		if frameworkKey != "" {
 			fwDir := filepath.Join(rulesDir, frameworkKey)
-			if fwRules, err := config.LoadRulesFromDir(fwDir); err == nil {
-				o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
-					Level: "info", Message: fmt.Sprintf("Loading framework specific rules (%s): %d rules", frameworkKey, len(fwRules)),
-				}))
-				allRules = append(allRules, fwRules...)
+			if info, statErr := os.Stat(fwDir); statErr == nil && info.IsDir() {
+				if fwRules, err := config.LoadRulesFromDir(fwDir); err == nil {
+					o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
+						Level: "info", Message: fmt.Sprintf("Loading framework specific rules (%s): %d rules", frameworkKey, len(fwRules)),
+					}))
+					allRules = append(allRules, fwRules...)
+				}
 			}
 		}
 
@@ -127,7 +122,9 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 		}
 
 		if len(allRules) > 0 {
-			filtered := o.filterRules(allRules)
+			deduped := deduplicateRuleDefinitions(allRules)
+			frameworkAware := filterRulesByFramework(deduped, normalizeFrameworkRuleKey(pc.FrameworkType))
+			filtered := o.filterRules(frameworkAware)
 			if len(filtered) > 0 {
 				scanners = append(scanners, depscanner.NewRulesScanner(filtered))
 			}
@@ -398,6 +395,157 @@ func (o *Orchestrator) filterScanners(scanners []models.Scanner) []models.Scanne
 	}
 
 	return filtered
+}
+
+func normalizeFrameworkRuleKey(frameworkType string) string {
+	switch frameworkType {
+	case "", "php-generic":
+		return ""
+	case "codeigniter2", "codeigniter3":
+		return "codeigniter"
+	case "lumen":
+		return "laravel"
+	default:
+		return frameworkType
+	}
+}
+
+func deduplicateRuleDefinitions(rules []config.RuleDefinition) []config.RuleDefinition {
+	if len(rules) == 0 {
+		return rules
+	}
+
+	seen := make(map[string]bool, len(rules))
+	unique := make([]config.RuleDefinition, 0, len(rules))
+	for _, rule := range rules {
+		key := strings.TrimSpace(rule.ID)
+		if key == "" {
+			key = strings.TrimSpace(rule.Title) + "|" + strings.TrimSpace(rule.Category)
+		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		unique = append(unique, rule)
+	}
+	return unique
+}
+
+func filterRulesByFramework(rules []config.RuleDefinition, framework string) []config.RuleDefinition {
+	if len(rules) == 0 {
+		return rules
+	}
+
+	normalizedFramework := normalizeFrameworkRuleKey(strings.ToLower(strings.TrimSpace(framework)))
+	filtered := make([]config.RuleDefinition, 0, len(rules))
+
+	for _, rule := range rules {
+		required := inferRuleFramework(rule)
+		if required == "" {
+			filtered = append(filtered, rule)
+			continue
+		}
+		if frameworkMatches(normalizedFramework, required) {
+			filtered = append(filtered, rule)
+		}
+	}
+
+	return filtered
+}
+
+func frameworkMatches(current, required string) bool {
+	if required == "" {
+		return true
+	}
+	if current == "" {
+		return false
+	}
+	if current == required {
+		return true
+	}
+
+	// CodeIgniter family aliases
+	if (current == "codeigniter" || current == "codeigniter4") &&
+		(required == "codeigniter" || required == "codeigniter4") {
+		return true
+	}
+
+	return false
+}
+
+func inferRuleFramework(rule config.RuleDefinition) string {
+	ruleID := strings.ToUpper(strings.TrimSpace(rule.ID))
+	switch {
+	case strings.HasPrefix(ruleID, "LAR-"):
+		return "laravel"
+	case strings.HasPrefix(ruleID, "SYM-"):
+		return "symfony"
+	case strings.HasPrefix(ruleID, "WP-"):
+		return "wordpress"
+	case strings.HasPrefix(ruleID, "CI4-"):
+		return "codeigniter4"
+	case strings.HasPrefix(ruleID, "CI-"):
+		return "codeigniter"
+	case strings.HasPrefix(ruleID, "YII-"):
+		return "yii2"
+	case strings.HasPrefix(ruleID, "CAKE-"):
+		return "cakephp"
+	}
+
+	for _, p := range rule.Patterns {
+		target := strings.ToLower(strings.TrimSpace(p.Target))
+		switch target {
+		case "blade-files":
+			return "laravel"
+		case "twig-files":
+			return "symfony"
+		}
+	}
+
+	tagBlob := strings.ToLower(strings.Join(rule.Tags, " "))
+	switch {
+	case containsAny(tagBlob, "laravel", "lumen", "blade", "eloquent", "artisan", "sanctum", "passport", "telescope", "horizon", "reverb"):
+		return "laravel"
+	case containsAny(tagBlob, "symfony", "twig", "doctrine"):
+		return "symfony"
+	case containsAny(tagBlob, "wordpress", " wp_", "wp-", "wpsec"):
+		return "wordpress"
+	case containsAny(tagBlob, "codeigniter4", "ci4"):
+		return "codeigniter4"
+	case containsAny(tagBlob, "codeigniter", "ci3", "ci2"):
+		return "codeigniter"
+	case containsAny(tagBlob, "yii2", " yii "):
+		return "yii2"
+	case containsAny(tagBlob, "cakephp"):
+		return "cakephp"
+	}
+
+	textBlob := strings.ToLower(rule.Title + " " + rule.Description + " " + rule.Remediation)
+	switch {
+	case containsAny(textBlob, "laravel", "blade", "eloquent", "artisan", "sanctum", "passport"):
+		return "laravel"
+	case containsAny(textBlob, "symfony", "twig"):
+		return "symfony"
+	case containsAny(textBlob, "wordpress", "wp_"):
+		return "wordpress"
+	case containsAny(textBlob, "codeigniter"):
+		return "codeigniter"
+	case containsAny(textBlob, "yii2", "yii framework"):
+		return "yii2"
+	case containsAny(textBlob, "cakephp"):
+		return "cakephp"
+	}
+
+	return ""
+}
+
+func containsAny(s string, needles ...string) bool {
+	for _, n := range needles {
+		if strings.Contains(s, n) {
+			return true
+		}
+	}
+	return false
 }
 
 func (o *Orchestrator) getRulesDirectory() string {

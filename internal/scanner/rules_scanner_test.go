@@ -208,6 +208,82 @@ func TestRulesScanner_UnescapedBlade(t *testing.T) {
 	}
 }
 
+func TestRulesScanner_PHPFilesIgnoreBladeTemplates(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "resources", "views"), 0755)
+	os.WriteFile(filepath.Join(dir, "resources", "views", "token.blade.php"), []byte(`{{ JWT::encode($payload, $key, 'HS256') }}`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-PHP-IGNORE-BLADE",
+			Title:   "JWT usage in PHP source",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "php-files", Pattern: `JWT::encode\s*\(`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings from blade template under php-files target, got %d", len(findings))
+	}
+}
+
+func TestRulesScanner_BuildFindingIncludesComplianceMetadata(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "app"), 0755)
+	os.WriteFile(filepath.Join(dir, "app", "Crypto.php"), []byte(`<?php
+$password = "hardcoded123";
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:       "TEST-META-001",
+			Title:    "Dangerous eval",
+			Severity: "critical",
+			Category: "RCE",
+			Enabled:  boolPtr(true),
+			Tags:     []string{"security", "cwe-94", "owasp-a03"},
+			CWE:      "CWE-94",
+			OWASP:    "A03:2021",
+			CVSSv3:   config.CVSSv3Def{Score: 9.8, Vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"},
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "php-files", Pattern: `\$password\s*=\s*"[a-zA-Z0-9]+"`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+
+	f := findings[0]
+	if f.CWE != "CWE-94" {
+		t.Fatalf("expected CWE-94, got %q", f.CWE)
+	}
+	if f.OWASP != "A03:2021" {
+		t.Fatalf("expected A03:2021, got %q", f.OWASP)
+	}
+	if f.CVSSScore != 9.8 {
+		t.Fatalf("expected CVSS score 9.8, got %v", f.CVSSScore)
+	}
+	if f.CVSSVector == "" {
+		t.Fatal("expected CVSS vector to be populated")
+	}
+}
+
 func TestRulesScanner_RawSQL(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "app"), 0755)

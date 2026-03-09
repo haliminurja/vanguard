@@ -69,11 +69,24 @@ func (s *RulesScanner) Description() string { return "Elite high-performance sec
 
 func (s *RulesScanner) Scan(ctx context.Context, project models.ProjectContext, emit func(models.Finding)) ([]models.Finding, error) {
 	targetToRules := make(map[string][]config.RuleDefinition)
+	var findings []models.Finding
+
 	for _, rule := range s.rules {
 		if rule.Enabled != nil && !*rule.Enabled {
 			continue
 		}
 		for _, pat := range rule.Patterns {
+			if pat.Type == "file-exists" {
+				directFindings := s.checkFileExists(rule, pat, project.RootPath)
+				for _, f := range directFindings {
+					findings = append(findings, f)
+					emit(f)
+				}
+				continue
+			}
+			if pat.Target == "" {
+				continue
+			}
 			targetToRules[pat.Target] = append(targetToRules[pat.Target], rule)
 		}
 	}
@@ -94,7 +107,6 @@ func (s *RulesScanner) Scan(ctx context.Context, project models.ProjectContext, 
 	}
 
 	var wg sync.WaitGroup
-	var findings []models.Finding
 	var mu sync.Mutex
 
 	numWorkers := runtime.NumCPU() * 2
@@ -205,6 +217,46 @@ func (s *RulesScanner) evaluatePattern(rule config.RuleDefinition, pat config.Pa
 	default:
 		return nil
 	}
+}
+
+func (s *RulesScanner) checkFileExists(rule config.RuleDefinition, pat config.PatternDef, root string) []models.Finding {
+	candidate := strings.TrimSpace(pat.Pattern)
+	if candidate == "" {
+		candidate = strings.TrimSpace(pat.Target)
+	}
+	if candidate == "" {
+		return nil
+	}
+
+	filePath := candidate
+	if !filepath.IsAbs(filePath) {
+		filePath = filepath.Join(root, filePath)
+	}
+	filePath = filepath.Clean(filePath)
+
+	info, err := os.Stat(filePath)
+	exists := err == nil && !info.IsDir()
+
+	matched := exists
+	snippet := "[FILE EXISTS]"
+	if pat.Negative {
+		matched = !exists
+		snippet = "[FILE NOT FOUND]"
+	}
+	if !matched {
+		return nil
+	}
+
+	rel := candidate
+	if filepath.IsAbs(filePath) {
+		if relPath, relErr := filepath.Rel(root, filePath); relErr == nil {
+			rel = relPath
+		} else {
+			rel = filePath
+		}
+	}
+
+	return []models.Finding{s.buildFinding(rule, filepath.ToSlash(rel), 0, snippet, nil, 0)}
 }
 
 func (s *RulesScanner) checkLineContent(rule config.RuleDefinition, pat config.PatternDef, fc *fileContent, fpath, rel string) []models.Finding {
@@ -318,6 +370,9 @@ func (s *RulesScanner) buildFinding(rule config.RuleDefinition, file string, lin
 		after = getContext(lines, lineIdx, 1, 3)
 	}
 
+	cwe := normalizeRuleCWE(rule.CWE, rule.Tags)
+	owasp := normalizeRuleOWASP(rule.OWASP, rule.Tags)
+
 	return models.Finding{
 		ID:            rule.ID,
 		Title:         rule.Title,
@@ -333,8 +388,44 @@ func (s *RulesScanner) buildFinding(rule config.RuleDefinition, file string, lin
 		Remediation:   rule.Remediation,
 		References:    rule.References,
 		Tags:          rule.Tags,
+		CWE:           cwe,
+		OWASP:         owasp,
 		Confidence:    rule.Confidence,
+		CVSSScore:     rule.CVSSv3.Score,
+		CVSSVector:    rule.CVSSv3.Vector,
 	}
+}
+
+func normalizeRuleCWE(cwe string, tags []string) string {
+	cwe = strings.TrimSpace(cwe)
+	if cwe != "" {
+		return strings.ToUpper(cwe)
+	}
+	for _, tag := range tags {
+		t := strings.TrimSpace(strings.ToUpper(tag))
+		if strings.HasPrefix(t, "CWE-") {
+			return t
+		}
+	}
+	return ""
+}
+
+func normalizeRuleOWASP(owasp string, tags []string) string {
+	owasp = strings.TrimSpace(strings.ToUpper(owasp))
+	if owasp != "" {
+		return owasp
+	}
+
+	for _, tag := range tags {
+		t := strings.TrimSpace(strings.ToUpper(tag))
+		if strings.Contains(t, "OWASP-") {
+			return t
+		}
+		if strings.HasPrefix(t, "A0") || strings.HasPrefix(t, "A1") {
+			return t
+		}
+	}
+	return ""
 }
 
 func resolveTarget(target, root string) []string {
@@ -496,7 +587,9 @@ func targetExts(target string) []string {
 
 func matchesExt(path, ext string) bool {
 	if ext == ".php" {
-		return strings.HasSuffix(path, ".php")
+		// Keep PHP source scanning focused on executable PHP files.
+		// Blade templates are handled by the dedicated blade-files target.
+		return strings.HasSuffix(path, ".php") && !strings.HasSuffix(path, ".blade.php")
 	}
 	if ext == ".blade.php" {
 		return strings.HasSuffix(path, ".blade.php")

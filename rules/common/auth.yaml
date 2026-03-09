@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10-12, PHP 8.0-8.4"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -17,6 +17,8 @@ rules:
     confidence: high
     category: Authentication Bypass
     tags: [auth, auth-bypass, owasp-a07, cwe-287]
+    owasp: "A07:2021"
+    cwe: "CWE-287"
     patterns:
       - type: regex
         target: php-files
@@ -39,6 +41,8 @@ rules:
     confidence: high
     category: Weak Password Policy
     tags: [auth, password-policy, cwe-521]
+    owasp: "A07:2021"
+    cwe: "CWE-521"
     patterns:
       - type: regex
         target: php-files
@@ -60,6 +64,8 @@ rules:
     confidence: high
     category: Token Exposure
     tags: [auth, token-exposure, owasp-a02, cwe-598]
+    owasp: "A02:2021"
+    cwe: "CWE-598"
     patterns:
       - type: regex
         target: routes-files
@@ -82,6 +88,8 @@ rules:
     confidence: medium
     category: Missing Audit Log
     tags: [auth, logging, owasp-a09, cwe-778]
+    owasp: "A09:2021"
+    cwe: "CWE-778"
     condition: all
     patterns:
       - type: contains
@@ -112,6 +120,8 @@ rules:
     confidence: high
     category: Over-Privileged Token
     tags: [auth, token, owasp-a01, cwe-269]
+    owasp: "A01:2021"
+    cwe: "CWE-269"
     patterns:
       - type: regex
         target: php-files
@@ -132,6 +142,8 @@ rules:
     confidence: high
     category: Missing Authentication
     tags: [auth, routing, owasp-a07, cwe-306]
+    owasp: "A07:2021"
+    cwe: "CWE-306"
     patterns:
       - type: regex
         target: routes-files
@@ -155,6 +167,8 @@ rules:
     confidence: high
     category: Missing Authentication
     tags: [auth, owasp-a07, cwe-306]
+    owasp: "A07:2021"
+    cwe: "CWE-306"
     patterns:
       - type: regex
         target: routes-files
@@ -173,6 +187,8 @@ rules:
     confidence: medium
     category: URL Tampering
     tags: [auth, url-tampering, cwe-345]
+    owasp: "A07:2021"
+    cwe: "CWE-345"
     patterns:
       - type: regex
         target: routes-files
@@ -195,6 +211,8 @@ rules:
     confidence: medium
     category: IDOR
     tags: [idor, owasp-a01, cwe-639, laravel]
+    owasp: "A01:2021"
+    cwe: "CWE-639"
     patterns:
       - type: regex
         target: routes-files
@@ -216,6 +234,8 @@ rules:
     confidence: high
     category: Authorization Bypass
     tags: [authz, owasp-a01, cwe-863]
+    owasp: "A01:2021"
+    cwe: "CWE-863"
     patterns:
       - type: regex
         target: php-files
@@ -239,6 +259,8 @@ rules:
     confidence: medium
     category: Missing Authorization
     tags: [authz, owasp-a01, cwe-862]
+    owasp: "A01:2021"
+    cwe: "CWE-862"
     patterns:
       - type: regex
         target: controller-files
@@ -262,6 +284,8 @@ rules:
     confidence: high
     category: IDOR
     tags: [idor, owasp-a01, cwe-639]
+    owasp: "A01:2021"
+    cwe: "CWE-639"
     patterns:
       - type: regex
         target: php-files
@@ -282,6 +306,8 @@ rules:
     confidence: high
     category: Authorization Bypass
     tags: [authz, websocket, owasp-a01, cwe-863, laravel]
+    owasp: "A01:2021"
+    cwe: "CWE-863"
     patterns:
       - type: regex
         target: php-files

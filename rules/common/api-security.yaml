@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10-12, PHP 8.0-8.4"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -44,6 +44,7 @@ rules:
     confidence: medium
     category: Mass Data Exposure
     tags: [api, info-disclosure, owasp-a03, cwe-200]
+    owasp: "A03:2021"
     cwe: "CWE-200"
     patterns:
       - type: regex
@@ -71,6 +72,7 @@ rules:
     confidence: medium
     category: Missing Rate Limiting
     tags: [api, rate-limit, dos, owasp-a04, cwe-770, laravel12]
+    owasp: "A04:2021"
     cwe: "CWE-770"
     patterns:
       - type: regex
@@ -94,6 +96,7 @@ rules:
     confidence: medium
     category: Missing Rate Limiting
     tags: [api, rate-limit, brute-force, owasp-a07, cwe-307]
+    owasp: "A07:2021"
     cwe: "CWE-307"
     patterns:
       - type: regex
@@ -117,6 +120,7 @@ rules:
     confidence: high
     category: GraphQL Misconfiguration
     tags: [api, graphql, info-disclosure, cwe-200, schema-exposure]
+    owasp: "A05:2021"
     cwe: "CWE-200"
     patterns:
       - type: regex
@@ -138,6 +142,7 @@ rules:
     confidence: medium
     category: GraphQL DoS
     tags: [api, graphql, dos, owasp-a04, cwe-770]
+    owasp: "A04:2021"
     cwe: "CWE-770"
     patterns:
       - type: regex
@@ -161,6 +166,7 @@ rules:
     confidence: medium
     category: Information Disclosure
     tags: [api, info-disclosure, owasp-a05, cwe-209]
+    owasp: "A05:2021"
     cwe: "CWE-209"
     patterns:
       - type: regex
@@ -188,6 +194,7 @@ rules:
     confidence: medium
     category: Unvalidated Data in Queue
     tags: [queue, input-validation, cwe-20, laravel]
+    owasp: "A05:2021"
     cwe: "CWE-20"
     patterns:
       - type: regex
@@ -212,6 +219,7 @@ rules:
     confidence: high
     category: Token Exposure in URL
     tags: [api, token-exposure, owasp-a02, cwe-598]
+    owasp: "A02:2021"
     cwe: "CWE-598"
     patterns:
       - type: regex
@@ -234,6 +242,7 @@ rules:
     confidence: medium
     category: Hardcoded Secret
     tags: [api, oath, jwt, cwe-798]
+    owasp: "A07:2021"
     cwe: "CWE-798"
     patterns:
       - type: regex

@@ -3,76 +3,11 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10-12, PHP 8.0-8.4"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
 rules:
-  - id: XSS-B01
-    title: "Blade raw output {!! !!} dengan variabel tidak terpercaya"
-    description: >
-      Direktif output mentah Blade {!! !!} melewati HTML escaping. Konten apapun yang dikendalikan pengguna yang dirender dengan cara ini menciptakan vektor XSS tersimpan atau tercermin yang dieksekusi di browser korban.
-
-    severity: high
-    confidence: medium
-    category: Reflected/Stored XSS
-    tags: [xss, blade, owasp-a03, cwe-79]
-    patterns:
-      - type: regex
-        target: blade-files
-        pattern: '\{!!\s*\$'
-        exclude_pattern: '(config|asset|Purifier|purify|clean\(|sanitize|strip_tags|e\(|htmlspecialchars)'
-    remediation: |
-      Gunakan output Blade yang di-escape untuk semua konten pengguna:
-        {{ $userContent }}
-      Cadangkan {!! !!} hanya untuk HTML statis tepercaya atau konten yang disanitasi:
-        {!! Purifier::clean($richText) !!}
-    references:
-      - "https://cwe.mitre.org/data/definitions/79.html"
-      - "https://laravel.com/docs/blade#displaying-data"
-  - id: XSS-B02
-    title: "Blade raw output dari data request (old/request/Input)"
-    description: >
-      Direktif {!! !!} merender data langsung dari HTTP request (old(), request(), Input::). Data request selalu dikendalikan penyerang dan tidak boleh pernah dirender tanpa escaping.
-
-    severity: critical
-    confidence: high
-    category: Reflected XSS
-    tags: [xss, blade, owasp-a03, cwe-79]
-    patterns:
-      - type: regex
-        target: blade-files
-        pattern: '\{!!\s*(old\(|request\(|Input::|\$_GET|\$_POST|\$_REQUEST)'
-    remediation: |
-      Gunakan sintaks double-brace yang mengescaping output secara otomatis:
-        {{ old('name') }}
-        {{ request('query') }}
-    references:
-      - "https://cwe.mitre.org/data/definitions/79.html"
-  - id: XSS-B03
-    title: "Blade @php echo - output variabel tanpa escaping"
-    description: >
-      Blok @php/@endphp menggunakan echo/print untuk output variabel tanpa melewatinya melalui htmlspecialchars() atau e(). Output @php tidak diproses oleh pipeline auto-escaping Blade.
-
-    severity: high
-    confidence: medium
-    category: Stored/Reflected XSS
-    tags: [xss, blade, owasp-a03, cwe-79]
-    patterns:
-      - type: regex
-        target: blade-files
-        pattern: '@php\s*(echo|print)\s+\$\w+'
-        exclude_pattern: '(htmlspecialchars|e\(|strip_tags|ENT_QUOTES|Purifier)'
-      - type: regex
-        target: blade-files
-        pattern: '@php.*echo\s+\$(_GET|_POST|_REQUEST|request)'
-    remediation: |
-      Gunakan output Blade yang di-escape daripada echo di dalam @php:
-        {{ $variable }}
-      Jika @php diperlukan, selalu escape:
-        @php echo e($variable); @endphp
-    references:
-      - "https://cwe.mitre.org/data/definitions/79.html"
   - id: XSS-B04
     title: "Blade @include dengan path view dari input pengguna"
     description: >
@@ -82,6 +17,8 @@ rules:
     confidence: high
     category: SSTI/XSS
     tags: [xss, ssti, owasp-a03, cwe-94]
+    owasp: "A03:2021"
+    cwe: "CWE-94"
     patterns:
       - type: regex
         pattern: '@include\s*\(\s*\$'
@@ -95,73 +32,6 @@ rules:
         @include($view)
     references:
       - "https://cwe.mitre.org/data/definitions/94.html"
-  - id: XSS-H01
-    title: "Inline event handler dengan data yang dikendalikan pengguna"
-    description: >
-      Template Blade berisi atribut event handler inline (onclick, onerror, onload, dll.) yang nilainya menyertakan data dari pengguna. Bahkan dengan HTML attribute encoding, menempatkan data pengguna di dalam event handler menciptakan vektor JavaScript injection.
-
-    severity: high
-    confidence: high
-    category: DOM XSS
-    tags: [xss, dom-xss, owasp-a03, cwe-79]
-    patterns:
-      - type: regex
-        target: blade-files
-        pattern: 'on(click|error|load|mouseover|submit|focus|blur|change|keyup|keydown)\s*=\s*["''][^"'']*\{\{'
-    remediation: |
-      Jangan pernah mencampur data pengguna dengan event handler inline.
-      Gunakan atribut data dan event listener JavaScript:
-        <button data-id="{{ $id }}" class="js-action">Click</button>
-        <script>
-        document.querySelectorAll('.js-action').forEach(b =>
-            b.addEventListener('click', () => handle(b.dataset.id)));
-        </script>
-    references:
-      - "https://cheatsheetseries.owasp.org/cheatsheets/DOM_based_XSS_Prevention_Cheat_Sheet.html"
-      - "https://cwe.mitre.org/data/definitions/79.html"
-  - id: XSS-H02
-    title: "href dengan data pengguna berpotensi javascript: URI"
-    description: >
-      Template Blade menghasilkan atribut href menggunakan data dari pengguna tanpa validasi skema. Penyerang menyisipkan URI javascript: yang dieksekusi di browser saat tautan diklik.
-
-    severity: high
-    confidence: medium
-    category: DOM XSS
-    tags: [xss, dom-xss, owasp-a03, cwe-79]
-    patterns:
-      - type: regex
-        target: blade-files
-        pattern: 'href\s*=\s*["'']?\{\{[^}]*(request|old|input|url|link|param)[^}]*\}\}'
-        exclude_pattern: '(route\(|url\(|asset\(|secure_url\(|Str::startsWith)'
-    remediation: |
-      Validasi URL sebelum menggunakannya dalam atribut href:
-        @php
-            $url = Str::startsWith($link, ['https://', '/']) ? $link : '#';
-        @endphp
-        <a href="{{ $url }}">Link</a>
-    references:
-      - "https://cwe.mitre.org/data/definitions/79.html"
-  - id: XSS-H03
-    title: "Data JSON inline di <script> tanpa direktif @json"
-    description: >
-      Data PHP ditanamkan di dalam tag <script> menggunakan echo atau interpolasi string tanpa melalui direktif @json Blade atau json_encode() dengan JSON_HEX_TAG. JSON mentah dapat berisi sekuens </script> yang keluar dari konteks script.
-
-    severity: high
-    confidence: high
-    category: Stored/Reflected XSS
-    tags: [xss, owasp-a03, cwe-79]
-    patterns:
-      - type: regex
-        target: blade-files
-        pattern: '<script[^>]*>[\s\S]*?\{\{[\s\S]*?\}\}[\s\S]*?<\/script>'
-        exclude_pattern: '(@json|JSON_HEX_TAG|json_encode)'
-    remediation: |
-      Gunakan direktif @json Blade yang mengatur flag yang benar secara otomatis:
-        <script>const config = @json($config);</script>
-      Atau gunakan json_encode() dengan flag HTML-safe:
-        <?= json_encode($data, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>
-    references:
-      - "https://cwe.mitre.org/data/definitions/79.html"
   - id: XSS-P01
     title: "echo/print dengan data tidak terpercaya tanpa escaping"
     description: >
@@ -171,6 +41,8 @@ rules:
     confidence: high
     category: Reflected XSS
     tags: [xss, owasp-a03, cwe-79]
+    owasp: "A03:2021"
+    cwe: "CWE-79"
     patterns:
       - type: regex
         target: php-files
@@ -196,6 +68,8 @@ rules:
     confidence: medium
     category: Reflected XSS
     tags: [xss, php81, cwe-79]
+    owasp: "A03:2021"
+    cwe: "CWE-79"
     patterns:
       - type: regex
         target: php-files
@@ -222,6 +96,8 @@ rules:
     confidence: high
     category: Reflected XSS
     tags: [xss, php81, deprecated, cwe-79]
+    owasp: "A03:2021"
+    cwe: "CWE-79"
     patterns:
       - type: regex
         target: php-files
@@ -243,6 +119,8 @@ rules:
     confidence: medium
     category: Stored XSS
     tags: [xss, eloquent, owasp-a03, cwe-79]
+    owasp: "A03:2021"
+    cwe: "CWE-79"
     patterns:
       - type: regex
         target: model-files

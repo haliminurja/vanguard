@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10-12, PHP 8.0-8.4"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -17,6 +17,8 @@ rules:
     confidence: high
     category: Response Splitting
     tags: [header-injection, owasp-a03, cwe-113]
+    owasp: "A03:2021"
+    cwe: "CWE-113"
     patterns:
       - type: regex
         target: php-files
@@ -38,6 +40,8 @@ rules:
     confidence: medium
     category: Missing Security Header
     tags: [security-headers, mime-sniff, owasp-a05, cwe-16]
+    owasp: "A05:2021"
+    cwe: "CWE-16"
     patterns:
       - type: contains
         target: middleware-files
@@ -59,6 +63,8 @@ rules:
     confidence: medium
     category: Missing Security Header
     tags: [security-headers, hsts, owasp-a05, cwe-319]
+    owasp: "A05:2021"
+    cwe: "CWE-319"
     patterns:
       - type: contains
         target: middleware-files
@@ -82,6 +88,8 @@ rules:
     confidence: medium
     category: Missing Security Header
     tags: [clickjacking, security-headers, owasp-a05, cwe-1021]
+    owasp: "A05:2021"
+    cwe: "CWE-1021"
     patterns:
       - type: contains
         target: middleware-files
@@ -104,6 +112,8 @@ rules:
     confidence: medium
     category: Missing Security Header
     tags: [security-headers, referrer, owasp-a05, cwe-200]
+    owasp: "A05:2021"
+    cwe: "CWE-200"
     patterns:
       - type: contains
         target: middleware-files
@@ -124,6 +134,8 @@ rules:
     confidence: low
     category: Missing Security Header
     tags: [security-headers, csp, xss, owasp-a05, cwe-16]
+    owasp: "A05:2021"
+    cwe: "CWE-16"
     patterns:
       - type: contains
         target: middleware-files

@@ -108,10 +108,12 @@ func (s *Scanner) doRequestWithRetries(req *http.Request) (*http.Response, error
 	backoff := 1 * time.Second
 
 	for i := 0; i <= maxRetries; i++ {
-		if i > 0 && req.Body != nil {
-			if seeker, ok := req.Body.(io.ReadSeeker); ok {
-				_, _ = seeker.Seek(0, io.SeekStart)
+		if i > 0 && req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, fmt.Errorf("resetting request body: %w", err)
 			}
+			req.Body = body
 		}
 
 		resp, err := s.client.Do(req)
@@ -369,7 +371,7 @@ func vulnToFinding(scanner, pkgName, pkgVersion, ecosystem, file string, vuln os
 
 	return models.Finding{
 		ID:          cveID,
-		Title:       fmt.Sprintf("[%s] %s@%s — %s", cveID, pkgName, pkgVersion, vuln.Summary),
+		Title:       fmt.Sprintf("[%s] %s@%s - %s", cveID, pkgName, pkgVersion, vuln.Summary),
 		Description: description,
 		Severity:    severity,
 		Category:    "Dependencies",

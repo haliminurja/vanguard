@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "PHP 8.0-8.4, Composer"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -12,9 +12,8 @@ rules:
   - id: SUPPLY-001
     title: "Composer - dependensi dengan versi wildcard (*) tanpa lock file"
     description: >
-      composer.json mendefinisikan dependensi dengan constraint versi wildcard (*) atau terlalu luas.
-      Tanpa composer.lock yang di-commit, setiap install atau update dapat menarik versi yang berbeda,
-      termasuk versi yang mungkin mengandung backdoor atau vulnerability baru.
+      composer.json mendefinisikan dependensi dengan constraint versi wildcard (*) atau terlalu luas. Tanpa composer.lock yang di-commit, setiap install atau update dapat menarik versi yang berbeda, termasuk versi yang mungkin mengandung backdoor atau vulnerability baru.
+
     severity: high
     confidence: medium
     category: Dependency Management
@@ -37,13 +36,11 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/829.html"
       - "https://getcomposer.org/doc/01-basic-usage.md#commit-your-composer-lock-file-to-version-control"
-
   - id: SUPPLY-002
     title: "Composer - minimum-stability disetel ke 'dev'"
     description: >
-      composer.json menyetel minimum-stability ke 'dev', mengizinkan instalasi package yang
-      belum di-review atau di-tag secara resmi. Package dev sering kali kurang teruji dan
-      mungkin mengandung kerentanan yang belum diperbaiki.
+      composer.json menyetel minimum-stability ke 'dev', mengizinkan instalasi package yang belum di-review atau di-tag secara resmi. Package dev sering kali kurang teruji dan mungkin mengandung kerentanan yang belum diperbaiki.
+
     severity: medium
     confidence: high
     category: Dependency Management
@@ -63,14 +60,11 @@ rules:
         }
     references:
       - "https://cwe.mitre.org/data/definitions/829.html"
-
   - id: SUPPLY-003
     title: "Package menggunakan source code yang di-load dari URL eksternal saat runtime"
     description: >
-      Kode PHP melakukan file_get_contents() atau cURL request ke URL eksternal dan kemudian
-      men-evaluate hasilnya via eval(), include, atau preg_replace() dengan flag /e.
-      Ini adalah pattern command & control (C2) - kode dari server eksternal dieksekusi
-      langsung di server aplikasi tanpa review atau validasi.
+      Kode PHP melakukan file_get_contents() atau cURL request ke URL eksternal dan kemudian men-evaluate hasilnya via eval(), include, atau preg_replace() dengan flag /e. Ini adalah pattern command & control (C2) - kode dari server eksternal dieksekusi langsung di server aplikasi tanpa review atau validasi.
+
     severity: critical
     confidence: high
     category: Remote Code Loading
@@ -89,14 +83,11 @@ rules:
       Semua dependensi harus dikelola melalui Composer dan di-review sebelum instalasi.
     references:
       - "https://cwe.mitre.org/data/definitions/829.html"
-
   - id: SUPPLY-004
     title: "Composer post-install/post-update script menjalankan command arbitrary"
     description: >
-      composer.json mendefinisikan post-install-cmd atau post-update-cmd script yang menjalankan
-      command shell arbitrer. Jika package dependency yang terkompromi memodifikasi script ini,
-      command berbahaya akan dieksekusi secara otomatis saat developer menjalankan
-      composer install atau composer update.
+      composer.json mendefinisikan post-install-cmd atau post-update-cmd script yang menjalankan command shell arbitrer. Jika package dependency yang terkompromi memodifikasi script ini, command berbahaya akan dieksekusi secara otomatis saat developer menjalankan composer install atau composer update.
+
     severity: high
     confidence: medium
     category: Build Pipeline
@@ -119,36 +110,3 @@ rules:
         }
     references:
       - "https://cwe.mitre.org/data/definitions/829.html"
-
-  - id: SUPPLY-005
-    title: "NPM/Node dependency di-load dari CDN tanpa Subresource Integrity (SRI)"
-    description: >
-      Script atau stylesheet di-load dari CDN eksternal (cdnjs, jsdelivr, unpkg, googleapis)
-      tanpa atribut integrity (Subresource Integrity). Jika CDN dikompromikan, penyerang
-      dapat menyisipkan malicious JavaScript yang dieksekusi di browser semua pengguna.
-    severity: high
-    confidence: high
-    category: Third-Party Script
-    tags: [supply-chain, cdn, sri, owasp-a08, cwe-829]
-    cwe: "CWE-829"
-    owasp: "A08:2021"
-    patterns:
-      - type: regex
-        target: blade-files
-        pattern: '<script[^>]+src\s*=\s*["'']https?://(cdn|cdnjs|unpkg|jsdelivr|googleapis)'
-        exclude_pattern: 'integrity\s*='
-      - type: regex
-        target: blade-files
-        pattern: '<link[^>]+href\s*=\s*["'']https?://(cdn|cdnjs|unpkg|jsdelivr|googleapis)'
-        exclude_pattern: 'integrity\s*='
-    remediation: |
-      Tambahkan Subresource Integrity (SRI) hash pada semua resource CDN:
-        <script
-            src="https://cdn.jsdelivr.net/npm/axios@1.6/dist/axios.min.js"
-            integrity="sha384-REAL_HASH_HERE"
-            crossorigin="anonymous">
-        </script>
-      Generate SRI hash: https://www.srihash.org/
-    references:
-      - "https://cwe.mitre.org/data/definitions/829.html"
-      - "https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity"

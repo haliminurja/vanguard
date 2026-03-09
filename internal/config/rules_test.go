@@ -1,9 +1,11 @@
 package config
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -68,49 +70,286 @@ rules:
 	}
 }
 
-func TestAllYAMLRegexes(t *testing.T) {
-	importRegexp := true
-	_ = importRegexp
+type ruleWithFile struct {
+	File string
+	Rule RuleDefinition
+}
 
-	rulesDir := filepath.Join("..", "..", "rules")
-
-	dirs := []string{rulesDir}
-	entries, err := os.ReadDir(rulesDir)
-	if err == nil {
-		for _, entry := range entries {
-			if entry.IsDir() && entry.Name() != "common" {
-				dirs = append(dirs, filepath.Join(rulesDir, entry.Name()))
-			} else if entry.IsDir() && entry.Name() == "common" {
-				dirs = append(dirs, filepath.Join(rulesDir, entry.Name()))
-			}
-		}
-	}
-
-	importRegexp2 := true
-	_ = importRegexp2
-
-	for _, dir := range dirs {
-		rules, _ := LoadRulesFromDir(dir)
-		for _, r := range rules {
-			for _, p := range r.Patterns {
-				if p.Type == "regex" || p.Type == "" {
-					if p.Pattern != "" {
-						importRegexp3 := true
-						_ = importRegexp3
-						// Need regexp
-						_, err := regexp.Compile(p.Pattern)
-						if err != nil {
-							t.Errorf("Rule %s has invalid regex: %v. Pattern: %s", r.ID, err, p.Pattern)
-						}
+func TestAllRulesYAMLAndRegexAreValid(t *testing.T) {
+	all := mustLoadAllRules(t)
+	for _, item := range all {
+		rule := item.Rule
+		for _, p := range rule.Patterns {
+			if p.Type == "regex" || p.Type == "regex-multiline" || p.Type == "" {
+				if p.Pattern != "" {
+					if _, err := regexp.Compile(p.Pattern); err != nil {
+						t.Errorf("invalid regex in %s rule %s: %v (pattern=%q)", item.File, rule.ID, err, p.Pattern)
 					}
-					if p.ExcludePattern != "" {
-						_, err := regexp.Compile(p.ExcludePattern)
-						if err != nil {
-							t.Errorf("Rule %s has invalid exclude_pattern regex: %v. Pattern: %s", r.ID, err, p.ExcludePattern)
-						}
+				}
+				if p.ExcludePattern != "" {
+					if _, err := regexp.Compile(p.ExcludePattern); err != nil {
+						t.Errorf("invalid exclude regex in %s rule %s: %v (exclude_pattern=%q)", item.File, rule.ID, err, p.ExcludePattern)
 					}
 				}
 			}
 		}
 	}
+}
+
+func TestAllRulesHaveUniqueIDs(t *testing.T) {
+	all := mustLoadAllRules(t)
+	seen := make(map[string]string, len(all))
+	for _, item := range all {
+		id := strings.TrimSpace(item.Rule.ID)
+		if id == "" {
+			t.Errorf("rule without id in %s", item.File)
+			continue
+		}
+		if prev, exists := seen[id]; exists {
+			t.Errorf("duplicate rule id %s found in %s and %s", id, prev, item.File)
+			continue
+		}
+		seen[id] = item.File
+	}
+}
+
+func TestAllRulesHaveMinimumComplianceMetadata(t *testing.T) {
+	all := mustLoadAllRules(t)
+	for _, item := range all {
+		r := item.Rule
+		hasCWE := strings.TrimSpace(r.CWE) != "" || hasTagPrefix(r.Tags, "cwe-")
+		hasOWASP := strings.TrimSpace(r.OWASP) != "" || hasTagPrefix(r.Tags, "owasp-") || hasOWASPCategoryTag(r.Tags)
+		hasRefs := len(r.References) > 0
+
+		if !hasCWE || !hasOWASP || !hasRefs {
+			t.Errorf("rule %s in %s missing compliance metadata (cwe=%t, owasp=%t, refs=%t)",
+				r.ID, item.File, hasCWE, hasOWASP, hasRefs)
+		}
+	}
+}
+
+func TestCommonRulesDoNotUseFrameworkOnlyTargets(t *testing.T) {
+	commonDir := filepath.Join("..", "..", "rules", "common")
+	rules, err := LoadRulesFromDir(commonDir)
+	if err != nil {
+		t.Fatalf("failed to load common rules: %v", err)
+	}
+
+	for _, r := range rules {
+		for _, p := range r.Patterns {
+			target := strings.ToLower(strings.TrimSpace(p.Target))
+			if target == "blade-files" || target == "twig-files" {
+				t.Errorf("common rule %s must not use framework-only target %q", r.ID, p.Target)
+			}
+		}
+	}
+}
+
+func TestCommonScopeIsFrameworkAgnostic(t *testing.T) {
+	commonDir := filepath.Join("..", "..", "rules", "common")
+	files, err := os.ReadDir(commonDir)
+	if err != nil {
+		t.Fatalf("failed to read common rules dir: %v", err)
+	}
+
+	want := `scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"`
+	for _, f := range files {
+		if f.IsDir() || (!strings.HasSuffix(f.Name(), ".yaml") && !strings.HasSuffix(f.Name(), ".yml")) {
+			continue
+		}
+		path := filepath.Join(commonDir, f.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", path, err)
+		}
+		if !strings.Contains(string(data), want) {
+			t.Errorf("common rule file %s must declare framework-agnostic scope", path)
+		}
+	}
+}
+
+func TestFrameworkRuleIDsMatchFrameworkPrefix(t *testing.T) {
+	type fwCheck struct {
+		file     string
+		prefixes []string
+	}
+
+	checks := []fwCheck{
+		{file: filepath.Join("..", "..", "rules", "symfony", "security.yaml"), prefixes: []string{"SYM-"}},
+		{file: filepath.Join("..", "..", "rules", "wordpress", "security.yaml"), prefixes: []string{"WP-"}},
+		{file: filepath.Join("..", "..", "rules", "codeigniter", "security.yaml"), prefixes: []string{"CI-"}},
+		{file: filepath.Join("..", "..", "rules", "codeigniter4", "security.yaml"), prefixes: []string{"CI4-"}},
+		{file: filepath.Join("..", "..", "rules", "yii2", "security.yaml"), prefixes: []string{"YII-"}},
+		{file: filepath.Join("..", "..", "rules", "cakephp", "security.yaml"), prefixes: []string{"CAKE-"}},
+		{
+			file: filepath.Join("..", "..", "rules", "laravel", "security.yaml"),
+			prefixes: []string{
+				"LAR-", "ADV-", "CFG-", "SUPPLY-", "XSS-", "BIZ-", "DBG-",
+			},
+		},
+	}
+
+	for _, check := range checks {
+		rules, err := LoadRulesFromFile(check.file)
+		if err != nil {
+			t.Fatalf("failed to load %s: %v", check.file, err)
+		}
+
+		for _, r := range rules {
+			id := strings.ToUpper(strings.TrimSpace(r.ID))
+			ok := false
+			for _, p := range check.prefixes {
+				if strings.HasPrefix(id, p) {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				t.Errorf("rule %s in %s has unexpected prefix, expected one of %v", r.ID, check.file, check.prefixes)
+			}
+		}
+	}
+}
+
+func TestCommonRulesDoNotUseFrameworkIDPrefixes(t *testing.T) {
+	commonDir := filepath.Join("..", "..", "rules", "common")
+	rules, err := LoadRulesFromDir(commonDir)
+	if err != nil {
+		t.Fatalf("failed to load common rules: %v", err)
+	}
+
+	disallowed := []string{"LAR-", "SYM-", "WP-", "CI-", "CI4-", "YII-", "CAKE-"}
+	for _, r := range rules {
+		id := strings.ToUpper(strings.TrimSpace(r.ID))
+		for _, p := range disallowed {
+			if strings.HasPrefix(id, p) {
+				t.Errorf("common rule %s uses framework-specific ID prefix %s", r.ID, p)
+			}
+		}
+	}
+}
+
+func TestFrameworkTemplateTargetsAreScopedToRightFramework(t *testing.T) {
+	all := mustLoadAllRules(t)
+	for _, item := range all {
+		file := filepath.ToSlash(item.File)
+		rule := item.Rule
+		for _, p := range rule.Patterns {
+			target := strings.ToLower(strings.TrimSpace(p.Target))
+			switch target {
+			case "blade-files":
+				if !strings.Contains(file, "/rules/laravel/") {
+					t.Errorf("rule %s in %s uses blade-files but is outside laravel rules", rule.ID, item.File)
+				}
+			case "twig-files":
+				if !strings.Contains(file, "/rules/symfony/") {
+					t.Errorf("rule %s in %s uses twig-files but is outside symfony rules", rule.ID, item.File)
+				}
+			}
+		}
+	}
+}
+
+func TestAllRulesHaveConfidence(t *testing.T) {
+	all := mustLoadAllRules(t)
+	allowed := map[string]bool{
+		"low": true, "medium": true, "high": true,
+	}
+	for _, item := range all {
+		c := strings.ToLower(strings.TrimSpace(item.Rule.Confidence))
+		if c == "" {
+			t.Errorf("rule %s in %s missing confidence", item.Rule.ID, item.File)
+			continue
+		}
+		if !allowed[c] {
+			t.Errorf("rule %s in %s has invalid confidence %q", item.Rule.ID, item.File, item.Rule.Confidence)
+		}
+	}
+}
+
+func TestRulesDoNotContainEncodingArtifacts(t *testing.T) {
+	root := filepath.Join("..", "..", "rules")
+	var files []string
+	if err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml") {
+			files = append(files, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("failed walking rules dir: %v", err)
+	}
+
+	badMarkers := []string{"ï¿½", "\uFFFD"}
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", file, err)
+		}
+		content := string(data)
+		for _, bad := range badMarkers {
+			if strings.Contains(content, bad) {
+				t.Errorf("encoding artifact %q found in %s", bad, file)
+			}
+		}
+	}
+}
+
+func mustLoadAllRules(t *testing.T) []ruleWithFile {
+	t.Helper()
+
+	root := filepath.Join("..", "..", "rules")
+	var files []string
+	if err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml") {
+			files = append(files, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("failed walking rules dir: %v", err)
+	}
+
+	all := make([]ruleWithFile, 0, 256)
+	for _, file := range files {
+		rules, err := LoadRulesFromFile(file)
+		if err != nil {
+			t.Fatalf("failed to parse rule file %s: %v", file, err)
+		}
+		for _, r := range rules {
+			all = append(all, ruleWithFile{File: file, Rule: r})
+		}
+	}
+
+	return all
+}
+
+func hasTagPrefix(tags []string, prefix string) bool {
+	prefix = strings.ToLower(prefix)
+	for _, tag := range tags {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(tag)), prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasOWASPCategoryTag(tags []string) bool {
+	for _, tag := range tags {
+		t := strings.ToUpper(strings.TrimSpace(tag))
+		if strings.HasPrefix(t, "A0") || strings.HasPrefix(t, "A1") {
+			return true
+		}
+	}
+	return false
 }

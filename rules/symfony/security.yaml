@@ -22,12 +22,15 @@ rules:
       attribute is derived from unvalidated user input (query parameters,
       POST body, headers), an attacker can craft arbitrary URIs to perform SSRF.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.3
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N"
     category: Injection
     enabled: true
     tags: [esi-injection, ssrf, owasp-a10-2021, symfony, cwe-918, pci-dss-6.2]
+    owasp: "A10:2021"
+    cwe: "CWE-918"
     patterns:
       - type: regex
         target: twig-files
@@ -41,6 +44,9 @@ rules:
     remediation: |
       NEVER construct ESI URIs dynamically from request parameters. Maintain a strict allowlist of internal route names.
 
+    references:
+      - "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_(SSRF)/"
+      - "https://cwe.mitre.org/data/definitions/918.html"
   - id: SYM-ENT-002
     title: "Unsafe Object Deserialization via Symfony SerializerComponent"
     description: >
@@ -48,12 +54,15 @@ rules:
       from JSON/XML input. When the target class is not hardcoded but instead
       derived from user-supplied data, it can lead to RCE via POP chain.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Deserialization
     enabled: true
     tags: [rce, deserialization, owasp-a08-2021, symfony, cwe-502]
+    owasp: "A08:2021"
+    cwe: "CWE-502"
     patterns:
       - type: regex
         target: php-files
@@ -67,18 +76,24 @@ rules:
     remediation: |
       Always hardcode the deserialization target class. `deserialize($request->getContent(), UserDto::class, 'json');`
 
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/502.html"
   - id: SYM-ENT-003
     title: "Symfony Web Profiler / _profiler Route Exposed in Production"
     description: >
       The Symfony Web Profiler Toolbar exposes extremely sensitive runtime data
       including database credentials, full query logs with bind parameters, and active session tokens.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 8.6
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
     category: Information Disclosure
     enabled: true
     tags: [profiler, debug-exposure, owasp-a05-2021, symfony, cwe-200, cwe-215]
+    owasp: "A05:2021"
+    cwe: "CWE-200"
     patterns:
       - type: regex
         target: config-files
@@ -87,24 +102,27 @@ rules:
       - type: regex
         target: php-files
         pattern: 'WebProfilerBundle::class\s*=>\s*\[''all''\s*=>\s*true\]'
-      - type: regex
-        target: config-files
-        pattern: '^APP_ENV\s*=\s*(?:dev|test|local)'
     remediation: |
       Ensure `WebProfilerBundle` is only registered for `dev` and `test` in `bundles.php`. Set `APP_ENV=prod`.
 
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/200.html"
   - id: SYM-ENT-004
     title: "Open Redirect via Unvalidated Referer / Redirect URL"
     description: >
       Using `$request->headers->get('Referer')` or `$request->query->get('redirect')`
       directly as the Location header in a `RedirectResponse` enables open redirects.
     severity: high
+    confidence: high
     cvss_v3:
       score: 6.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
     category: Open Redirect
     enabled: true
     tags: [open-redirect, phishing, owasp-a01-2021, symfony, cwe-601]
+    owasp: "A01:2021"
+    cwe: "CWE-601"
     patterns:
       - type: regex
         target: php-files
@@ -115,6 +133,9 @@ rules:
     remediation: |
       Always validate redirect targets against an allow-list of internal paths or use `generateUrl()`.
 
+    references:
+      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+      - "https://cwe.mitre.org/data/definitions/601.html"
   - id: SYM-ENT-005
     title: "Missing CSRF Token Validation on State-Changing Endpoints"
     description: >
@@ -123,12 +144,15 @@ rules:
       `$this->isCsrfTokenValid()` or omit `{{ csrf_token('intention') }}`,
       attackers can forge cross-site requests.
     severity: high
+    confidence: high
     cvss_v3:
       score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
     category: CSRF
     enabled: true
     tags: [csrf, owasp-a05-2021, symfony, cwe-352]
+    owasp: "A02:2021"
+    cwe: "CWE-352"
     patterns:
       - type: regex
         target: php-files
@@ -137,6 +161,9 @@ rules:
     remediation: |
       Always include and validate CSRF tokens in Symfony forms.
 
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/352.html"
   - id: SYM-ENT-006
     title: "ExpressionLanguage Injection leading to RCE"
     description: >
@@ -144,12 +171,15 @@ rules:
       methods of Symfony's `ExpressionLanguage` component allows attackers to
       execute arbitrary PHP code.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Injection
     enabled: true
     tags: [rce, expression-language, owasp-a03-2021, symfony, cwe-94]
+    owasp: "A03:2021"
+    cwe: "CWE-94"
     patterns:
       - type: regex
         target: php-files
@@ -157,18 +187,24 @@ rules:
     remediation: |
       Never allow users to provide the expression string. User input should only be passed as variables in the second argument dictionary.
 
+    references:
+      - "https://owasp.org/Top10/A03_2021-Injection/"
+      - "https://cwe.mitre.org/data/definitions/94.html"
   - id: SYM-ENT-007
     title: "Insecure Remember-Me Configuration (Secret Re-use)"
     description: >
       If the `remember_me` firewall configuration uses a weak, hardcoded, or globally shared `secret`,
       attackers can forge remember-me cookies to hijack user sessions.
     severity: high
+    confidence: high
     cvss_v3:
       score: 7.5
       vector: "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Session Management
     enabled: true
     tags: [remember-me, session-hijacking, symfony, cwe-287, owasp-a02-2021]
+    owasp: "A02:2021"
+    cwe: "CWE-287"
     patterns:
       - type: regex
         target: config-files
@@ -176,29 +212,39 @@ rules:
     remediation: |
       Always use the application secret `%kernel.secret%` or a dedicated environment variable for the `remember_me` secret.
 
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/287.html"
   - id: SYM-ENT-008
     title: "Weak Password Encoder Configuration (Legacy Crypt/MD5/Plaintext)"
     description: >
       Using legacy or weak password encoders like `plaintext`, `bcrypt` with low cost, or `md5` allows attackers to crack passwords quickly if the database is compromised.
     severity: high
+    confidence: high
     category: Cryptographic Failure
     tags: [crypto, symfony, cwe-327]
+    owasp: "A05:2021"
     cwe: "CWE-327"
     patterns:
       - type: regex
         target: config-files
-        pattern: 'algorithm:\s*(plaintext|md5|sha1|auto)'
+        pattern: 'algorithm:\s*(plaintext|md5|sha1)'
         exclude_pattern: 'bcrypt|argon2i|argon2id'
     remediation: |
       Gunakan `auto` untuk membiarkan Symfony memilih algoritma terbaik, atau tentukan secara eksplisit `bcrypt` atau `argon2id` dengan parameter cost yang sesuai.
 
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/327.html"
   - id: SYM-ENT-009
     title: "Akses Kontrol Terbuka (Missing access_control in security.yaml)"
     description: >
       Bagian `access_control` di `security.yaml` kosong atau tidak mendefinisikan aturan untuk path sensitif seperti `/admin` atau `/api`. Ini dapat menyebabkan IDOR atau akses tidak sah ke data sensitif.
     severity: high
+    confidence: high
     category: Broken Access Control
     tags: [auth, symfony, cwe-284]
+    owasp: "A07:2021"
     cwe: "CWE-284"
     patterns:
       - type: regex
@@ -207,17 +253,30 @@ rules:
     remediation: |
       Definisikan aturan `access_control` yang ketat untuk menmghindari akses tidak sah ke area sensitif.
 
+    references:
+      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+      - "https://cwe.mitre.org/data/definitions/284.html"
   - id: SYM-ENT-010
     title: "HttpKernel Handle dengan Input Pengguna Langsung"
     description: >
-      Memanggil `$kernel->handle($request)` di mana `$request` dikonstruksi langsung dari input query atau POST tanpa validasi dapat memungkinkan penyerang mensimulasikan sub-request internal yang seharusnya tidak dapat diakses secara publik.
+      Pemanggilan `Request::create()` dengan URL atau path dari input pengguna
+      lalu diteruskan ke `$kernel->handle()` dapat mensimulasikan sub-request
+      internal yang seharusnya tidak dapat diakses publik.
     severity: high
+    confidence: high
     category: Injection
     tags: [rce, symfony, cwe-20]
+    owasp: "A03:2021"
     cwe: "CWE-20"
     patterns:
       - type: regex
         target: php-files
-        pattern: '\$kernel->handle\s*\(\s*Request::createFromGlobals\s*\(\s*\)\s*\)'
+        pattern: 'Request::create\s*\(\s*(\$request->|\$_GET|\$_POST)'
+      - type: regex
+        target: php-files
+        pattern: '\$kernel->handle\s*\(\s*Request::create\s*\('
     remediation: |
       Pastikan request ditangani melalui pipeline standar Symfony dan hindari pemanggilan manual handle kernel pada request yang tidak tervalidasi.
+    references:
+      - "https://owasp.org/Top10/A03_2021-Injection/"
+      - "https://cwe.mitre.org/data/definitions/20.html"

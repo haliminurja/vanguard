@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10-12, PHP 8.0-8.4"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -57,6 +57,7 @@ rules:
     confidence: high
     category: SQL Injection
     tags: [sqli, owasp-a03, cwe-89, laravel, eloquent]
+    owasp: "A03:2021"
     cwe: "CWE-89"
     patterns:
       - type: regex
@@ -89,6 +90,7 @@ rules:
     confidence: high
     category: SQL Injection
     tags: [sqli, owasp-a03, cwe-89, laravel]
+    owasp: "A03:2021"
     cwe: "CWE-89"
     patterns:
       - type: regex
@@ -115,6 +117,7 @@ rules:
     confidence: high
     category: SQL Injection
     tags: [sqli, owasp-a03, cwe-89, laravel, raw-sql]
+    owasp: "A03:2021"
     cwe: "CWE-89"
     patterns:
       - type: regex
@@ -144,6 +147,7 @@ rules:
     confidence: high
     category: SQL Injection
     tags: [sqli, owasp-a03, cwe-89, laravel, orderby]
+    owasp: "A03:2021"
     cwe: "CWE-89"
     patterns:
       - type: regex
@@ -173,6 +177,7 @@ rules:
     confidence: high
     category: Command Injection
     tags: [cmd-injection, rce, owasp-a03, cwe-78]
+    owasp: "A03:2021"
     cwe: "CWE-78"
     patterns:
       - type: regex
@@ -209,6 +214,7 @@ rules:
     confidence: high
     category: Command Injection
     tags: [cmd-injection, owasp-a03, cwe-78, laravel, artisan]
+    owasp: "A03:2021"
     cwe: "CWE-78"
     patterns:
       - type: regex
@@ -233,6 +239,7 @@ rules:
     confidence: high
     category: Code Injection
     tags: [code-injection, rce, owasp-a03, cwe-95]
+    owasp: "A03:2021"
     cwe: "CWE-95"
     patterns:
       - type: regex
@@ -264,6 +271,7 @@ rules:
     confidence: high
     category: Code Injection
     tags: [code-injection, rce, owasp-a03, cwe-95, legacy]
+    owasp: "A03:2021"
     cwe: "CWE-95"
     patterns:
       - type: regex
@@ -290,6 +298,7 @@ rules:
     confidence: high
     category: Code Injection
     tags: [code-injection, rce, php80, cwe-95, removed-function]
+    owasp: "A03:2021"
     cwe: "CWE-95"
     patterns:
       - type: regex
@@ -318,6 +327,7 @@ rules:
     confidence: high
     category: Code Injection
     tags: [code-injection, rce, owasp-a03, cwe-95, php80]
+    owasp: "A03:2021"
     cwe: "CWE-95"
     patterns:
       - type: regex
@@ -348,6 +358,7 @@ rules:
     confidence: high
     category: SSTI
     tags: [ssti, owasp-a03, cwe-94, blade]
+    owasp: "A03:2021"
     cwe: "CWE-94"
     patterns:
       - type: regex
@@ -377,6 +388,7 @@ rules:
     confidence: high
     category: SSTI
     tags: [ssti, owasp-a03, cwe-94, blade]
+    owasp: "A03:2021"
     cwe: "CWE-94"
     patterns:
       - type: regex
@@ -405,6 +417,7 @@ rules:
     confidence: high
     category: Deserialization
     tags: [deserialization, rce, owasp-a08, cwe-502]
+    owasp: "A08:2021"
     cwe: "CWE-502"
     patterns:
       - type: regex
@@ -437,6 +450,7 @@ rules:
     confidence: high
     category: Object Injection
     tags: [object-injection, owasp-a08, cwe-470]
+    owasp: "A08:2021"
     cwe: "CWE-470"
     patterns:
       - type: regex
@@ -467,6 +481,7 @@ rules:
     confidence: high
     category: Object Injection
     tags: [rce, dynamic-dispatch, owasp-a03, cwe-470]
+    owasp: "A03:2021"
     cwe: "CWE-470"
     patterns:
       - type: regex
@@ -499,6 +514,7 @@ rules:
     confidence: high
     category: Object Injection
     tags: [rce, owasp-a08, cwe-470, dynamic-instantiation]
+    owasp: "A08:2021"
     cwe: "CWE-470"
     patterns:
       - type: regex
@@ -526,6 +542,7 @@ rules:
     confidence: high
     category: Variable Injection
     tags: [variable-injection, owasp-a03, cwe-621]
+    owasp: "A03:2021"
     cwe: "CWE-621"
     patterns:
       - type: regex
@@ -552,6 +569,7 @@ rules:
     confidence: high
     category: Variable Injection
     tags: [variable-injection, owasp-a03, cwe-621, register-globals]
+    owasp: "A03:2021"
     cwe: "CWE-621"
     patterns:
       - type: regex
@@ -577,6 +595,7 @@ rules:
     confidence: high
     category: Email Injection
     tags: [email-injection, owasp-a03, cwe-93, spam]
+    owasp: "A03:2021"
     cwe: "CWE-93"
     patterns:
       - type: regex
@@ -608,6 +627,7 @@ rules:
     confidence: medium
     category: CSV Injection
     tags: [csv-injection, owasp-a03, cwe-1236, spreadsheet]
+    owasp: "A03:2021"
     cwe: "CWE-1236"
     patterns:
       - type: regex
@@ -642,6 +662,7 @@ rules:
     confidence: high
     category: RFI
     tags: [rfi, lfi, owasp-a03, cwe-98, php-wrappers]
+    owasp: "A03:2021"
     cwe: "CWE-98"
     patterns:
       - type: regex
@@ -668,6 +689,7 @@ rules:
     confidence: high
     category: Injection
     tags: [ldap-injection, owasp-a03, cwe-90]
+    owasp: "A03:2021"
     cwe: "CWE-90"
     patterns:
       - type: regex
@@ -688,6 +710,7 @@ rules:
     confidence: high
     category: Injection
     tags: [nosql-injection, mongodb, owasp-a03, cwe-943]
+    owasp: "A03:2021"
     cwe: "CWE-943"
     patterns:
       - type: regex

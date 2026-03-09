@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10-12, PHP 8.0-8.4"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -17,6 +17,8 @@ rules:
     confidence: medium
     category: Auth Bypass
     tags: [middleware, auth-bypass, owasp-a07, cwe-862]
+    owasp: "A07:2021"
+    cwe: "CWE-862"
     patterns:
       - type: regex
         target: middleware-files
@@ -42,6 +44,8 @@ rules:
     confidence: medium
     category: Authorization Bypass
     tags: [middleware, authz, owasp-a01, cwe-862]
+    owasp: "A01:2021"
+    cwe: "CWE-862"
     patterns:
       - type: regex
         target: middleware-files
@@ -67,6 +71,8 @@ rules:
     confidence: high
     category: CORS Misconfiguration
     tags: [middleware, cors, owasp-a05, cwe-942]
+    owasp: "A05:2021"
+    cwe: "CWE-942"
     patterns:
       - type: regex
         target: middleware-files
@@ -95,6 +101,8 @@ rules:
     confidence: high
     category: Sensitive Data Logging
     tags: [middleware, logging, info-disclosure, owasp-a09, cwe-532]
+    owasp: "A09:2021"
+    cwe: "CWE-532"
     patterns:
       - type: regex
         target: middleware-files
@@ -118,6 +126,8 @@ rules:
     confidence: high
     category: Proxy Trust Misconfiguration
     tags: [proxy, owasp-a05, cwe-346, laravel]
+    owasp: "A05:2021"
+    cwe: "CWE-346"
     patterns:
       - type: regex
         target: php-files

@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10-12, PHP 8.0-8.4"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -17,6 +17,8 @@ rules:
     confidence: high
     category: TLS Misconfiguration
     tags: [ssl, tls, owasp-a07, cwe-295]
+    owasp: "A07:2021"
+    cwe: "CWE-295"
     patterns:
       - type: regex
         target: php-files
@@ -46,6 +48,8 @@ rules:
     confidence: high
     category: CORS Misconfiguration
     tags: [cors, owasp-a05, cwe-942]
+    owasp: "A05:2021"
+    cwe: "CWE-942"
     patterns:
       - type: regex
         target: config-files
@@ -64,6 +68,8 @@ rules:
     confidence: high
     category: CORS Misconfiguration
     tags: [cors, owasp-a05, cwe-942]
+    owasp: "A05:2021"
+    cwe: "CWE-942"
     patterns:
       - type: regex
         target: config-files
@@ -85,6 +91,8 @@ rules:
     confidence: high
     category: CSRF Bypass
     tags: [csrf, owasp-a05, cwe-352]
+    owasp: "A05:2021"
+    cwe: "CWE-352"
     patterns:
       - type: regex
         target: php-files
@@ -98,34 +106,6 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/352.html"
       - "https://laravel.com/docs/csrf#excluding-uris"
-  - id: CFG-CSRF02
-    title: "Blade form tanpa direktif @csrf"
-    description: >
-      Tag <form> dengan method non-GET dalam template Blade tidak menyertakan @csrf. Tanpa validasi CSRF token, form rentan terhadap cross-site request forgery dari origin manapun yang dapat mengelabui pengguna yang login.
-
-    severity: high
-    confidence: high
-    category: CSRF
-    tags: [csrf, blade, owasp-a05, cwe-352, laravel]
-    condition: all
-    patterns:
-      - type: regex
-        target: blade-files
-        pattern: '<form[^>]+method\s*=\s*["'']?(POST|PUT|PATCH|DELETE)[^>]*>'
-      - type: contains
-        target: blade-files
-        pattern: "@csrf"
-        negative: true
-    remediation: |
-      Tambahkan @csrf di dalam setiap Blade form non-GET:
-        <form method="POST" action="{{ route('profile.update') }}">
-            @csrf
-            @method('PUT')
-            <!- field form ->
-        </form>
-    references:
-      - "https://cwe.mitre.org/data/definitions/352.html"
-      - "https://laravel.com/docs/csrf"
   - id: CFG-SAN01
     title: "Sanctum stateful domains mengandung wildcard"
     description: >
@@ -135,6 +115,8 @@ rules:
     confidence: high
     category: Auth Misconfiguration
     tags: [sanctum, auth, owasp-a05, cwe-942, laravel]
+    owasp: "A05:2021"
+    cwe: "CWE-942"
     patterns:
       - type: regex
         target: env-files
@@ -157,6 +139,8 @@ rules:
     confidence: high
     category: Destructive Operation
     tags: [destructive, data-integrity, cwe-912, laravel]
+    owasp: "A08:2021"
+    cwe: "CWE-912"
     patterns:
       - type: regex
         target: php-files
@@ -176,6 +160,8 @@ rules:
     confidence: high
     category: Routing Misconfiguration
     tags: [routing, owasp-a04, cwe-749, laravel]
+    owasp: "A04:2021"
+    cwe: "CWE-749"
     patterns:
       - type: regex
         target: routes-files

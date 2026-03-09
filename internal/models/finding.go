@@ -21,6 +21,7 @@ type Finding struct {
 	References    []string
 	Tags          []string
 	CWE           string
+	OWASP         string
 	Confidence    string
 	CVSSScore     float64
 	CVSSVector    string

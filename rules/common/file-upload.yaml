@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10-12, PHP 8.0-8.4"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -17,6 +17,8 @@ rules:
     confidence: medium
     category: Unrestricted Upload
     tags: [file-upload, owasp-a04, cwe-434]
+    owasp: "A04:2021"
+    cwe: "CWE-434"
     patterns:
       - type: regex
         target: php-files
@@ -39,6 +41,8 @@ rules:
     confidence: high
     category: Path Traversal via Filename
     tags: [file-upload, path-traversal, owasp-a04, cwe-73]
+    owasp: "A04:2021"
+    cwe: "CWE-73"
     patterns:
       - type: regex
         target: php-files
@@ -63,6 +67,8 @@ rules:
     confidence: medium
     category: Unrestricted Upload
     tags: [file-upload, owasp-a04, cwe-434]
+    owasp: "A04:2021"
+    cwe: "CWE-434"
     patterns:
       - type: regex
         target: php-files
@@ -85,6 +91,8 @@ rules:
     confidence: high
     category: RCE via Upload
     tags: [file-upload, rce, owasp-a03, cwe-98]
+    owasp: "A03:2021"
+    cwe: "CWE-98"
     patterns:
       - type: regex
         target: php-files
@@ -104,6 +112,8 @@ rules:
     confidence: high
     category: Dangerous Extension
     tags: [file-upload, owasp-a04, cwe-434]
+    owasp: "A04:2021"
+    cwe: "CWE-434"
     patterns:
       - type: regex
         target: php-files
@@ -122,6 +132,8 @@ rules:
     confidence: high
     category: SVG XSS
     tags: [file-upload, xss, owasp-a07, cwe-79]
+    owasp: "A07:2021"
+    cwe: "CWE-79"
     patterns:
       - type: regex
         target: php-files
@@ -144,6 +156,8 @@ rules:
     confidence: medium
     category: DoS via Upload
     tags: [file-upload, dos, cwe-770]
+    owasp: "A04:2021"
+    cwe: "CWE-770"
     patterns:
       - type: regex
         target: php-files
@@ -164,6 +178,8 @@ rules:
     confidence: medium
     category: Missing Validation
     tags: [file-upload, input-validation, owasp-a04, cwe-434]
+    owasp: "A04:2021"
+    cwe: "CWE-434"
     patterns:
       - type: regex
         target: controller-files
@@ -192,6 +208,8 @@ rules:
     confidence: low
     category: Misconfigured Storage
     tags: [file-upload, configuration, cwe-732]
+    owasp: "A05:2021"
+    cwe: "CWE-732"
     patterns:
       - type: regex
         target: php-files
@@ -216,6 +234,7 @@ rules:
     confidence: high
     category: Archive Extraction Traversal
     tags: [file-upload, zip-slip, path-traversal, cwe-22, rce]
+    owasp: "A05:2021"
     cwe: "CWE-22"
     patterns:
       - type: regex

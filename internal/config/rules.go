@@ -18,11 +18,19 @@ type RuleDefinition struct {
 
 	Enabled     *bool        `yaml:"enabled"`
 	Tags        []string     `yaml:"tags"`
+	CWE         string       `yaml:"cwe"`
+	OWASP       string       `yaml:"owasp"`
+	CVSSv3      CVSSv3Def    `yaml:"cvss_v3"`
 	Confidence  string       `yaml:"confidence"`
 	Condition   string       `yaml:"condition"`
 	Patterns    []PatternDef `yaml:"patterns"`
 	Remediation string       `yaml:"remediation"`
 	References  []string     `yaml:"references"`
+}
+
+type CVSSv3Def struct {
+	Score  float64 `yaml:"score"`
+	Vector string  `yaml:"vector"`
 }
 
 type PatternDef struct {

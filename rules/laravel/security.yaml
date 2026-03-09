@@ -10,22 +10,21 @@ meta:
     - NIST-SP-800-53
     - PCI-DSS-v4
     - ISO-27001
-
 rules:
-
   - id: LAR-ENT-001
     title: "Eloquent Mass Assignment — $guarded = [] mengizinkan semua field"
     description: >
-      Model Eloquent mendefinisikan $guarded = [] yang mengizinkan SETIAP atribut diset via create() atau update().
-      Penyerang dapat menyetel is_admin, role, email_verified_at, password, atau field sensitif lainnya
-      melalui input request jika controller menggunakan $request->all().
+      Model Eloquent mendefinisikan $guarded = [] yang mengizinkan SETIAP atribut diset via create() atau update(). Penyerang dapat menyetel is_admin, role, email_verified_at, password, atau field sensitif lainnya melalui input request jika controller menggunakan $request->all().
+
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Mass Assignment
     enabled: true
     tags: [mass-assignment, eloquent, owasp-a04-2021, cwe-915, laravel]
+    owasp: "A04:2021"
     cwe: "CWE-915"
     patterns:
       - type: regex
@@ -40,20 +39,20 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/915.html"
       - "https://laravel.com/docs/eloquent#mass-assignment"
-
   - id: LAR-ENT-002
     title: "SQL Injection — DB::raw() / whereRaw() dengan interpolasi variabel"
     description: >
-      Query builder menggunakan DB::raw(), whereRaw(), selectRaw(), orderByRaw(), havingRaw(),
-      atau DB::statement() dengan interpolasi variabel langsung dari request. Query parameterized
-      Laravel di-bypass, mengekspos database ke SQL Injection penuh.
+      Query builder menggunakan DB::raw(), whereRaw(), selectRaw(), orderByRaw(), havingRaw(), atau DB::statement() dengan interpolasi variabel langsung dari request. Query parameterized Laravel di-bypass, mengekspos database ke SQL Injection penuh.
+
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: SQL Injection
     enabled: true
     tags: [sqli, eloquent, owasp-a03-2021, cwe-89, laravel, pci-dss-6.2]
+    owasp: "A03:2021"
     cwe: "CWE-89"
     patterns:
       - type: regex
@@ -71,19 +70,20 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/89.html"
       - "https://laravel.com/docs/queries#raw-expressions"
-
   - id: LAR-ENT-003
     title: "Auth Bypass — Auth::loginUsingId() dengan user ID dari request"
     description: >
-      Auth::loginUsingId() dipanggil dengan ID yang berasal dari request input tanpa verifikasi kepemilikan.
-      Penyerang mengganti ID untuk login sebagai user lain, termasuk admin.
+      Auth::loginUsingId() dipanggil dengan ID yang berasal dari request input tanpa verifikasi kepemilikan. Penyerang mengganti ID untuk login sebagai user lain, termasuk admin.
+
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Authentication Bypass
     enabled: true
     tags: [auth-bypass, owasp-a07-2021, cwe-287, laravel]
+    owasp: "A07:2021"
     cwe: "CWE-287"
     patterns:
       - type: regex
@@ -97,20 +97,20 @@ rules:
         Auth::loginUsingId($targetUser->id);
     references:
       - "https://cwe.mitre.org/data/definitions/287.html"
-
   - id: LAR-ENT-004
     title: "File Upload — tanpa validasi MIME type dan ekstensi"
     description: >
-      File upload menggunakan storeAs() atau putFile() tanpa validasi mime type, ukuran, dan ekstensi
-      di dalam request validation rules. Penyerang dapat mengupload shell PHP, web backdoor,
-      atau malware yang dieksekusi di server.
+      File upload menggunakan storeAs() atau putFile() tanpa validasi mime type, ukuran, dan ekstensi di dalam request validation rules. Penyerang dapat mengupload shell PHP, web backdoor, atau malware yang dieksekusi di server.
+
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
     category: Unrestricted File Upload
     enabled: true
     tags: [file-upload, rce, owasp-a04-2021, cwe-434, laravel]
+    owasp: "A04:2021"
     cwe: "CWE-434"
     patterns:
       - type: regex
@@ -128,20 +128,20 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/434.html"
       - "https://laravel.com/docs/validation#rule-mimes"
-
   - id: LAR-ENT-005
     title: "XSS — Blade raw output {!! !!} dengan data tidak tepercaya"
     description: >
-      Blade meng-output variabel mentah via {!! !!} tanpa escaping. Jika variabel berasal dari
-      input pengguna, database tanpa sanitasi, atau API eksternal, penyerang menyisipkan JavaScript
-      yang dijalankan di browser korban — memungkinkan session hijacking, keylogging, dan data theft.
+      Blade meng-output variabel mentah via {!! !!} tanpa escaping. Jika variabel berasal dari input pengguna, database tanpa sanitasi, atau API eksternal, penyerang menyisipkan JavaScript yang dijalankan di browser korban — memungkinkan session hijacking, keylogging, dan data theft.
+
     severity: high
+    confidence: high
     cvss_v3:
       score: 7.2
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:L/A:N"
     category: Cross-Site Scripting (XSS)
     enabled: true
     tags: [xss, blade, owasp-a03-2021, cwe-79, laravel]
+    owasp: "A03:2021"
     cwe: "CWE-79"
     patterns:
       - type: regex
@@ -157,19 +157,20 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/79.html"
       - "https://laravel.com/docs/blade#displaying-data"
-
   - id: LAR-ENT-006
     title: "API Token — Sanctum/Passport token tanpa expiration"
     description: >
-      Token Sanctum atau Passport dibuat tanpa menyetel masa kedaluwarsa. Token tanpa expiration
-      berlaku selamanya — jika dicuri, penyerang memiliki akses API permanen ke akun pengguna.
+      Token Sanctum atau Passport dibuat tanpa menyetel masa kedaluwarsa. Token tanpa expiration berlaku selamanya — jika dicuri, penyerang memiliki akses API permanen ke akun pengguna.
+
     severity: high
+    confidence: high
     cvss_v3:
       score: 7.5
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Token Misconfiguration
     enabled: true
     tags: [sanctum, passport, token, owasp-a07-2021, cwe-613, laravel]
+    owasp: "A07:2021"
     cwe: "CWE-613"
     patterns:
       - type: regex
@@ -193,20 +194,20 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/613.html"
       - "https://laravel.com/docs/sanctum#token-expiration"
-
   - id: LAR-ENT-007
     title: "Route sensitif tanpa middleware autentikasi"
     description: >
-      Route yang menangani operasi sensitif (admin panel, pengaturan akun, CRUD resources)
-      didefinisikan tanpa middleware 'auth', 'auth:sanctum', atau guard lainnya.
-      Pengguna yang tidak terautentikasi dapat mengakses endpoint tersebut.
+      Route yang menangani operasi sensitif (admin panel, pengaturan akun, CRUD resources) didefinisikan tanpa middleware 'auth', 'auth:sanctum', atau guard lainnya. Pengguna yang tidak terautentikasi dapat mengakses endpoint tersebut.
+
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Authentication Missing
     enabled: true
     tags: [auth, middleware, owasp-a07-2021, cwe-306, laravel]
+    owasp: "A07:2021"
     cwe: "CWE-306"
     patterns:
       - type: regex
@@ -226,19 +227,20 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/306.html"
       - "https://laravel.com/docs/middleware"
-
   - id: LAR-ENT-008
     title: "Artisan Command Injection — argumen dari user input"
     description: >
-      Artisan::call() atau Artisan::queue() dipanggil dengan argumen yang berasal dari request.
-      Beberapa Artisan commands dapat membaca file, menghapus data, atau mengeksekusi kode arbitrer.
+      Artisan::call() atau Artisan::queue() dipanggil dengan argumen yang berasal dari request. Beberapa Artisan commands dapat membaca file, menghapus data, atau mengeksekusi kode arbitrer.
+
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Command Injection
     enabled: true
     tags: [cmd-injection, artisan, owasp-a03-2021, cwe-78, laravel]
+    owasp: "A03:2021"
     cwe: "CWE-78"
     patterns:
       - type: regex
@@ -252,20 +254,20 @@ rules:
         Artisan::call($command);
     references:
       - "https://cwe.mitre.org/data/definitions/78.html"
-
   - id: LAR-ENT-009
     title: "APP_KEY lemah, default, atau placeholder"
     description: >
-      APP_KEY disetel ke nilai placeholder ('base64:...short...', 'SomeRandomString', atau kosong).
-      APP_KEY adalah root of trust untuk enkripsi cookies, session, signed URLs, dan semua data
-      terenkripsi via Crypt facade. Key lemah = semua enkripsi dapat di-break.
+      APP_KEY disetel ke nilai placeholder ('base64:...short...', 'SomeRandomString', atau kosong). APP_KEY adalah root of trust untuk enkripsi cookies, session, signed URLs, dan semua data terenkripsi via Crypt facade. Key lemah = semua enkripsi dapat di-break.
+
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Cryptographic Failure
     enabled: true
     tags: [crypto, app-key, owasp-a02-2021, cwe-321, laravel]
+    owasp: "A02:2021"
     cwe: "CWE-321"
     patterns:
       - type: regex
@@ -282,21 +284,20 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/321.html"
       - "https://laravel.com/docs/encryption"
-
   - id: LAR-ENT-010
     title: "Queue Job — user input langsung di-dispatch tanpa validasi"
     description: >
-      Job yang di-dispatch ke queue menerima $request->all() atau data mentah dari request
-      tanpa validasi. Data job diserialisasi dan tersimpan di queue backend (Redis/database).
-      Jika queue backend terekspos, penyerang dapat memodifikasi payload job untuk
-      mengeksekusi kode arbitrer saat job diproses.
+      Job yang di-dispatch ke queue menerima $request->all() atau data mentah dari request tanpa validasi. Data job diserialisasi dan tersimpan di queue backend (Redis/database). Jika queue backend terekspos, penyerang dapat memodifikasi payload job untuk mengeksekusi kode arbitrer saat job diproses.
+
     severity: high
+    confidence: high
     cvss_v3:
       score: 7.5
       vector: "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Insecure Deserialization
     enabled: true
     tags: [queue, deserialization, owasp-a08-2021, cwe-502, laravel]
+    owasp: "A08:2021"
     cwe: "CWE-502"
     patterns:
       - type: regex
@@ -312,20 +313,20 @@ rules:
         dispatch(new SendNotification($data['email'], $data['message']));
     references:
       - "https://cwe.mitre.org/data/definitions/502.html"
-
   - id: LAR-ENT-011
     title: "Signed URL — route menerima signed URL tanpa middleware verifikasi"
     description: >
-      URL::signedRoute() atau URL::temporarySignedRoute() digunakan untuk membuat URL yang
-      ditandatangani, tetapi route target tidak menggunakan middleware 'signed' untuk memverifikasi
-      tanda tangan. Tanpa verifikasi, URL dapat dimanipulasi oleh penyerang.
+      URL::signedRoute() atau URL::temporarySignedRoute() digunakan untuk membuat URL yang ditandatangani, tetapi route target tidak menggunakan middleware 'signed' untuk memverifikasi tanda tangan. Tanpa verifikasi, URL dapat dimanipulasi oleh penyerang.
+
     severity: high
+    confidence: high
     cvss_v3:
       score: 7.5
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Integrity Bypass
     enabled: true
     tags: [signed-url, integrity, owasp-a04-2021, cwe-345, laravel]
+    owasp: "A04:2021"
     cwe: "CWE-345"
     patterns:
       - type: regex
@@ -340,20 +341,20 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/345.html"
       - "https://laravel.com/docs/urls#signed-urls"
-
   - id: LAR-ENT-012
     title: "Controller CRUD tanpa authorization check"
     description: >
-      Method update/delete/store di controller Resource mengakses model tanpa memanggil
-      $this->authorize(), Gate::allows(), atau Policy. Tanpa authorization, setiap user
-      yang terautentikasi dapat memodifikasi data milik user lain.
+      Method update/delete/store di controller Resource mengakses model tanpa memanggil $this->authorize(), Gate::allows(), atau Policy. Tanpa authorization, setiap user yang terautentikasi dapat memodifikasi data milik user lain.
+
     severity: high
+    confidence: high
     cvss_v3:
       score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Broken Access Control
     enabled: true
     tags: [authorization, idor, owasp-a01-2021, cwe-862, laravel]
+    owasp: "A01:2021"
     cwe: "CWE-862"
     patterns:
       - type: regex
@@ -370,20 +371,20 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/862.html"
       - "https://laravel.com/docs/authorization"
-
   - id: LAR-ENT-013
     title: "Scheduled task menjalankan command dengan secret di arguments"
     description: >
-      Laravel Task Scheduler (Kernel.php atau console.php) mendefinisikan scheduled command
-      dengan API key, password, atau secret di-hardcode sebagai argumen. Nilai ini terekspos
-      di process list, Telescope, dan log scheduler.
+      Laravel Task Scheduler (Kernel.php atau console.php) mendefinisikan scheduled command dengan API key, password, atau secret di-hardcode sebagai argumen. Nilai ini terekspos di process list, Telescope, dan log scheduler.
+
     severity: high
+    confidence: high
     cvss_v3:
       score: 7.5
       vector: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"
     category: Hardcoded Secret
     enabled: true
     tags: [scheduler, hardcoded-credential, owasp-a07-2021, cwe-798, laravel]
+    owasp: "A07:2021"
     cwe: "CWE-798"
     patterns:
       - type: regex
@@ -395,20 +396,20 @@ rules:
         $schedule->command('sync:data -api-key=' . config('services.api.key'))->daily();
     references:
       - "https://cwe.mitre.org/data/definitions/798.html"
-
   - id: LAR-ENT-014
     title: "Event Listener menangani data sensitif tanpa validasi"
     description: >
-      Event listener menerima event payload dan melakukan operasi database atau API call
-      tanpa memvalidasi data event. Event dari sumber yang tidak dipercaya (webhook, queue)
-      dapat berisi payload yang dimanipulasi untuk SQL injection atau privilege escalation.
+      Event listener menerima event payload dan melakukan operasi database atau API call tanpa memvalidasi data event. Event dari sumber yang tidak dipercaya (webhook, queue) dapat berisi payload yang dimanipulasi untuk SQL injection atau privilege escalation.
+
     severity: medium
+    confidence: medium
     cvss_v3:
       score: 6.5
       vector: "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:H/A:N"
     category: Input Validation
     enabled: true
     tags: [events, input-validation, owasp-a03-2021, cwe-20, laravel]
+    owasp: "A03:2021"
     cwe: "CWE-20"
     patterns:
       - type: regex
@@ -425,20 +426,20 @@ rules:
         }
     references:
       - "https://cwe.mitre.org/data/definitions/20.html"
-
   - id: LAR-ENT-015
     title: "Laravel Telescope/Horizon tidak dilindungi autentikasi di production"
     description: >
-      Laravel Telescope atau Horizon dashboard diakses tanpa gate authorization yang memadai.
-      Dashboard ini mengekspos query database, request payload, queue job, exception, dan log —
-      informasi yang sangat berharga bagi penyerang untuk merencanakan serangan targeted.
+      Laravel Telescope atau Horizon dashboard diakses tanpa gate authorization yang memadai. Dashboard ini mengekspos query database, request payload, queue job, exception, dan log — informasi yang sangat berharga bagi penyerang untuk merencanakan serangan targeted.
+
     severity: critical
+    confidence: high
     cvss_v3:
       score: 8.6
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
     category: Information Disclosure
     enabled: true
     tags: [telescope, horizon, debug-exposure, owasp-a05-2021, cwe-200, laravel]
+    owasp: "A05:2021"
     cwe: "CWE-200"
     patterns:
       - type: regex
@@ -460,3 +461,332 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/200.html"
       - "https://laravel.com/docs/telescope#authorization"
+  - id: CFG-CSRF02
+    title: "Blade form tanpa direktif @csrf"
+    description: >
+      Tag <form> dengan method non-GET dalam template Blade tidak menyertakan @csrf. Tanpa validasi CSRF token, form rentan terhadap cross-site request forgery dari origin manapun yang dapat mengelabui pengguna yang login.
+
+    severity: high
+    confidence: high
+    category: CSRF
+    tags: [csrf, blade, owasp-a05, cwe-352, laravel]
+    owasp: "A05:2021"
+    cwe: "CWE-352"
+    condition: all
+    patterns:
+      - type: regex
+        target: blade-files
+        pattern: '<form[^>]+method\s*=\s*["'']?(POST|PUT|PATCH|DELETE)[^>]*>'
+      - type: contains
+        target: blade-files
+        pattern: "@csrf"
+        negative: true
+    remediation: |
+      Tambahkan @csrf di dalam setiap Blade form non-GET:
+        <form method="POST" action="{{ route('profile.update') }}">
+            @csrf
+            @method('PUT')
+            <!- field form ->
+        </form>
+    references:
+      - "https://cwe.mitre.org/data/definitions/352.html"
+      - "https://laravel.com/docs/csrf"
+  - id: SUPPLY-005
+    title: "NPM/Node dependency di-load dari CDN tanpa Subresource Integrity (SRI)"
+    description: >
+      Script atau stylesheet di-load dari CDN eksternal (cdnjs, jsdelivr, unpkg, googleapis) tanpa atribut integrity (Subresource Integrity). Jika CDN dikompromikan, penyerang dapat menyisipkan malicious JavaScript yang dieksekusi di browser semua pengguna.
+
+    severity: high
+    confidence: high
+    category: Third-Party Script
+    tags: [supply-chain, cdn, sri, owasp-a08, cwe-829]
+    cwe: "CWE-829"
+    owasp: "A08:2021"
+    patterns:
+      - type: regex
+        target: blade-files
+        pattern: '<script[^>]+src\s*=\s*["'']https?://(cdn|cdnjs|unpkg|jsdelivr|googleapis)'
+        exclude_pattern: 'integrity\s*='
+      - type: regex
+        target: blade-files
+        pattern: '<link[^>]+href\s*=\s*["'']https?://(cdn|cdnjs|unpkg|jsdelivr|googleapis)'
+        exclude_pattern: 'integrity\s*='
+    remediation: |
+      Tambahkan Subresource Integrity (SRI) hash pada semua resource CDN:
+        <script
+            src="https://cdn.jsdelivr.net/npm/axios@1.6/dist/axios.min.js"
+            integrity="sha384-REAL_HASH_HERE"
+            crossorigin="anonymous">
+        </script>
+      Generate SRI hash: https://www.srihash.org/
+    references:
+      - "https://cwe.mitre.org/data/definitions/829.html"
+      - "https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity"
+  - id: XSS-B01
+    title: "Blade raw output {!! !!} dengan variabel tidak terpercaya"
+    description: >
+      Direktif output mentah Blade {!! !!} melewati HTML escaping. Konten apapun yang dikendalikan pengguna yang dirender dengan cara ini menciptakan vektor XSS tersimpan atau tercermin yang dieksekusi di browser korban.
+
+    severity: high
+    confidence: medium
+    category: Reflected/Stored XSS
+    tags: [xss, blade, owasp-a03, cwe-79]
+    owasp: "A03:2021"
+    cwe: "CWE-79"
+    patterns:
+      - type: regex
+        target: blade-files
+        pattern: '\{!!\s*\$'
+        exclude_pattern: '(config|asset|Purifier|purify|clean\(|sanitize|strip_tags|e\(|htmlspecialchars)'
+    remediation: |
+      Gunakan output Blade yang di-escape untuk semua konten pengguna:
+        {{ $userContent }}
+      Cadangkan {!! !!} hanya untuk HTML statis tepercaya atau konten yang disanitasi:
+        {!! Purifier::clean($richText) !!}
+    references:
+      - "https://cwe.mitre.org/data/definitions/79.html"
+      - "https://laravel.com/docs/blade#displaying-data"
+  - id: XSS-B02
+    title: "Blade raw output dari data request (old/request/Input)"
+    description: >
+      Direktif {!! !!} merender data langsung dari HTTP request (old(), request(), Input::). Data request selalu dikendalikan penyerang dan tidak boleh pernah dirender tanpa escaping.
+
+    severity: critical
+    confidence: high
+    category: Reflected XSS
+    tags: [xss, blade, owasp-a03, cwe-79]
+    owasp: "A03:2021"
+    cwe: "CWE-79"
+    patterns:
+      - type: regex
+        target: blade-files
+        pattern: '\{!!\s*(old\(|request\(|Input::|\$_GET|\$_POST|\$_REQUEST)'
+    remediation: |
+      Gunakan sintaks double-brace yang mengescaping output secara otomatis:
+        {{ old('name') }}
+        {{ request('query') }}
+    references:
+      - "https://cwe.mitre.org/data/definitions/79.html"
+  - id: XSS-B03
+    title: "Blade @php echo - output variabel tanpa escaping"
+    description: >
+      Blok @php/@endphp menggunakan echo/print untuk output variabel tanpa melewatinya melalui htmlspecialchars() atau e(). Output @php tidak diproses oleh pipeline auto-escaping Blade.
+
+    severity: high
+    confidence: medium
+    category: Stored/Reflected XSS
+    tags: [xss, blade, owasp-a03, cwe-79]
+    owasp: "A03:2021"
+    cwe: "CWE-79"
+    patterns:
+      - type: regex
+        target: blade-files
+        pattern: '@php\s*(echo|print)\s+\$\w+'
+        exclude_pattern: '(htmlspecialchars|e\(|strip_tags|ENT_QUOTES|Purifier)'
+      - type: regex
+        target: blade-files
+        pattern: '@php.*echo\s+\$(_GET|_POST|_REQUEST|request)'
+    remediation: |
+      Gunakan output Blade yang di-escape daripada echo di dalam @php:
+        {{ $variable }}
+      Jika @php diperlukan, selalu escape:
+        @php echo e($variable); @endphp
+    references:
+      - "https://cwe.mitre.org/data/definitions/79.html"
+  - id: XSS-H01
+    title: "Inline event handler dengan data yang dikendalikan pengguna"
+    description: >
+      Template Blade berisi atribut event handler inline (onclick, onerror, onload, dll.) yang nilainya menyertakan data dari pengguna. Bahkan dengan HTML attribute encoding, menempatkan data pengguna di dalam event handler menciptakan vektor JavaScript injection.
+
+    severity: high
+    confidence: high
+    category: DOM XSS
+    tags: [xss, dom-xss, owasp-a03, cwe-79]
+    owasp: "A03:2021"
+    cwe: "CWE-79"
+    patterns:
+      - type: regex
+        target: blade-files
+        pattern: 'on(click|error|load|mouseover|submit|focus|blur|change|keyup|keydown)\s*=\s*["''][^"'']*\{\{'
+    remediation: |
+      Jangan pernah mencampur data pengguna dengan event handler inline.
+      Gunakan atribut data dan event listener JavaScript:
+        <button data-id="{{ $id }}" class="js-action">Click</button>
+        <script>
+        document.querySelectorAll('.js-action').forEach(b =>
+            b.addEventListener('click', () => handle(b.dataset.id)));
+        </script>
+    references:
+      - "https://cheatsheetseries.owasp.org/cheatsheets/DOM_based_XSS_Prevention_Cheat_Sheet.html"
+      - "https://cwe.mitre.org/data/definitions/79.html"
+  - id: XSS-H02
+    title: "href dengan data pengguna berpotensi javascript: URI"
+    description: >
+      Template Blade menghasilkan atribut href menggunakan data dari pengguna tanpa validasi skema. Penyerang menyisipkan URI javascript: yang dieksekusi di browser saat tautan diklik.
+
+    severity: high
+    confidence: medium
+    category: DOM XSS
+    tags: [xss, dom-xss, owasp-a03, cwe-79]
+    owasp: "A03:2021"
+    cwe: "CWE-79"
+    patterns:
+      - type: regex
+        target: blade-files
+        pattern: 'href\s*=\s*["'']?\{\{[^}]*(request|old|input|url|link|param)[^}]*\}\}'
+        exclude_pattern: '(route\(|url\(|asset\(|secure_url\(|Str::startsWith)'
+    remediation: |
+      Validasi URL sebelum menggunakannya dalam atribut href:
+        @php
+            $url = Str::startsWith($link, ['https://', '/']) ? $link : '#';
+        @endphp
+        <a href="{{ $url }}">Link</a>
+    references:
+      - "https://cwe.mitre.org/data/definitions/79.html"
+  - id: XSS-H03
+    title: "Data JSON inline di <script> tanpa direktif @json"
+    description: >
+      Data PHP ditanamkan di dalam tag <script> menggunakan echo atau interpolasi string tanpa melalui direktif @json Blade atau json_encode() dengan JSON_HEX_TAG. JSON mentah dapat berisi sekuens </script> yang keluar dari konteks script.
+
+    severity: high
+    confidence: high
+    category: Stored/Reflected XSS
+    tags: [xss, owasp-a03, cwe-79]
+    owasp: "A03:2021"
+    cwe: "CWE-79"
+    patterns:
+      - type: regex
+        target: blade-files
+        pattern: '<script[^>]*>[\s\S]*?\{\{[\s\S]*?\}\}[\s\S]*?<\/script>'
+        exclude_pattern: '(@json|JSON_HEX_TAG|json_encode)'
+    remediation: |
+      Gunakan direktif @json Blade yang mengatur flag yang benar secara otomatis:
+        <script>const config = @json($config);</script>
+      Atau gunakan json_encode() dengan flag HTML-safe:
+        <?= json_encode($data, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>
+    references:
+      - "https://cwe.mitre.org/data/definitions/79.html"
+  - id: ADV-CSRF01
+    title: "Form Blade tanpa direktif @csrf"
+    description: >
+      Template Blade mengandung elemen <form> dengan method non-GET tetapi tidak menyertakan
+      direktif @csrf. Tanpa token CSRF, setiap website pihak ketiga dapat membuat form yang
+      secara diam-diam mengirimkan request ke aplikasi Anda atas nama pengguna yang sedang login.
+    severity: high
+    confidence: high
+    category: CSRF
+    tags: [csrf, laravel, owasp-a05, cwe-352, blade]
+    owasp: "A05:2021"
+    cwe: "CWE-352"
+    condition: all
+    patterns:
+      - type: regex
+        target: blade-files
+        pattern: '<form[^>]+method\s*=\s*["'']?(POST|PUT|PATCH|DELETE)[^>]*>'
+      - type: contains
+        target: blade-files
+        pattern: "@csrf"
+        negative: true
+    remediation: |
+      Tambahkan @csrf sebagai elemen pertama di dalam setiap form non-GET:
+        <form method="POST" action="{{ route('orders.store') }}">
+            @csrf
+            @method('POST')
+        </form>
+    references:
+      - "https://owasp.org/www-community/attacks/csrf"
+      - "https://laravel.com/docs/csrf"
+      - "https://cwe.mitre.org/data/definitions/352.html"
+  - id: ADV-DBG01
+    title: "Kode debug (dd, dump, var_dump) tertinggal dalam kode production"
+    description: >
+      Pemanggilan dd(), dump(), atau var_dump() yang tertinggal dapat mengekspos data sensitif
+      langsung ke browser, dan dd() juga menghentikan eksekusi request yang dapat menyebabkan DoS.
+    severity: high
+    confidence: high
+    category: Debug Exposure
+    tags: [debug, info-disclosure, owasp-a05, cwe-215, laravel]
+    owasp: "A05:2021"
+    cwe: "CWE-215"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\b(dd|dump|var_dump|print_r|var_export)\s*\('
+        exclude_pattern: '(//|#\s|/\*|test|Test|spec|hexdump|mysqldump|mongodump|pg_dump)'
+      - type: regex
+        target: blade-files
+        pattern: '@(dd|dump)\s*\('
+    remediation: |
+      Hapus semua panggilan debug sebelum commit/deploy. Gunakan logging terstruktur:
+        Log::debug('Order state', ['order_id' => $order->id, 'status' => $order->status]);
+    references:
+      - "https://cwe.mitre.org/data/definitions/215.html"
+  - id: BIZ-002
+    title: "Insecure Password Reset - Token reset dikirim sebagai parameter GET HTTP"
+    description: >
+      Aplikasi mengirimkan password reset token via GET query string atau template Blade.
+      Parameter GET rentan terekam di server log, proxy, dan browser history.
+    severity: high
+    confidence: medium
+    category: Info Disclosure
+    tags: [business-logic, password-reset, cwe-598, owasp-a02, laravel]
+    owasp: "A02:2021"
+    cwe: "CWE-598"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: "redirect\\s*\\(\\s*\\)\\s*->\\s*(to|away|route)\\s*\\(.*\\?.*(token|reset_token)=\\$.*"
+      - type: regex
+        target: blade-files
+        pattern: "action=[\"']\\s*\\{\\{\\s*route\\s*\\(.*(token)=\\$"
+    remediation: |
+      Gunakan mekanisme reset bawaan framework dengan POST flow dan token handling aman
+      (contoh: Password::broker()).
+    references:
+      - "https://cwe.mitre.org/data/definitions/598.html"
+  - id: DBG-001
+    title: "dd() debug dump tertinggal dalam kode production"
+    description: >
+      dd() (dump and die) di source PHP/Blade menghentikan eksekusi dan dapat membocorkan data
+      request, auth state, serta nilai environment ke response.
+    severity: high
+    confidence: high
+    category: Debug Exposure
+    tags: [debug, info-disclosure, owasp-a05, cwe-215, laravel]
+    owasp: "A05:2021"
+    cwe: "CWE-215"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bdd\s*\('
+        exclude_pattern: '(//|#\s|/\*|test|Test|spec)'
+      - type: regex
+        target: blade-files
+        pattern: '@dd\s*\('
+    remediation: |
+      Hapus semua dd() sebelum commit. Gunakan Log::debug() untuk debugging aman.
+    references:
+      - "https://cwe.mitre.org/data/definitions/215.html"
+  - id: DBG-002
+    title: "dump() debug call tertinggal dalam kode"
+    description: >
+      dump() mengeluarkan konten variabel ke HTTP response tanpa menghentikan eksekusi, sehingga
+      state internal dapat bocor ke user/API caller.
+    severity: medium
+    confidence: high
+    category: Debug Exposure
+    tags: [debug, info-disclosure, owasp-a05, cwe-215, laravel]
+    owasp: "A05:2021"
+    cwe: "CWE-215"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bdump\s*\('
+        exclude_pattern: '(//|#\s|/\*|test|Test|spec|hexdump|mysqldump|mongodump|pg_dump)'
+      - type: regex
+        target: blade-files
+        pattern: '@dump\s*\('
+    remediation: |
+      Hapus dump() sebelum merge. Gunakan Log::debug() untuk output debug terstruktur.
+    references:
+      - "https://cwe.mitre.org/data/definitions/215.html"

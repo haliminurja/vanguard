@@ -301,7 +301,7 @@ func (r *HTMLReporter) Generate(_ context.Context, report *models.ScanReport) er
 `)
 			}
 
-			hasMetadata := len(f.Tags) > 0 || f.CWE != "" || f.Confidence != "" || f.CVSSScore > 0 || f.CVSSVector != ""
+			hasMetadata := len(f.Tags) > 0 || f.CWE != "" || f.OWASP != "" || f.Confidence != "" || f.CVSSScore > 0 || f.CVSSVector != ""
 			if hasMetadata {
 				sb.WriteString(`          <div class="metadata-group">
             <h4>Metadata</h4>
@@ -319,6 +319,10 @@ func (r *HTMLReporter) Generate(_ context.Context, report *models.ScanReport) er
 					cweNum := strings.TrimPrefix(strings.ToUpper(f.CWE), "CWE-")
 					sb.WriteString(fmt.Sprintf(`              <a href="https://cwe.mitre.org/data/definitions/%s.html" target="_blank" class="meta-pill cwe-pill">%s</a>
 `, cweNum, strings.ToUpper(f.CWE)))
+				}
+				if f.OWASP != "" {
+					sb.WriteString(fmt.Sprintf(`              <span class="meta-pill">%s</span>
+`, esc(strings.ToUpper(f.OWASP))))
 				}
 				if f.Confidence != "" {
 					sb.WriteString(fmt.Sprintf(`              <span class="meta-pill conf-%s">⚡ %s confidence</span>

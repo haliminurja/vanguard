@@ -19,12 +19,15 @@ rules:
     description: >
       The legacy `SecurityComponent` in CakePHP 3/4 relies on tokens to verify form tampering. Disabling `validatePost` or `unlockedActions` wildly reduces security posture, allowing attackers to inject CSRF or tamper with POST fields unchecked.
     severity: high
+    confidence: high
     cvss_v3:
       score: 8.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
     category: CSRF / Data Tampering
     enabled: true
     tags: [cakephp, csrf, form-tampering, cwe-352, owasp-a05-2021]
+    owasp: "A05:2021"
+    cwe: "CWE-352"
     patterns:
       - type: regex
         target: php-files
@@ -32,17 +35,23 @@ rules:
     remediation: |
       Do not disable `validatePost` globally. Refactor actions that require non-standard tokens to specifically bypass only the required fields using `unlockedFields`.
 
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/352.html"
   - id: CAKE-ENT-002
     title: "Mass Assignment Bypass via ORM $_accessible"
     description: >
       CakePHP Entities use the `$_accessible` array to define which properties can be mass-assigned (`patchEntity`). If `$_accessible = ['*' => true]` is utilized without explicit overriding of sensitive fields like `$is_admin => false`, any payload mapped via `$this->request->getData()` will escalate privileges.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Mass Assignment
     enabled: true
     tags: [mass-assignment, cakephp, cwe-915, owasp-a04-2021]
+    owasp: "A04:2021"
+    cwe: "CWE-915"
     patterns:
       - type: regex
         target: model-files
@@ -52,17 +61,23 @@ rules:
       If assigning `* => true`, explicitly set security-critical entity properties to false:
       `protected $_accessible = ['*' => true, 'is_admin' => false, 'role' => false];`
 
+    references:
+      - "https://owasp.org/Top10/A04_2021-Insecure_Design/"
+      - "https://cwe.mitre.org/data/definitions/915.html"
   - id: CAKE-ENT-003
     title: "AuthComponent Allow(*) Wide-Open Bypass"
     description: >
       A Controller invokes `$this->Auth->allow()` without arguments or explicitly passing `*`, rendering all actions inside the controller completely readable/actionable to unauthenticated visitors.
     severity: high
+    confidence: high
     cvss_v3:
       score: 7.5
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
     category: Authentication Bypass
     enabled: true
     tags: [auth-bypass, idor, cakephp, cwe-285, owasp-a01-2021]
+    owasp: "A01:2021"
+    cwe: "CWE-285"
     patterns:
       - type: regex
         target: php-files
@@ -71,6 +86,9 @@ rules:
       Pass only the explicit action boundaries that demand open entry:
       `$this->Auth->allow(['login', 'register', 'forgotPassword']);`
 
+    references:
+      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+      - "https://cwe.mitre.org/data/definitions/285.html"
   - id: CAKE-ENT-004
     title: "Insecure Object Deserialization via CakePHP Cache"
     description: >
@@ -79,27 +97,35 @@ rules:
       or manipulate cache keys derived from user input, they can trigger RCE via POP chains
       when Cake reads the cache.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Deserialization
     enabled: true
     tags: [rce, deserialization, cakephp, owasp-a08-2021, cwe-502]
+    owasp: "A08:2021"
+    cwe: "CWE-502"
     patterns:
       - type: regex
         target: php-files
-        pattern: 'Cache::(?:read|write|delete)\s*\(\s*(\$this->request->(?:getData|getQuery)|_POST|_GET)'
+        pattern: 'Cache::(?:read|write|delete)\s*\(\s*(\$this->request->(?:getData|getQuery)|\$_POST|\$_GET)'
     remediation: |
       Never build Cache keys systematically utilizing unvalidated user input.
       Authenticate all cache backends like Redis or Memcached.
 
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/502.html"
   - id: CAKE-ENT-005
     title: "Security.salt Lemah atau Default"
     description: >
       `'salt' => env('SECURITY_SALT', '...')` di `app.php`. Jika salt dibiarkan default atau diset ke string pendek/lemah, penyerang dapat memalsukan token CSRF, cookie sesi (jika dienkripsi), dan hashing data internal lainnya.
     severity: critical
+    confidence: high
     category: Cryptographic Failure
     tags: [crypto, salt, cakephp, cwe-326]
+    owasp: "A02:2021"
     cwe: "CWE-326"
     patterns:
       - type: regex
@@ -108,13 +134,18 @@ rules:
     remediation: |
       Ganti salt dengan string acak panjang (minimal 64 karakter) di file `.env`.
 
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/326.html"
   - id: CAKE-ENT-006
     title: "Debug Mode Aktif di Production (CakePHP)"
     description: >
       `'debug' => filter_var(env('DEBUG', true), FILTER_VALIDATE_BOOLEAN)` di `app.php`. Jika debug aktif di production, CakePHP akan menampilkan detail error yang sangat teknis termasuk query SQL dan variabel lingkungan, yang membocorkan rahasia infrastruktur.
     severity: high
+    confidence: high
     category: Information Disclosure
     tags: [debug, disclosure, cakephp, cwe-489]
+    owasp: "A05:2021"
     cwe: "CWE-489"
     patterns:
       - type: regex
@@ -122,3 +153,6 @@ rules:
         pattern: "['\"]debug['\"]\\s*=>\\s*(true|1|filter_var\\(env\\(['\"]DEBUG['\"]\\s*,\\s*true\\))"
     remediation: |
       Pastikan environment variable `DEBUG` diset ke `false` di lingkungan production.
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/489.html"

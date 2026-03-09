@@ -22,12 +22,15 @@ rules:
       `0.0.0.0` (all network interfaces), any network-accessible attacker can
       achieve instant unauthenticated Remote Code Execution.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 10.0
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H"
     category: Remote Code Execution / Information Disclosure
     enabled: true
     tags: [gii, rce, debug-exposure, cwe-284, owasp-a05-2021, yii2]
+    owasp: "A05:2021"
+    cwe: "CWE-284"
     patterns:
       - type: regex
         target: php-files
@@ -39,6 +42,9 @@ rules:
     remediation: |
       Wrap Gii configuration inside an environment check `if (YII_ENV_DEV)`.
 
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/284.html"
   - id: YII-ENT-002
     title: "Unsafe Yii2 Cache Configuration Enabling Object Deserialization"
     description: >
@@ -46,35 +52,40 @@ rules:
       exposed without authentication or cache keys are manipulated, an attacker
       can trigger RCE via POP chains.
     severity: high
+    confidence: high
     cvss_v3:
       score: 8.1
       vector: "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Deserialization
     enabled: true
     tags: [cache, deserialization, yii2, cwe-502, owasp-a08-2021]
+    owasp: "A08:2021"
+    cwe: "CWE-502"
     patterns:
-      - type: regex
-        target: config-files
-        pattern: '\$config\[(?:''|")components(?:''|")\]\[(?:''|")cache(?:''|")\]\s*=\s*\['
-        exclude_pattern: '(password|password_hash|auth_pass|username|authPassword)'
       - type: regex
         target: php-files
         pattern: 'Yii::\$app->cache->(get|set|add)\s*\(\s*(\$request->|\$_GET|\$_POST|request\()'
     remediation: |
       Authenticate Redis/Memcached connections and avoid building cache keys from raw user input.
 
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/502.html"
   - id: YII-ENT-003
-    title: "Cookie Validation Disabled — Session Hijacking and CSRF Bypass"
+    title: "Cookie Validation Disabled - Session Hijacking and CSRF Bypass"
     description: >
       When `enableCookieValidation` is set to false, session cookies can be forged
       without the HMAC signature, leading to session hijacking.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Cryptographic Failure / Session Security
     enabled: true
     tags: [crypto, session-hijacking, csrf-bypass, yii2, cwe-565, owasp-a02-2021]
+    owasp: "A02:2021"
+    cwe: "CWE-565"
     patterns:
       - type: regex
         target: php-files
@@ -85,18 +96,24 @@ rules:
     remediation: |
       Never disable `enableCookieValidation` and provide a strong random key.
 
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/565.html"
   - id: YII-ENT-004
     title: "SQL Injection via Yii2 findBySql() / createCommand() Concatenation"
     description: >
       Bypassing Active Record parameterization using `findBySql()` or `createCommand()`
       with direct string concatenation leads to SQL injection.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: SQL Injection
     enabled: true
     tags: [sqli, yii2, cwe-89, owasp-a03-2021]
+    owasp: "A03:2021"
+    cwe: "CWE-89"
     patterns:
       - type: regex
         target: php-files
@@ -107,6 +124,9 @@ rules:
     remediation: |
       Use parameterized queries exclusively.
 
+    references:
+      - "https://owasp.org/Top10/A03_2021-Injection/"
+      - "https://cwe.mitre.org/data/definitions/89.html"
   - id: YII-ENT-005
     title: "Server-Side Template Injection (SSTI) in Yii2 View Renderer"
     description: >
@@ -114,12 +134,15 @@ rules:
       input directly as a template string to `render()` or compiling templates
       dynamically can lead to Server-Side Template Injection (SSTI) and RCE.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 10.0
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H"
     category: Injection
     enabled: true
     tags: [ssti, rce, yii2, cwe-1336, owasp-a03-2021]
+    owasp: "A03:2021"
+    cwe: "CWE-1336"
     patterns:
       - type: regex
         target: php-files
@@ -128,13 +151,18 @@ rules:
     remediation: |
       Never construct template paths or inline template strings from untrusted input. Use predefined template files and pass data via the context array.
 
+    references:
+      - "https://owasp.org/Top10/A03_2021-Injection/"
+      - "https://cwe.mitre.org/data/definitions/1336.html"
   - id: YII-ENT-006
     title: "Bypass Kontrol Akses (Missing checkAccess di Controller)"
     description: >
       Controller Yii2 menggunakan RBAC tetapi tidak memanggil `Yii::$app->user->can()` atau `checkAccess()` untuk tindakan CRUD sensitif. Ini memungkinkan IDOR di mana pengguna dapat memanipulasi data yang bukan milik mereka.
     severity: high
+    confidence: high
     category: Broken Access Control
     tags: [auth, rbac, yii2, cwe-284]
+    owasp: "A07:2021"
     cwe: "CWE-284"
     patterns:
       - type: regex
@@ -145,13 +173,18 @@ rules:
       Selalu periksa izin pengguna sebelum melakukan tindakan pada model:
       `if (!Yii::$app->user->can('updatePost', ['post' => $model])) { throw new ForbiddenHttpException(); }`
 
+    references:
+      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+      - "https://cwe.mitre.org/data/definitions/284.html"
   - id: YII-ENT-007
     title: "YII_DEBUG Aktif di Lingkungan Production"
     description: >
       `defined('YII_DEBUG') or define('YII_DEBUG', true);` di `index.php` mengekspos detail internal sistem, stack trace, dan query SQL pada halaman error. Ini memberikan informasi berharga bagi penyerang untuk merancang serangan lebih lanjut.
     severity: high
+    confidence: high
     category: Information Disclosure
     tags: [debug, disclosure, yii2, cwe-489]
+    owasp: "A05:2021"
     cwe: "CWE-489"
     patterns:
       - type: regex
@@ -160,3 +193,7 @@ rules:
     remediation: |
       Pastikan `YII_DEBUG` diset ke false di file `web/index.php` prod:
       `defined('YII_DEBUG') or define('YII_DEBUG', false);`
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/489.html"
+

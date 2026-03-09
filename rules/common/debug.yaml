@@ -3,56 +3,11 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10-12, PHP 8.0-8.4"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
 rules:
-  - id: DBG-001
-    title: "dd() debug dump tertinggal dalam kode production"
-    description: >
-      dd() (dump and die) hadir dalam source PHP atau template Blade. Fungsi ini menghentikan eksekusi dan membuang semua konten variabel - termasuk data request, record database, auth state, dan nilai environment - langsung ke body HTTP response, terlihat oleh pengguna manapun yang memicu code path itu.
-
-    severity: high
-    confidence: high
-    category: Debug Exposure
-    tags: [debug, info-disclosure, owasp-a05, cwe-215]
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '\bdd\s*\('
-        exclude_pattern: '(//|#\s|/\*|test|Test|spec)'
-      - type: regex
-        target: blade-files
-        pattern: '@dd\s*\('
-    remediation: |
-      Hapus semua dd() sebelum commit. Gunakan Laravel Telescope atau
-      pernyataan logging untuk output debug yang persisten:
-        Log::debug('Order data', ['order' => $order->toArray()]);
-    references:
-      - "https://cwe.mitre.org/data/definitions/215.html"
-  - id: DBG-002
-    title: "dump() debug call tertinggal dalam kode"
-    description: >
-      dump() mengeluarkan konten variabel ke HTTP response tanpa menghentikan eksekusi. Data terlihat di browser dan di API response, secara diam-diam membocorkan state internal ke semua caller endpoint tersebut.
-
-    severity: medium
-    confidence: high
-    category: Debug Exposure
-    tags: [debug, info-disclosure, owasp-a05, cwe-215]
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '\bdump\s*\('
-        exclude_pattern: '(//|#\s|/\*|test|Test|spec|hexdump|mysqldump|mongodump|pg_dump)'
-      - type: regex
-        target: blade-files
-        pattern: '@dump\s*\('
-    remediation: |
-      Hapus dump() sebelum merge. Gunakan Log::debug() untuk output debug
-      terstruktur yang persisten.
-    references:
-      - "https://cwe.mitre.org/data/definitions/215.html"
   - id: DBG-003
     title: "var_dump() / print_r() / var_export() dalam source code"
     description: >
@@ -62,6 +17,8 @@ rules:
     confidence: high
     category: Debug Exposure
     tags: [debug, info-disclosure, owasp-a05, cwe-215]
+    owasp: "A05:2021"
+    cwe: "CWE-215"
     patterns:
       - type: regex
         target: php-files
@@ -81,6 +38,8 @@ rules:
     confidence: high
     category: Info Disclosure
     tags: [debug, info-disclosure, owasp-a05, cwe-200]
+    owasp: "A05:2021"
+    cwe: "CWE-200"
     patterns:
       - type: regex
         target: php-files
@@ -100,6 +59,8 @@ rules:
     confidence: high
     category: Stack Trace Exposure
     tags: [debug, info-disclosure, owasp-a05, cwe-209]
+    owasp: "A05:2021"
+    cwe: "CWE-209"
     patterns:
       - type: regex
         target: php-files
@@ -133,6 +94,8 @@ rules:
     confidence: medium
     category: Error Display
     tags: [debug, info-disclosure, owasp-a05, cwe-215]
+    owasp: "A05:2021"
+    cwe: "CWE-215"
     patterns:
       - type: regex
         target: php-files
@@ -155,6 +118,8 @@ rules:
     confidence: medium
     category: Log File Exposure
     tags: [debug, info-disclosure, cwe-532]
+    owasp: "A03:2021"
+    cwe: "CWE-532"
     patterns:
       - type: regex
         target: php-files

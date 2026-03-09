@@ -19,12 +19,15 @@ rules:
     description: >
       CodeIgniter 4 defines secure mass assignment using the `$allowedFields` array inside the Model. If `$allowedFields` is left empty, undefined, or manually disabled via `protect(false)`, the application allows attackers to override user IDs, roles, or administrative flags.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Mass Assignment
     enabled: true
     tags: [mass-assignment, codeigniter4, owasp-a04-2021, cwe-915]
+    owasp: "A04:2021"
+    cwe: "CWE-915"
     patterns:
       - type: regex
         target: model-files
@@ -36,17 +39,23 @@ rules:
       Explicitly define exactly which fields can be updated:
       `protected $allowedFields = ['name', 'email', 'bio'];` Ensure sensitive properties like `is_admin` are not in this array.
 
+    references:
+      - "https://owasp.org/Top10/A04_2021-Insecure_Design/"
+      - "https://cwe.mitre.org/data/definitions/915.html"
   - id: CI4-ENT-002
     title: "Bypassed Validation on Model ->save()"
     description: >
       Model validation is explicitly bypassed using `->skipValidation(true)`. If `$data` contains raw payload elements, the CodeIgniter 4 validation rules are ignored entirely, leading to malicious persistence.
     severity: high
+    confidence: high
     cvss_v3:
       score: 7.5
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
     category: Validation
     enabled: true
     tags: [validation, codeigniter4, cwe-20, owasp-a03-2021]
+    owasp: "A03:2021"
+    cwe: "CWE-20"
     patterns:
       - type: regex
         target: php-files
@@ -54,17 +63,23 @@ rules:
     remediation: |
       Avoid suppressing framework validation for user input. If it must be suppressed for internal logical updates, only supply safe, isolated constants.
 
+    references:
+      - "https://owasp.org/Top10/A03_2021-Injection/"
+      - "https://cwe.mitre.org/data/definitions/20.html"
   - id: CI4-ENT-003
     title: "SQL Injection via CodeIgniter Query Builder ->query()"
     description: >
       Direct raw queries using `$db->query($sql)` without query bindings `?`. Even when using the query builder, string concatenation directly into the SQL payload bypasses the framework's escaping rules.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: SQL Injection
     enabled: true
     tags: [sqli, codeigniter4, cwe-89, owasp-a03-2021]
+    owasp: "A03:2021"
+    cwe: "CWE-89"
     patterns:
       - type: regex
         target: php-files
@@ -72,25 +87,38 @@ rules:
     remediation: |
       Use proper query bindings: `$db->query('SELECT * FROM users WHERE status = ?', [$status]);`
 
+    references:
+      - "https://owasp.org/Top10/A03_2021-Injection/"
+      - "https://cwe.mitre.org/data/definitions/89.html"
   - id: CI4-ENT-004
     title: "CSRF Filter Missing Globally"
     description: >
       CodeIgniter 4 handles CSRF via a strict pre-filter. If `csrf_protection` is disabled in `app/Config/Filters.php` globals or the `.env` development overrides logic, the entire application will be vulnerable to state-changing CSRF exploits.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 8.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H"
     category: CSRF
     enabled: true
     tags: [csrf, codeigniter4, cwe-352, owasp-a05-2021]
+    owasp: "A05:2021"
+    cwe: "CWE-352"
+    condition: all
     patterns:
-      - type: regex
-        target: php-files
-        pattern: 'public\s*\$globals\s*=\s*\[[^\]]*''before''\s*=>\s*\[(.*?)\]'
-        exclude_pattern: 'csrf'
+      - type: regex-multiline
+        target: config-files
+        pattern: '(?s)public\s+\$globals\s*=\s*\[.*?''before''\s*=>\s*\[[^\]]*\]'
+      - type: contains
+        target: config-files
+        pattern: "csrf"
+        negative: true
     remediation: |
       Include `csrf` in your `app/Config/Filters.php` global `before` hooks unless utilizing a pure stateless REST API (which should rely on OAuth2/JWT).
 
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/352.html"
   - id: CI4-ENT-005
     title: "Insecure Database Connection Configuration"
     description: >
@@ -99,12 +127,15 @@ rules:
       the application to a malicious database server, leading to data exfiltration or
       RCE via rogue MySQL servers.
     severity: high
+    confidence: high
     cvss_v3:
       score: 8.6
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
     category: Insecure Configuration
     enabled: true
     tags: [database, ssrf, codeigniter4, cwe-15, owasp-a06-2021]
+    owasp: "A06:2021"
+    cwe: "CWE-15"
     patterns:
       - type: regex
         target: php-files
@@ -112,13 +143,18 @@ rules:
     remediation: |
       Never pass user input directly into `Database::connect()`. Use predefined configuration groups from `app/Config/Database.php`.
 
+    references:
+      - "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/"
+      - "https://cwe.mitre.org/data/definitions/15.html"
   - id: CI4-ENT-006
     title: "Cookie Secure Tidak Diaktifkan"
     description: >
       Di CodeIgniter 4, jika `public $cookieSecure = false;` di `app/Config/App.php`, session cookie akan dikirim melalui HTTP biasa. Ini memungkinkan session hijacking melalui network sniffing.
     severity: high
+    confidence: high
     category: Session Security
     tags: [cookie, codeigniter4, cwe-614]
+    owasp: "A07:2021"
     cwe: "CWE-614"
     patterns:
       - type: regex
@@ -127,13 +163,18 @@ rules:
     remediation: |
       Set `public $cookieSecure = true;` di `app/Config/App.php` atau melalui variabel lingkungan `app.cookieSecure = true`.
 
+    references:
+      - "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/"
+      - "https://cwe.mitre.org/data/definitions/614.html"
   - id: CI4-ENT-007
     title: "Encryption Key Lemah di CI4"
     description: >
       `public $key = '';` di `app/Config/Encryption.php` harus diset dengan key yang kuat (biasanya 32 karakter hexadecimal). Key yang kosong atau default memungkinkan dekripsi data sensitif yang disimpan aplikasi.
     severity: critical
+    confidence: high
     category: Cryptographic Failure
     tags: [crypto, codeigniter4, cwe-326]
+    owasp: "A02:2021"
     cwe: "CWE-326"
     patterns:
       - type: regex
@@ -142,3 +183,6 @@ rules:
     remediation: |
       Gunakan perintah `php spark key:generate` untuk membuat key yang aman.
 
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/326.html"

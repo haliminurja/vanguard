@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "PHP 8.0-8.4, firebase/php-jwt, lcobucci/jwt, tymon/jwt-auth"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -22,7 +22,7 @@ rules:
       - type: regex
         target: php-files
         pattern: 'JWT::decode\s*\(\s*\$[^,]+,\s*(?:new\s+Key\s*\([^,]+|\$[^,]+)\s*\)'
-        exclude_pattern: "(new\\s+Key\\s*\\([^,]+,\\s*['\"][A-Z0-9]+['\"]|\\[\\s*['\"][A-Z0-9]+['\"]\\s*\\])"
+        exclude_pattern: "(new\\s+Key\\s*\\([^,]+,\\s*['\"][A-Z0-9]+['\"]|\\[\\s*['\"][A-Z0-9]+['\"]\\s*\\]|resources/views/|\\.blade\\.php$)"
     remediation: |
       Selalu tentukan algoritma kriptografi yang diharapkan secara eksplisit:
         $decoded = JWT::decode($token, new Key($publicKey, 'RS256'));
@@ -44,6 +44,7 @@ rules:
       - type: regex
         target: php-files
         pattern: "base64_decode\\s*\\(\\s*explode\\s*\\(\\s*['\"]\\.['\"]\\s*,\\s*\\$[^)]+\\)\\s*\\[\\s*1\\s*\\]\\s*\\)"
+        exclude_pattern: "(resources/views/|\\.blade\\.php$)"
     remediation: |
       Jangan pernah decode dan percaya payload JWT secara manual. Selalu gunakan library yang memverifikasi tanda tangan secara kriptografis:
         $decoded = JWT::decode($jwt, new Key($key, 'HS256'));
@@ -64,7 +65,7 @@ rules:
       - type: regex
         target: php-files
         pattern: "JWT::(encode|decode)\\s*\\([^,]+,\\s*(?:new\\s+Key\\s*\\(\\s*)?['\"][^'\"]{12,}['\"]"
-        exclude_pattern: '(test|Test|example|mock|Mock)'
+        exclude_pattern: '(test|Test|example|mock|Mock|resources/views/|\.blade\.php$)'
     remediation: |
       Load secret secara aman dari environment variable:
         $secret  = env('JWT_SECRET');
@@ -86,7 +87,7 @@ rules:
       - type: regex
         target: php-files
         pattern: "JWT::encode\\s*\\(\\s*\\["
-        exclude_pattern: "(exp|expiration|expires|ttl)"
+        exclude_pattern: "(exp|expiration|expires|ttl|resources/views/|\\.blade\\.php$)"
     remediation: |
       Selalu sertakan claim 'exp' dengan lifetime yang wajar:
         $payload = [
@@ -113,7 +114,7 @@ rules:
       - type: regex
         target: php-files
         pattern: "['\"](none|None|NONE)['\"]"
-        exclude_pattern: '(exclude|reject|deny|block|forbidden|!=|!==|test|Test)'
+        exclude_pattern: '(exclude|reject|deny|block|forbidden|!=|!==|test|Test|resources/views/|\.blade\.php$)'
       - type: regex
         target: config-files
         pattern: "(algo|algorithm).*['\"]none['\"]"
@@ -166,7 +167,7 @@ rules:
       - type: regex
         target: php-files
         pattern: '(refresh_token|refreshToken)\s*=\s*\$request->(input|get|bearerToken|header)\s*\('
-        exclude_pattern: '(revoke|delete|invalidate|blacklist|rotate|replace|new_refresh)'
+        exclude_pattern: '(revoke|delete|invalidate|blacklist|rotate|replace|new_refresh|resources/views/|\.blade\.php$)'
     remediation: |
       Rotasi refresh token setiap kali digunakan dan invalidasi yang lama:
         DB::transaction(function () use ($oldRefreshToken, $user) {
@@ -201,7 +202,7 @@ rules:
       - type: regex
         target: php-files
         pattern: 'function\s+(logout|signout|logOut|signOut)\s*\('
-        exclude_pattern: '(blacklist|revoke|invalidate|JWTAuth::invalidate|cache.*token|Redis.*token|DB.*token|delete.*token)'
+        exclude_pattern: '(blacklist|revoke|invalidate|JWTAuth::invalidate|cache.*token|Redis.*token|DB.*token|delete.*token|resources/views/|\.blade\.php$)'
     remediation: |
       Implementasikan token blacklist menggunakan cache:
         public function logout(Request $request): JsonResponse

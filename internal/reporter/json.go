@@ -24,6 +24,7 @@ type jsonFinding struct {
 	References  []string `json:"references,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
 	CWE         string   `json:"cwe,omitempty"`
+	OWASP       string   `json:"owasp,omitempty"`
 	Confidence  string   `json:"confidence,omitempty"`
 	Fingerprint string   `json:"fingerprint,omitempty"`
 }
@@ -97,6 +98,7 @@ func (r *JSONReporter) Generate(_ context.Context, report *models.ScanReport) er
 			References:  f.References,
 			Tags:        f.Tags,
 			CWE:         f.CWE,
+			OWASP:       f.OWASP,
 			Confidence:  f.Confidence,
 			Fingerprint: f.Fingerprint(),
 		})

@@ -21,12 +21,15 @@ rules:
       serialized array inside an HMAC-signed client-side cookie. If the
       encryption key is weak or leaked, it triggers PHP Object Injection.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Deserialization / Insecure Session
     enabled: true
     tags: [rce, deserialization, session, owasp-a08-2021, codeigniter, cwe-502, cwe-565]
+    owasp: "A08:2021"
+    cwe: "CWE-502"
     patterns:
       - type: regex
         target: config-files
@@ -40,18 +43,24 @@ rules:
     remediation: |
       Set sessions to use the database driver: `$config['sess_driver'] = 'database';`
 
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/502.html"
   - id: CI-ENT-002
     title: "Weak, Empty, or Default Encryption Key in CodeIgniter Config"
     description: >
       CodeIgniter's `$config['encryption_key']` is the cryptographic root of
       trust. A weak key allows session forgery, CSRF bypass, and data decryption.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.1
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
     category: Cryptographic Failure
     enabled: true
     tags: [crypto, weak-key, owasp-a02-2021, codeigniter, cwe-321, cwe-326]
+    owasp: "A02:2021"
+    cwe: "CWE-321"
     patterns:
       - type: regex
         target: config-files
@@ -65,40 +74,48 @@ rules:
     remediation: |
       Generate a 256-bit (32-byte) random key and store it via environment variables.
 
+    references:
+      - "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      - "https://cwe.mitre.org/data/definitions/321.html"
   - id: CI-ENT-003
     title: "Local File Inclusion via URI Traversal in permitted_uri_chars"
     description: >
       If `$config['permitted_uri_chars']` allows dot (`.`) characters without filtering, attackers can inject `../` to force the router to include arbitrary PHP files.
     severity: high
+    confidence: high
     cvss_v3:
       score: 8.6
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
     category: Path Traversal / LFI
     enabled: true
     tags: [routing, lfi, path-traversal, owasp-a01-2021, codeigniter, cwe-22]
+    owasp: "A01:2021"
+    cwe: "CWE-22"
     patterns:
       - type: regex
         target: config-files
         pattern: '\$config\[''permitted_uri_chars''\]\s*=\s*[''"][^''"]*\.\.[^''"]*[''"]'
-      - type: regex
-        target: config-files
-        pattern: '\$config\[''permitted_uri_chars''\]\s*=\s*[''"][^''"]*[^\\]\.[^''"]*[''"]'
-        exclude_pattern: '(a-z|0-9|%\.|\\\.)'
     remediation: |
       Use the safe default charset: `$config['permitted_uri_chars'] = 'a-z 0-9~%.:_\-';` and sanitize double dots.
 
+    references:
+      - "https://owasp.org/Top10/A01_2021-Broken_Access_Control/"
+      - "https://cwe.mitre.org/data/definitions/22.html"
   - id: CI-ENT-004
     title: "SQL Injection via CI3 Active Record Without Query Binding"
     description: >
       Using `$this->db->query()` with string concatenation, or passing raw strings
       to `where()`, bypasses escaping entirely.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: SQL Injection
     enabled: true
     tags: [sqli, codeigniter, cwe-89, owasp-a03-2021]
+    owasp: "A03:2021"
+    cwe: "CWE-89"
     patterns:
       - type: regex
         target: php-files
@@ -109,17 +126,23 @@ rules:
     remediation: |
       Use query bindings or the Active Record array syntax.
 
+    references:
+      - "https://owasp.org/Top10/A03_2021-Injection/"
+      - "https://cwe.mitre.org/data/definitions/89.html"
   - id: CI-ENT-005
     title: "Insecure unserialize() Custom Code"
     description: >
       Using `unserialize()` on user input allows Object Injection attacks.
     severity: critical
+    confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     category: Deserialization
     enabled: true
     tags: [php-object-injection, deserialization, codeigniter, cwe-502]
+    owasp: "A08:2021"
+    cwe: "CWE-502"
     patterns:
       - type: regex
         target: php-files
@@ -127,31 +150,43 @@ rules:
     remediation: |
       Use `json_decode()` instead of `unserialize()`.
 
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/502.html"
   - id: CI-ENT-006
     title: "Path Traversal in $this->load->view()"
     description: >
       Loading views using user-supplied parameters can lead to Local File Inclusion (LFI).
     severity: high
+    confidence: high
     cvss_v3:
       score: 8.6
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
     category: Path Traversal
     enabled: true
     tags: [lfi, codeigniter, cwe-22]
+    owasp: "A01:2021"
+    cwe: "CWE-22"
     patterns:
       - type: regex
         target: php-files
         pattern: '\$this->load->view\s*\(\s*\$(?:this->input->(?:post|get)|_POST|_GET)'
+        exclude_pattern: '(in_array|array_key_exists|switch\s*\(|if\s*\()'
     remediation: |
       Validate view names against an allowlist before loading.
 
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/22.html"
   - id: CI-ENT-007
     title: "CSRF Protection Dinonaktifkan"
     description: >
       Proteksi CSRF bawaan CodeIgniter dinonaktifkan di `config.php`. Tanpa ini, semua form POST di aplikasi rentan terhadap serangan Cross-Site Request Forgery.
     severity: critical
+    confidence: high
     category: CSRF
     tags: [csrf, codeigniter, cwe-352]
+    owasp: "A05:2021"
     cwe: "CWE-352"
     patterns:
       - type: regex
@@ -160,13 +195,18 @@ rules:
     remediation: |
       Aktifkan CSRF protection: `$config['csrf_protection'] = TRUE;`
 
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/352.html"
   - id: CI-ENT-008
     title: "Base URL Tidak Didefinisikan (Auto-detection Risk)"
     description: >
       Jika `$config['base_url']` dibiarkan kosong, CodeIgniter mencoba menebaknya dari `$_SERVER`. Penyerang dapat memanipulasi header `Host` untuk meracuni URL yang dihasilkan aplikasi (host header poisoning), yang dapat menyebabkan tautan password reset atau aset menunjuk ke domain penyerang.
     severity: medium
+    confidence: medium
     category: Hardening
     tags: [host-poisoning, codeigniter, cwe-20]
+    owasp: "A05:2021"
     cwe: "CWE-20"
     patterns:
       - type: regex
@@ -175,3 +215,6 @@ rules:
     remediation: |
       Selalu definisikan base_url secara statis (atau via variabel lingkungan):
       `$config['base_url'] = 'https://example.com/';`
+    references:
+      - "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"
+      - "https://cwe.mitre.org/data/definitions/20.html"

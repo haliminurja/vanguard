@@ -3,7 +3,7 @@ meta:
   version: "4.0.0"
   maintainer: "Security Engineering Team"
   updated: "2026"
-  scope: "Laravel 10-12, PHP 8.0-8.4"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
   compliance:
     - OWASP-Top10-2021
     - CWE-SANS-Top25
@@ -74,6 +74,7 @@ rules:
     confidence: high
     category: SSRF
     tags: [ssrf, owasp-a10, cwe-918]
+    owasp: "A01:2021"
     cwe: "CWE-918"
     patterns:
       - type: regex
@@ -129,6 +130,7 @@ rules:
     confidence: high
     category: Path Traversal
     tags: [lfi, path-traversal, owasp-a01, cwe-22, laravel]
+    owasp: "A01:2021"
     cwe: "CWE-22"
     patterns:
       - type: regex
@@ -150,6 +152,7 @@ rules:
     confidence: high
     category: Zip Slip
     tags: [file-upload, path-traversal, zip-slip, owasp-a01, cwe-22]
+    owasp: "A01:2021"
     cwe: "CWE-22"
     patterns:
       - type: regex
@@ -194,6 +197,7 @@ rules:
     confidence: high
     category: Open Redirect
     tags: [open-redirect, owasp-a01, cwe-601, phishing]
+    owasp: "A01:2021"
     cwe: "CWE-601"
     patterns:
       - type: regex
@@ -235,6 +239,7 @@ rules:
     confidence: high
     category: XXE
     tags: [xxe, owasp-a05, cwe-611, ssrf]
+    owasp: "A05:2021"
     cwe: "CWE-611"
     patterns:
       - type: regex
@@ -279,6 +284,7 @@ rules:
     confidence: high
     category: IDOR
     tags: [idor, owasp-a01, cwe-639]
+    owasp: "A01:2021"
     cwe: "CWE-639"
     patterns:
       - type: regex
@@ -307,6 +313,7 @@ rules:
     confidence: medium
     category: Type Juggling
     tags: [type-juggling, owasp-a07, cwe-697, auth-bypass]
+    owasp: "A07:2021"
     cwe: "CWE-697"
     patterns:
       - type: regex
@@ -335,6 +342,7 @@ rules:
     confidence: high
     category: Mass Assignment
     tags: [mass-assignment, owasp-a04, cwe-915, laravel]
+    owasp: "A04:2021"
     cwe: "CWE-915"
     patterns:
       - type: regex
@@ -363,6 +371,7 @@ rules:
     confidence: high
     category: Mass Assignment
     tags: [eloquent, mass-assignment, owasp-a04, cwe-915]
+    owasp: "A04:2021"
     cwe: "CWE-915"
     patterns:
       - type: regex
@@ -390,6 +399,7 @@ rules:
     confidence: medium
     category: Authorization
     tags: [reverb, websocket, laravel11, owasp-a01, cwe-863, broadcasting]
+    owasp: "A01:2021"
     cwe: "CWE-863"
     patterns:
       - type: regex
@@ -417,41 +427,6 @@ rules:
     references:
       - "https://laravel.com/docs/broadcasting#authorizing-channels"
       - "https://cwe.mitre.org/data/definitions/863.html"
-  - id: ADV-CSRF01
-    title: "Form Blade tanpa direktif @csrf"
-    description: >
-      Template Blade mengandung elemen <form> dengan method non-GET tetapi tidak menyertakan direktif @csrf. Tanpa token CSRF, setiap website pihak ketiga dapat membuat form yang secara diam-diam mengirimkan request ke aplikasi Anda atas nama pengguna yang sedang login, memungkinkan perubahan data, transfer dana, atau penghapusan akun.
-
-    severity: high
-    confidence: high
-    category: CSRF
-    tags: [csrf, laravel, owasp-a05, cwe-352, blade]
-    cwe: "CWE-352"
-    condition: all
-    patterns:
-      - type: regex
-        target: blade-files
-        pattern: '<form[^>]+method\s*=\s*["'']?(POST|PUT|PATCH|DELETE)[^>]*>'
-      - type: contains
-        target: blade-files
-        pattern: "@csrf"
-        negative: true
-    remediation: |
-      Tambahkan @csrf sebagai elemen pertama di dalam setiap form non-GET:
-
-        <form method="POST" action="{{ route('orders.store') }}">
-            @csrf
-            @method('POST')
-            {{- input fields -}}
-        </form>
-
-        {{- Untuk AJAX, kirimkan token via header -}}
-        <meta name="csrf-token" content="{{ csrf_token() }}">
-        // JavaScript: axios.defaults.headers.common['X-CSRF-TOKEN'] = token;
-    references:
-      - "https://owasp.org/www-community/attacks/csrf"
-      - "https://laravel.com/docs/csrf"
-      - "https://cwe.mitre.org/data/definitions/352.html"
   - id: ADV-SSTI01
     title: "SSTI - nama view/template dari input pengguna"
     description: >
@@ -461,6 +436,7 @@ rules:
     confidence: high
     category: SSTI
     tags: [ssti, owasp-a03, cwe-94, blade]
+    owasp: "A03:2021"
     cwe: "CWE-94"
     patterns:
       - type: regex
@@ -481,35 +457,6 @@ rules:
         return view($viewName, $data);
     references:
       - "https://cwe.mitre.org/data/definitions/94.html"
-  - id: ADV-DBG01
-    title: "Kode debug (dd, dump, var_dump) tertinggal dalam kode production"
-    description: >
-      Pemanggilan dd(), dump(), atau var_dump() yang tertinggal dapat mengekspos data sensitif (payload request, record database, konfigurasi, nilai environment, state autentikasi) langsung ke browser setiap pengguna yang memicu code path tersebut. dd() juga menghentikan eksekusi request yang dapat menyebabkan DoS.
-
-    severity: high
-    confidence: high
-    category: Debug Exposure
-    tags: [debug, info-disclosure, owasp-a05, cwe-215, laravel]
-    cwe: "CWE-215"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '\b(dd|dump|var_dump|print_r|var_export)\s*\('
-        exclude_pattern: '(//|#\s|/\*|test|Test|spec|hexdump|mysqldump|mongodump|pg_dump)'
-      - type: regex
-        target: blade-files
-        pattern: '@(dd|dump)\s*\('
-    remediation: |
-      Hapus semua panggilan debug sebelum commit/deploy.
-      Gunakan structured logging atau Laravel Telescope:
-
-        // - Gunakan logging terstruktur
-        Log::debug('Order state', ['order_id' => $order->id, 'status' => $order->status]);
-
-        // - Gunakan Laravel Telescope untuk debugging development
-        // telescope.laravel.com
-    references:
-      - "https://cwe.mitre.org/data/definitions/215.html"
   - id: ADV-DBG02
     title: "APP_DEBUG=true aktif (produksi atau staging)"
     description: >
@@ -519,6 +466,7 @@ rules:
     confidence: high
     category: Configuration
     tags: [debug, config, owasp-a05, cwe-200, laravel]
+    owasp: "A05:2021"
     cwe: "CWE-200"
     patterns:
       - type: regex
@@ -528,7 +476,6 @@ rules:
       Set APP_DEBUG=false di SEMUA environment non-development:
 
         APP_DEBUG=false
-
     references:
       - "https://laravel.com/docs/configuration#debug-mode"
       - "https://cwe.mitre.org/data/definitions/200.html"
@@ -541,6 +488,7 @@ rules:
     confidence: high
     category: RCE
     tags: [rce, eval, cmd-injection, owasp-a03, cwe-94, cwe-78]
+    owasp: "A03:2021"
     cwe: "CWE-94"
     patterns:
       - type: regex
