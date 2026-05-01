@@ -3,7 +3,7 @@ package eventbus
 import (
 	"time"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 type EventType int

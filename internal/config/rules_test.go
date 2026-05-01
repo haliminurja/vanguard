@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func TestLoadRulesFromFile(t *testing.T) {
@@ -86,6 +87,34 @@ rules:
 	}
 	if len(rules) != 0 {
 		t.Fatalf("expected 0 rule from empty wrapped yaml, got: %d", len(rules))
+	}
+}
+
+func TestLoadRulesFromFS(t *testing.T) {
+	fsys := fstest.MapFS{
+		"common/sample.yaml": &fstest.MapFile{Data: []byte(`
+rules:
+  - id: FS-001
+    title: "Embedded rule"
+    severity: high
+    category: Test
+    confidence: high
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'eval\s*\('
+`)},
+	}
+
+	rules, err := LoadRulesFromFS(fsys, "common")
+	if err != nil {
+		t.Fatalf("expected no error loading embedded rules, got: %v", err)
+	}
+	if len(rules) != 1 {
+		t.Fatalf("expected 1 embedded rule, got %d", len(rules))
+	}
+	if rules[0].ID != "FS-001" {
+		t.Fatalf("expected FS-001, got %s", rules[0].ID)
 	}
 }
 

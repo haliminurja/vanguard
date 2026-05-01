@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"vanguard/internal/eventbus"
-	"vanguard/internal/models"
-	"vanguard/internal/tui/components"
-	"vanguard/internal/tui/theme"
+	"github.com/haliminurja/vanguard/internal/eventbus"
+	"github.com/haliminurja/vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/tui/components"
+	"github.com/haliminurja/vanguard/internal/tui/theme"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

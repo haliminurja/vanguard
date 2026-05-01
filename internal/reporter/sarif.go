@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 type SARIFReporter struct {
@@ -30,11 +30,16 @@ func (r *SARIFReporter) Name() string   { return "sarif" }
 func (r *SARIFReporter) Format() string { return "sarif" }
 
 func (r *SARIFReporter) Generate(_ context.Context, report *models.ScanReport) error {
+	if err := ensureOutputDir(r.OutputDir); err != nil {
+		return err
+	}
+
 	ruleIndex := make(map[string]int)
 	var rules []sarifRule
 
 	for _, f := range report.Findings {
 		if _, exists := ruleIndex[f.ID]; !exists {
+			classification := f.Classification()
 			ruleIndex[f.ID] = len(rules)
 			rule := sarifRule{
 				ID:               f.ID,
@@ -46,11 +51,15 @@ func (r *SARIFReporter) Generate(_ context.Context, report *models.ScanReport) e
 				},
 				Help: sarifMessage{Text: f.Remediation},
 				Properties: sarifRuleProperties{
-					Tags:       buildSARIFTags(f),
-					Security:   severityToSARIFSecurity(f.Severity),
-					Confidence: f.Confidence,
-					CWE:        f.CWE,
-					OWASP:      f.OWASP,
+					Tags:               buildSARIFTags(f),
+					Security:           severityToSARIFSecurity(f.Severity),
+					Confidence:         f.Confidence,
+					CWE:                f.CWE,
+					OWASP:              f.OWASP,
+					VulnerabilityClass: classification.VulnerabilityClass,
+					AttackSurface:      classification.AttackSurface,
+					Impact:             classification.Impact,
+					Compliance:         classification.Compliance,
 				},
 			}
 			rules = append(rules, rule)
@@ -60,7 +69,7 @@ func (r *SARIFReporter) Generate(_ context.Context, report *models.ScanReport) e
 	for _, f := range report.Findings {
 		msgText := f.Title
 		if f.Description != "" {
-			msgText = f.Title + " — " + f.Description
+			msgText = f.Title + " - " + f.Description
 		}
 		result := sarifResult{
 			RuleID:    f.ID,
@@ -119,7 +128,7 @@ func (r *SARIFReporter) Generate(_ context.Context, report *models.ScanReport) e
 				Tool: sarifTool{
 					Driver: sarifDriver{
 						Name:            "vanguard",
-						InformationURI:  "https://github.com/your-repo/vanguard",
+						InformationURI:  "https://github.com/haliminurja/vanguard",
 						Version:         r.Version,
 						SemanticVersion: r.Version,
 						Rules:           rules,
@@ -207,11 +216,15 @@ type sarifRuleConfig struct {
 }
 
 type sarifRuleProperties struct {
-	Tags       []string `json:"tags"`
-	Security   string   `json:"security-severity"`
-	Confidence string   `json:"confidence,omitempty"`
-	CWE        string   `json:"cwe,omitempty"`
-	OWASP      string   `json:"owasp,omitempty"`
+	Tags               []string `json:"tags"`
+	Security           string   `json:"security-severity"`
+	Confidence         string   `json:"confidence,omitempty"`
+	CWE                string   `json:"cwe,omitempty"`
+	OWASP              string   `json:"owasp,omitempty"`
+	VulnerabilityClass string   `json:"vulnerability-class,omitempty"`
+	AttackSurface      string   `json:"attack-surface,omitempty"`
+	Impact             string   `json:"impact,omitempty"`
+	Compliance         []string `json:"compliance,omitempty"`
 }
 
 type sarifMessage struct {
@@ -259,9 +272,16 @@ type sarifSnippet struct {
 func buildSARIFTags(f models.Finding) []string {
 	seen := make(map[string]bool)
 	var tags []string
+	classification := f.Classification()
 	if f.Category != "" {
 		seen[f.Category] = true
 		tags = append(tags, f.Category)
+	}
+	for _, t := range []string{classification.VulnerabilityClass, classification.AttackSurface, classification.Impact} {
+		if t != "" && !seen[t] {
+			seen[t] = true
+			tags = append(tags, t)
+		}
 	}
 	if f.CWE != "" && !seen[f.CWE] {
 		seen[f.CWE] = true

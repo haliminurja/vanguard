@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 func TestCVSSv3Calculator(t *testing.T) {

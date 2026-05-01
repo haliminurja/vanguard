@@ -57,3 +57,58 @@ rules:
       All dependencies must be managed through Composer and reviewed before installation.
     references:
       - "https://cwe.mitre.org/data/definitions/829.html"
+  - id: SUPPLY-004
+    title: "Composer - allow-plugins wildcard enables arbitrary plugin execution"
+    description: >
+      composer.json allows Composer plugins through a global allow-plugins wildcard or boolean true. Composer plugins execute PHP code during dependency install/update, so broad trust can turn a compromised dependency or typo-squatted package into build-time remote code execution.
+
+    severity: high
+    confidence: high
+    category: Dependency Management
+    tags: [supply-chain, composer, plugin-execution, owasp-a08, cwe-829]
+    cwe: "CWE-829"
+    owasp: "A08:2021"
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    patterns:
+      - type: regex
+        target: composer-files
+        pattern: '"allow-plugins"\s*:\s*(true|\{[^}]*"\*"\s*:\s*true)'
+    remediation: |
+      Replace wildcard plugin trust with explicit package names:
+        "config": {
+          "allow-plugins": {
+            "composer/installers": true,
+            "trusted/vendor-plugin": true
+          }
+        }
+    references:
+      - "https://getcomposer.org/doc/06-config.md#allow-plugins"
+      - "https://cwe.mitre.org/data/definitions/829.html"
+  - id: SUPPLY-006
+    title: "Install script downloads and executes remote code"
+    description: >
+      A package manager script downloads content with curl or wget and pipes it into an interpreter. This bypasses lockfile integrity and code review, allowing DNS hijacking, CDN compromise, or man-in-the-middle attacks to execute arbitrary code on developer or CI machines.
+
+    severity: critical
+    confidence: high
+    category: Remote Code Loading
+    tags: [supply-chain, install-script, remote-code-execution, owasp-a08, cwe-829, ci-cd]
+    cwe: "CWE-829"
+    owasp: "A08:2021"
+    cvss_v3:
+      score: 9.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    patterns:
+      - type: regex
+        target: any
+        scope: project
+        pattern: '(?is)"(scripts|preinstall|postinstall|pre-update-cmd|post-update-cmd|post-install-cmd)"\s*:[^}\n]*(curl|wget)[^"\n]*(\||&&)\s*(sh|bash|php|python|perl)'
+    remediation: |
+      Do not pipe remote content into an interpreter. Vendor reviewed scripts in
+      source control, verify checksums/signatures, and pin all build tooling by
+      version and integrity hash.
+    references:
+      - "https://cwe.mitre.org/data/definitions/829.html"
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"

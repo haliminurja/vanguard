@@ -1,7 +1,7 @@
 package theme
 
 import (
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 
 	"github.com/charmbracelet/lipgloss"
 )

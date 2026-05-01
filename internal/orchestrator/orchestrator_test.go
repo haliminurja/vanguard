@@ -1,10 +1,12 @@
 package orchestrator
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"vanguard/internal/config"
+	"github.com/haliminurja/vanguard/internal/config"
 )
 
 func TestFilterRules_EnableDisable(t *testing.T) {
@@ -183,4 +185,66 @@ func TestInferRuleFrameworkFromIDPrefix(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLoadRulesUsesEmbeddedFallback(t *testing.T) {
+	o := &Orchestrator{}
+
+	rules := o.loadRules(t.TempDir(), "laravel")
+	if len(rules) == 0 {
+		t.Fatal("expected embedded rules to be loaded when no filesystem rules directory exists")
+	}
+
+	seenCommon := false
+	seenLaravel := false
+	for _, rule := range rules {
+		if strings.HasPrefix(rule.ID, "SUPPLY-") {
+			seenCommon = true
+		}
+		if strings.HasPrefix(rule.ID, "LAR-") {
+			seenLaravel = true
+		}
+	}
+	if !seenCommon || !seenLaravel {
+		t.Fatalf("expected embedded common and laravel rules, got common=%t laravel=%t", seenCommon, seenLaravel)
+	}
+}
+
+func TestLoadRulesAllowsFilesystemOverrideBeforeEmbeddedRules(t *testing.T) {
+	dir := t.TempDir()
+	rulesDir := filepath.Join(dir, "rules", "common")
+	if err := os.MkdirAll(rulesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rulesDir, "override.yaml"), []byte(`
+rules:
+  - id: SUPPLY-002
+    title: "Custom minimum stability rule"
+    severity: low
+    category: Test
+    confidence: high
+    tags: [supply-chain, owasp-a08, cwe-829]
+    cwe: "CWE-829"
+    owasp: "A08:2021"
+    patterns:
+      - type: regex
+        target: composer-files
+        pattern: '"minimum-stability"\s*:\s*"dev"'
+    references:
+      - "https://cwe.mitre.org/data/definitions/829.html"
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	o := &Orchestrator{}
+	rules := deduplicateRuleDefinitions(o.loadRules(dir, ""))
+	for _, rule := range rules {
+		if rule.ID == "SUPPLY-002" {
+			if rule.Title != "Custom minimum stability rule" {
+				t.Fatalf("expected filesystem rule to override embedded duplicate, got %q", rule.Title)
+			}
+			return
+		}
+	}
+	t.Fatal("expected SUPPLY-002 to be loaded")
 }

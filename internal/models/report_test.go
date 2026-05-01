@@ -42,3 +42,29 @@ func TestFindingsByCategory(t *testing.T) {
 		t.Errorf("Secrets count = %d, want 1", len(grouped["Secrets"]))
 	}
 }
+
+func TestCountByClassification(t *testing.T) {
+	report := &ScanReport{
+		Findings: []Finding{
+			{ID: "1", Category: "SQL Injection", Tags: []string{"cwe-89"}},
+			{ID: "2", Category: "Dependencies", Scanner: "dependency-scanner"},
+			{ID: "3", Category: "Dependencies", Scanner: "dependency-scanner"},
+		},
+	}
+
+	byClass := report.CountByVulnerabilityClass()
+	if byClass["sql-injection"] != 1 {
+		t.Fatalf("sql-injection count = %d, want 1", byClass["sql-injection"])
+	}
+	if byClass["dependency-management"] != 2 {
+		t.Fatalf("dependency-management count = %d, want 2", byClass["dependency-management"])
+	}
+
+	byImpact := report.CountByImpact()
+	if byImpact["data-exposure"] != 1 {
+		t.Fatalf("data-exposure count = %d, want 1", byImpact["data-exposure"])
+	}
+	if byImpact["supply-chain-compromise"] != 2 {
+		t.Fatalf("supply-chain-compromise count = %d, want 2", byImpact["supply-chain-compromise"])
+	}
+}

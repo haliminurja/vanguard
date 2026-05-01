@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 type FrameworkResolver struct{}
@@ -29,6 +29,7 @@ func (r *FrameworkResolver) Resolve(_ context.Context, root string, pc *models.P
 	r.resolveGenericPHP(root, pc)
 	r.resolvePackageJSON(root, pc)
 	r.resolveEnv(root, pc)
+	r.resolveProjectNameFallback(root, pc)
 
 	return nil
 }
@@ -64,7 +65,10 @@ func (r *FrameworkResolver) resolveComposer(root string, pc *models.ProjectConte
 		"yiisoft/yii2":                      "yii2",
 		"slim/slim":                         "slim",
 		"cakephp/cakephp":                   "cakephp",
+		"codeigniter/framework":             "codeigniter3",
 		"codeigniter4/framework":            "codeigniter4",
+		"johnpbloch/wordpress":              "wordpress",
+		"roots/wordpress":                   "wordpress",
 		"laminas/laminas-mvc":               "laminas",
 		"phalcon/cphalcon":                  "phalcon",
 		"drupal/core":                       "drupal",
@@ -75,6 +79,7 @@ func (r *FrameworkResolver) resolveComposer(root string, pc *models.ProjectConte
 	for pkg, framework := range frameworkMap {
 		if v, ok := composer.Require[pkg]; ok {
 			pc.FrameworkType = framework
+			pc.FrameworkVersion = v
 			if framework == "laravel" {
 				pc.LaravelVersion = v
 			}
@@ -130,6 +135,15 @@ func (r *FrameworkResolver) resolvePackageJSON(root string, pc *models.ProjectCo
 		pc.FrameworkType = "react"
 	} else if _, ok := deps["vue"]; ok {
 		pc.FrameworkType = "vue"
+	}
+
+	if pc.FrameworkType != "" {
+		for _, pkg := range []string{"next", "express", "@angular/core", "react", "vue"} {
+			if v, ok := deps[pkg]; ok {
+				pc.FrameworkVersion = v
+				break
+			}
+		}
 	}
 }
 
@@ -219,6 +233,17 @@ func (r *FrameworkResolver) resolveGenericPHP(root string, pc *models.ProjectCon
 
 	if isPHP {
 		pc.FrameworkType = "php-generic"
+	}
+}
+
+func (r *FrameworkResolver) resolveProjectNameFallback(root string, pc *models.ProjectContext) {
+	if pc.ProjectName != "" {
+		return
+	}
+
+	base := filepath.Base(filepath.Clean(root))
+	if base != "." && base != string(filepath.Separator) {
+		pc.ProjectName = base
 	}
 }
 

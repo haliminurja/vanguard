@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"vanguard/internal/config"
-	"vanguard/internal/eventbus"
-	"vanguard/internal/models"
-	"vanguard/internal/orchestrator"
-	"vanguard/internal/tui"
-	"vanguard/internal/tui/banner"
+	"github.com/haliminurja/vanguard/internal/config"
+	"github.com/haliminurja/vanguard/internal/eventbus"
+	"github.com/haliminurja/vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/orchestrator"
+	"github.com/haliminurja/vanguard/internal/tui"
+	"github.com/haliminurja/vanguard/internal/tui/banner"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -202,7 +202,10 @@ func ptr(s lipgloss.Style) *lipgloss.Style { return &s }
 func parseOutputFormats(s string) []string {
 	var formats []string
 	for _, f := range strings.Split(s, ",") {
-		f = strings.TrimSpace(f)
+		f = strings.ToLower(strings.TrimSpace(f))
+		if f == "md" {
+			f = "markdown"
+		}
 		if f != "" {
 			formats = append(formats, f)
 		}

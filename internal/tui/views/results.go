@@ -5,10 +5,10 @@ import (
 	"sort"
 	"time"
 
-	"vanguard/internal/models"
-	"vanguard/internal/store"
-	"vanguard/internal/tui/components"
-	"vanguard/internal/tui/theme"
+	"github.com/haliminurja/vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/store"
+	"github.com/haliminurja/vanguard/internal/tui/components"
+	"github.com/haliminurja/vanguard/internal/tui/theme"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"

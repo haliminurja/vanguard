@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 func TestNormalizeVersion(t *testing.T) {

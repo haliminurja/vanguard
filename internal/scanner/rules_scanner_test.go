@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"vanguard/internal/config"
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/config"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -101,6 +101,39 @@ func TestRulesScanner_TargetAny(t *testing.T) {
 	}
 	if len(findings) != 1 {
 		t.Fatalf("expected 1 finding for target any, got %d", len(findings))
+	}
+}
+
+func TestRulesScanner_CustomRecursiveGlobTarget(t *testing.T) {
+	dir := t.TempDir()
+	nested := filepath.Join(dir, "modules", "billing", "src")
+	os.MkdirAll(nested, 0755)
+	os.WriteFile(filepath.Join(nested, "Webhook.php"), []byte(`<?php
+$payload = unserialize($_POST['payload']);
+`), 0644)
+
+	rules := []config.RuleDefinition{
+		{
+			ID:      "TEST-GLOB-001",
+			Title:   "Unsafe deserialization",
+			Enabled: boolPtr(true),
+			Patterns: []config.PatternDef{
+				{Type: "regex", Target: "modules/**/*.php", Pattern: `unserialize\s*\(`},
+			},
+		},
+	}
+
+	s := NewRulesScanner(rules)
+	pc := models.ProjectContext{RootPath: dir}
+	findings, err := s.Scan(context.Background(), pc, func(f models.Finding) {})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding for recursive glob target, got %d", len(findings))
+	}
+	if filepath.ToSlash(findings[0].File) != "modules/billing/src/Webhook.php" {
+		t.Fatalf("unexpected finding file: %s", findings[0].File)
 	}
 }
 

@@ -3,8 +3,8 @@ package components
 import (
 	"fmt"
 
-	"vanguard/internal/models"
-	"vanguard/internal/tui/theme"
+	"github.com/haliminurja/vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/tui/theme"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"

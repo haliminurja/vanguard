@@ -8,15 +8,16 @@ import (
 	"strings"
 	"time"
 
-	"vanguard/internal/config"
-	"vanguard/internal/eventbus"
-	"vanguard/internal/models"
-	"vanguard/internal/provider"
-	"vanguard/internal/reporter"
-	"vanguard/internal/resolver"
-	"vanguard/internal/scanner"
-	depscanner "vanguard/internal/scanner"
-	"vanguard/internal/store"
+	"github.com/haliminurja/vanguard/internal/config"
+	"github.com/haliminurja/vanguard/internal/eventbus"
+	"github.com/haliminurja/vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/provider"
+	"github.com/haliminurja/vanguard/internal/reporter"
+	"github.com/haliminurja/vanguard/internal/resolver"
+	"github.com/haliminurja/vanguard/internal/scanner"
+	depscanner "github.com/haliminurja/vanguard/internal/scanner"
+	"github.com/haliminurja/vanguard/internal/store"
+	bundledrules "github.com/haliminurja/vanguard/rules"
 )
 
 type Orchestrator struct {
@@ -90,54 +91,13 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 		}))
 	}
 
-	rulesDir := o.getRulesDirectory()
-	if rulesDir != "" {
-		var allRules []config.RuleDefinition
-
-		commonDir := filepath.Join(rulesDir, "common")
-		if commonRules, err := config.LoadRulesFromDir(commonDir); err == nil {
-			o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
-				Level: "info", Message: fmt.Sprintf("Loading common security rules: %d rules", len(commonRules)),
-			}))
-			allRules = append(allRules, commonRules...)
-		} else {
-			o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
-				Level: "warn", Message: fmt.Sprintf("Failed to load common rules from %s: %v", commonDir, err),
-			}))
-		}
-
-		frameworkKey := normalizeFrameworkRuleKey(pc.FrameworkType)
-		if frameworkKey != "" {
-			fwDir := filepath.Join(rulesDir, frameworkKey)
-			if info, statErr := os.Stat(fwDir); statErr == nil && info.IsDir() {
-				if fwRules, err := config.LoadRulesFromDir(fwDir); err == nil {
-					o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
-						Level: "info", Message: fmt.Sprintf("Loading framework specific rules (%s): %d rules", frameworkKey, len(fwRules)),
-					}))
-					allRules = append(allRules, fwRules...)
-				} else {
-					o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
-						Level: "warn", Message: fmt.Sprintf("Failed to load framework rules from %s: %v", fwDir, err),
-					}))
-				}
-			}
-		}
-
-		if rootRules, err := config.LoadRulesFromDir(rulesDir); err == nil {
-			allRules = append(allRules, rootRules...)
-		} else {
-			o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
-				Level: "warn", Message: fmt.Sprintf("Failed to load rules from %s: %v", rulesDir, err),
-			}))
-		}
-
-		if len(allRules) > 0 {
-			deduped := deduplicateRuleDefinitions(allRules)
-			frameworkAware := filterRulesByFramework(deduped, normalizeFrameworkRuleKey(pc.FrameworkType))
-			filtered := o.filterRules(frameworkAware)
-			if len(filtered) > 0 {
-				scanners = append(scanners, depscanner.NewRulesScanner(filtered))
-			}
+	allRules := o.loadRules(result.RootPath, pc.FrameworkType)
+	if len(allRules) > 0 {
+		deduped := deduplicateRuleDefinitions(allRules)
+		frameworkAware := filterRulesByFramework(deduped, normalizeFrameworkRuleKey(pc.FrameworkType))
+		filtered := o.filterRules(frameworkAware)
+		if len(filtered) > 0 {
+			scanners = append(scanners, depscanner.NewRulesScanner(filtered))
 		}
 	}
 
@@ -288,17 +248,18 @@ func (o *Orchestrator) filterRules(rules []config.RuleDefinition) []config.RuleD
 	enableMap := make(map[string]bool)
 	disableMap := make(map[string]bool)
 	for _, id := range o.cfg.Scanners.RuleEnable {
-		enableMap[id] = true
+		enableMap[strings.ToUpper(strings.TrimSpace(id))] = true
 	}
 	for _, id := range o.cfg.Scanners.RuleDisable {
-		disableMap[id] = true
+		disableMap[strings.ToUpper(strings.TrimSpace(id))] = true
 	}
 	for _, r := range rules {
-		if disableMap[r.ID] {
+		id := strings.ToUpper(strings.TrimSpace(r.ID))
+		if disableMap[id] {
 			continue
 		}
 		if len(enableMap) > 0 {
-			if !enableMap[r.ID] {
+			if !enableMap[id] {
 				continue
 			}
 		}
@@ -560,12 +521,107 @@ func containsAny(s string, needles ...string) bool {
 	return false
 }
 
-func (o *Orchestrator) getRulesDirectory() string {
+func (o *Orchestrator) loadRules(projectRoot, frameworkType string) []config.RuleDefinition {
+	frameworkKey := normalizeFrameworkRuleKey(frameworkType)
+	var allRules []config.RuleDefinition
+
+	for _, rulesDir := range o.getRulesDirectories(projectRoot) {
+		allRules = append(allRules, o.loadRulesFromDirectory(rulesDir, frameworkKey)...)
+	}
+
+	allRules = append(allRules, o.loadRulesFromEmbedded(frameworkKey)...)
+	if len(allRules) == 0 {
+		o.log("warn", "No security rules were loaded; only dependency scanning will run")
+	}
+
+	return allRules
+}
+
+func (o *Orchestrator) loadRulesFromDirectory(rulesDir, frameworkKey string) []config.RuleDefinition {
+	var allRules []config.RuleDefinition
+
+	commonDir := filepath.Join(rulesDir, "common")
+	if commonRules, err := config.LoadRulesFromDir(commonDir); err == nil {
+		if len(commonRules) > 0 {
+			o.log("info", fmt.Sprintf("Loading common security rules from %s: %d rules", commonDir, len(commonRules)))
+		}
+		allRules = append(allRules, commonRules...)
+	} else {
+		o.log("warn", fmt.Sprintf("Failed to load common rules from %s: %v", commonDir, err))
+	}
+
+	if frameworkKey != "" {
+		fwDir := filepath.Join(rulesDir, frameworkKey)
+		if info, statErr := os.Stat(fwDir); statErr == nil && info.IsDir() {
+			if fwRules, err := config.LoadRulesFromDir(fwDir); err == nil {
+				if len(fwRules) > 0 {
+					o.log("info", fmt.Sprintf("Loading framework rules from %s: %d rules", fwDir, len(fwRules)))
+				}
+				allRules = append(allRules, fwRules...)
+			} else {
+				o.log("warn", fmt.Sprintf("Failed to load framework rules from %s: %v", fwDir, err))
+			}
+		}
+	}
+
+	if rootRules, err := config.LoadRulesFromDir(rulesDir); err == nil {
+		if len(rootRules) > 0 {
+			o.log("info", fmt.Sprintf("Loading root rules from %s: %d rules", rulesDir, len(rootRules)))
+		}
+		allRules = append(allRules, rootRules...)
+	} else {
+		o.log("warn", fmt.Sprintf("Failed to load rules from %s: %v", rulesDir, err))
+	}
+
+	return allRules
+}
+
+func (o *Orchestrator) loadRulesFromEmbedded(frameworkKey string) []config.RuleDefinition {
+	var allRules []config.RuleDefinition
+
+	if commonRules, err := config.LoadRulesFromFS(bundledrules.FS, "common"); err == nil {
+		o.log("info", fmt.Sprintf("Loading bundled common security rules: %d rules", len(commonRules)))
+		allRules = append(allRules, commonRules...)
+	} else {
+		o.log("warn", fmt.Sprintf("Failed to load bundled common rules: %v", err))
+	}
+
+	if frameworkKey != "" && isBundledFramework(frameworkKey) {
+		if fwRules, err := config.LoadRulesFromFS(bundledrules.FS, frameworkKey); err == nil {
+			o.log("info", fmt.Sprintf("Loading bundled framework rules (%s): %d rules", frameworkKey, len(fwRules)))
+			allRules = append(allRules, fwRules...)
+		} else {
+			o.log("warn", fmt.Sprintf("Failed to load bundled framework rules (%s): %v", frameworkKey, err))
+		}
+	}
+
+	return allRules
+}
+
+func isBundledFramework(frameworkKey string) bool {
+	switch frameworkKey {
+	case "cakephp", "codeigniter", "codeigniter4", "laravel", "symfony", "wordpress", "yii2":
+		return true
+	default:
+		return false
+	}
+}
+
+func (o *Orchestrator) log(level, message string) {
+	if o.bus == nil {
+		return
+	}
+	o.bus.Publish(eventbus.NewEvent(eventbus.EventLogMessage, eventbus.LogMessageData{
+		Level: level, Message: message,
+	}))
+}
+
+func (o *Orchestrator) getRulesDirectories(projectRoot string) []string {
 
 	candidates := []string{
-		filepath.Join(o.target, "rules"),
-		filepath.Join(o.target, "vanguard-rules"),
-		filepath.Join(o.target, ".vanguard-rules"),
+		filepath.Join(projectRoot, "rules"),
+		filepath.Join(projectRoot, "vanguard-rules"),
+		filepath.Join(projectRoot, ".vanguard-rules"),
 	}
 
 	exe, err := os.Executable()
@@ -585,12 +641,23 @@ func (o *Orchestrator) getRulesDirectory() string {
 		)
 	}
 
+	var dirs []string
+	seen := make(map[string]bool, len(candidates))
 	for _, candidate := range candidates {
 		info, err := os.Stat(candidate)
 		if err == nil && info.IsDir() {
-			return candidate
+			key := filepath.Clean(candidate)
+			if abs, absErr := filepath.Abs(candidate); absErr == nil {
+				key = abs
+			}
+			key = strings.ToLower(key)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			dirs = append(dirs, candidate)
 		}
 	}
 
-	return ""
+	return dirs
 }

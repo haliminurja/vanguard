@@ -3,11 +3,11 @@ package tui
 import (
 	"time"
 
-	"vanguard/internal/eventbus"
-	"vanguard/internal/models"
-	"vanguard/internal/tui/components"
-	"vanguard/internal/tui/theme"
-	"vanguard/internal/tui/views"
+	"github.com/haliminurja/vanguard/internal/eventbus"
+	"github.com/haliminurja/vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/tui/components"
+	"github.com/haliminurja/vanguard/internal/tui/theme"
+	"github.com/haliminurja/vanguard/internal/tui/views"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"

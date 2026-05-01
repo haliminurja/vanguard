@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 const (
@@ -24,11 +24,15 @@ const (
 )
 
 type Scanner struct {
-	client *http.Client
+	client   *http.Client
+	queryURL string
+	batchURL string
 }
 
 func New() *Scanner {
 	return &Scanner{
+		queryURL: osvQueryURL,
+		batchURL: osvBatchURL,
 		client: &http.Client{
 			Timeout: httpTimeout,
 			Transport: &http.Transport{
@@ -144,11 +148,16 @@ func (s *Scanner) doRequestWithRetries(req *http.Request) (*http.Response, error
 
 		resp, err := s.client.Do(req)
 		if err == nil {
-			// Successful response or terminal error (e.g., 400 Bad Request)
-			if resp.StatusCode < 500 && resp.StatusCode != 429 {
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 				return resp, nil
 			}
-			// Server error or rate limit, retry
+
+			if resp.StatusCode < 500 && resp.StatusCode != 429 {
+				body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+				resp.Body.Close()
+				return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+			}
+
 			lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
 			resp.Body.Close()
 		} else {
@@ -229,7 +238,18 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 
 	var affected []vulnPackage
 	var mu sync.Mutex
+	var errMu sync.Mutex
+	var batchErrors []error
 	var wg sync.WaitGroup
+
+	recordError := func(err error) {
+		if err == nil {
+			return
+		}
+		errMu.Lock()
+		batchErrors = append(batchErrors, err)
+		errMu.Unlock()
+	}
 
 	for i := 0; i < len(allQueries); i += batchSize {
 		end := i + batchSize
@@ -245,14 +265,20 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 			defer wg.Done()
 
 			body, _ := json.Marshal(map[string]any{"queries": b})
-			req, err := http.NewRequestWithContext(ctx, "POST", osvBatchURL, bytes.NewReader(body))
+			batchURL := s.batchURL
+			if batchURL == "" {
+				batchURL = osvBatchURL
+			}
+			req, err := http.NewRequestWithContext(ctx, "POST", batchURL, bytes.NewReader(body))
 			if err != nil {
+				recordError(err)
 				return
 			}
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := s.doRequestWithRetries(req)
 			if err != nil {
+				recordError(err)
 				return
 			}
 			defer resp.Body.Close()
@@ -266,6 +292,7 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 			}
 
 			if err := json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(&result); err != nil {
+				recordError(err)
 				return
 			}
 
@@ -283,6 +310,9 @@ func (s *Scanner) batchQuery(ctx context.Context, packages []models.Package) ([]
 	}
 
 	wg.Wait()
+	if len(affected) == 0 && len(batchErrors) > 0 {
+		return nil, summarizeErrors(batchErrors)
+	}
 	return affected, nil
 }
 
@@ -295,7 +325,11 @@ func (s *Scanner) queryPackage(ctx context.Context, name, version, ecosystem str
 		"version": version,
 	})
 
-	req, err := http.NewRequestWithContext(ctx, "POST", osvQueryURL, bytes.NewReader(body))
+	queryURL := s.queryURL
+	if queryURL == "" {
+		queryURL = osvQueryURL
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", queryURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -316,6 +350,24 @@ func (s *Scanner) queryPackage(ctx context.Context, name, version, ecosystem str
 	}
 
 	return result.Vulns, nil
+}
+
+func summarizeErrors(errs []error) error {
+	if len(errs) == 0 {
+		return nil
+	}
+
+	parts := make([]string, 0, min(len(errs), 3))
+	for i, err := range errs {
+		if i >= 3 {
+			break
+		}
+		parts = append(parts, err.Error())
+	}
+	if len(errs) > len(parts) {
+		parts = append(parts, fmt.Sprintf("%d more errors", len(errs)-len(parts)))
+	}
+	return fmt.Errorf("%s", strings.Join(parts, "; "))
 }
 
 type osvVuln struct {

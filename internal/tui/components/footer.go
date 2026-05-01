@@ -1,7 +1,7 @@
 package components
 
 import (
-	"vanguard/internal/tui/theme"
+	"github.com/haliminurja/vanguard/internal/tui/theme"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/lipgloss"

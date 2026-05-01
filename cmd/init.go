@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/haliminurja/vanguard/internal/tui/banner"
 	"os"
 	"path/filepath"
-	"vanguard/internal/tui/banner"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"

@@ -84,3 +84,25 @@ func (r *ScanReport) CountByConfidence() map[string]int {
 	}
 	return counts
 }
+
+func (r *ScanReport) CountByVulnerabilityClass() map[string]int {
+	counts := make(map[string]int)
+	for _, f := range r.Findings {
+		classification := f.Classification()
+		if classification.VulnerabilityClass != "" {
+			counts[classification.VulnerabilityClass]++
+		}
+	}
+	return counts
+}
+
+func (r *ScanReport) CountByImpact() map[string]int {
+	counts := make(map[string]int)
+	for _, f := range r.Findings {
+		classification := f.Classification()
+		if classification.Impact != "" {
+			counts[classification.Impact]++
+		}
+	}
+	return counts
+}

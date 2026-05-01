@@ -3,8 +3,8 @@ package components
 import (
 	"strings"
 
-	"vanguard/internal/models"
-	"vanguard/internal/tui/theme"
+	"github.com/haliminurja/vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/tui/theme"
 )
 
 func RenderSeverityBadge(sev models.Severity, t *theme.Theme) string {

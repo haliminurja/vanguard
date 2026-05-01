@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 type PackageResolver struct{}
@@ -102,7 +102,10 @@ func (r *PackageResolver) resolveNPM(path string, relPath string, pc *models.Pro
 			if p == "" || pkg.Version == "" {
 				continue
 			}
-			name := filepath.Base(p)
+			name := packageNameFromNPMLockPath(p)
+			if name == "" {
+				continue
+			}
 			pc.InstalledPackages = append(pc.InstalledPackages, models.Package{
 				Name:      name,
 				Version:   pkg.Version,
@@ -136,12 +139,7 @@ func (r *PackageResolver) resolveYarn(path string, relPath string, pc *models.Pr
 		if strings.HasSuffix(line, ":") && !strings.HasPrefix(line, " ") {
 			namePart := strings.TrimSuffix(line, ":")
 			namePart = strings.Trim(namePart, "\"")
-			idx := strings.LastIndex(namePart, "@")
-			if idx > 0 {
-				currentPkg = namePart[:idx]
-			} else {
-				currentPkg = namePart
-			}
+			currentPkg = packageNameFromYarnSelector(namePart)
 		} else if currentPkg != "" && strings.HasPrefix(line, "  version ") {
 			versionPart := strings.TrimPrefix(line, "  version ")
 			version := strings.Trim(versionPart, "\"")
@@ -211,6 +209,53 @@ func (r *PackageResolver) resolvePNPM(path string, relPath string, pc *models.Pr
 			}
 		}
 	}
+}
+
+func packageNameFromNPMLockPath(path string) string {
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	path = strings.TrimPrefix(path, "./")
+	if path == "" {
+		return ""
+	}
+
+	const marker = "node_modules/"
+	if idx := strings.LastIndex(path, marker); idx >= 0 {
+		return path[idx+len(marker):]
+	}
+	return path
+}
+
+func packageNameFromYarnSelector(selector string) string {
+	selector = strings.TrimSpace(selector)
+	if selector == "" {
+		return ""
+	}
+
+	first := selector
+	if idx := strings.Index(first, ","); idx >= 0 {
+		first = first[:idx]
+	}
+	first = strings.TrimSpace(strings.Trim(first, `"'`))
+	if first == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(first, "@") {
+		slash := strings.Index(first, "/")
+		if slash < 0 {
+			return first
+		}
+		versionAt := strings.LastIndex(first[slash+1:], "@")
+		if versionAt < 0 {
+			return first
+		}
+		return first[:slash+1+versionAt]
+	}
+
+	if idx := strings.LastIndex(first, "@"); idx > 0 {
+		return first[:idx]
+	}
+	return first
 }
 
 type composerLock struct {

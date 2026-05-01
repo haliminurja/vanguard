@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"vanguard/internal/config"
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/config"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 type ScanRecord struct {

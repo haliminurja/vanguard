@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 func TestFrameworkResolver_ComposerJSON(t *testing.T) {
@@ -33,11 +33,28 @@ func TestFrameworkResolver_ComposerJSON(t *testing.T) {
 	if pc.LaravelVersion != "^11.0" {
 		t.Errorf("LaravelVersion = %q, want %q", pc.LaravelVersion, "^11.0")
 	}
+	if pc.FrameworkVersion != "^11.0" {
+		t.Errorf("FrameworkVersion = %q, want %q", pc.FrameworkVersion, "^11.0")
+	}
 	if pc.PHPVersion != "^8.2" {
 		t.Errorf("PHPVersion = %q, want %q", pc.PHPVersion, "^8.2")
 	}
 	if len(pc.ComposerDeps) != 3 {
 		t.Errorf("ComposerDeps count = %d, want 3", len(pc.ComposerDeps))
+	}
+}
+
+func TestFrameworkResolver_ProjectNameFallback(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "index.php"), []byte("<?php echo 'ok';"), 0644)
+
+	r := NewFrameworkResolver()
+	pc := &models.ProjectContext{}
+	if err := r.Resolve(context.Background(), dir, pc); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pc.ProjectName != filepath.Base(dir) {
+		t.Fatalf("ProjectName = %q, want %q", pc.ProjectName, filepath.Base(dir))
 	}
 }
 
@@ -287,5 +304,59 @@ func TestPackageResolver_NoLockFile(t *testing.T) {
 	}
 	if len(pc.InstalledPackages) != 0 {
 		t.Errorf("InstalledPackages should be empty, got %d", len(pc.InstalledPackages))
+	}
+}
+
+func TestPackageResolver_NPMLockPreservesScopedPackageNames(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte(`{
+		"packages": {
+			"": {"version": "1.0.0"},
+			"node_modules/@scope/pkg": {"version": "2.3.4"},
+			"node_modules/plain": {"version": "1.2.3"}
+		}
+	}`), 0644)
+
+	r := NewPackageResolver()
+	pc := &models.ProjectContext{}
+	if err := r.Resolve(context.Background(), dir, pc); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	seen := map[string]string{}
+	for _, pkg := range pc.InstalledPackages {
+		seen[pkg.Name] = pkg.Version
+	}
+	if seen["@scope/pkg"] != "2.3.4" {
+		t.Fatalf("expected scoped package @scope/pkg@2.3.4, got %+v", seen)
+	}
+	if seen["plain"] != "1.2.3" {
+		t.Fatalf("expected plain package plain@1.2.3, got %+v", seen)
+	}
+}
+
+func TestPackageResolver_YarnPreservesScopedPackageNames(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "yarn.lock"), []byte(`"@scope/pkg@^2.0.0", "@scope/pkg@~2.3.0":
+  version "2.3.4"
+plain@^1.0.0:
+  version "1.2.3"
+`), 0644)
+
+	r := NewPackageResolver()
+	pc := &models.ProjectContext{}
+	if err := r.Resolve(context.Background(), dir, pc); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	seen := map[string]string{}
+	for _, pkg := range pc.InstalledPackages {
+		seen[pkg.Name] = pkg.Version
+	}
+	if seen["@scope/pkg"] != "2.3.4" {
+		t.Fatalf("expected scoped package @scope/pkg@2.3.4, got %+v", seen)
+	}
+	if seen["plain"] != "1.2.3" {
+		t.Fatalf("expected plain package plain@1.2.3, got %+v", seen)
 	}
 }

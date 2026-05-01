@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 type HTMLReporter struct {
@@ -31,6 +31,10 @@ func (r *HTMLReporter) Name() string   { return "html" }
 func (r *HTMLReporter) Format() string { return "html" }
 
 func (r *HTMLReporter) Generate(_ context.Context, report *models.ScanReport) error {
+	if err := ensureOutputDir(r.OutputDir); err != nil {
+		return err
+	}
+
 	counts := report.CountBySeverity()
 	byCategory := report.FindingsByCategory()
 	categories := make([]string, 0, len(byCategory))
@@ -111,7 +115,7 @@ func (r *HTMLReporter) Generate(_ context.Context, report *models.ScanReport) er
     <h1>Vanguard Defense Report</h1>
     <div class="header-badges">
       <span class="header-badge project">` + esc(report.ProjectContext.ProjectName) + `</span>
-      <span class="header-badge framework">Laravel ` + esc(report.ProjectContext.LaravelVersion) + `</span>
+      <span class="header-badge framework">` + esc(frameworkLabel(report.ProjectContext)) + `</span>
       <span class="header-badge time">` + report.Duration.Round(1e6).String() + `</span>
     </div>
   </div>
@@ -198,7 +202,7 @@ func (r *HTMLReporter) Generate(_ context.Context, report *models.ScanReport) er
   <div class="info-grid">
 `)
 	writeInfoRow(&sb, "Project Name", report.ProjectContext.ProjectName)
-	writeInfoRow(&sb, "Laravel Version", report.ProjectContext.LaravelVersion)
+	writeInfoRow(&sb, "Framework", frameworkLabel(report.ProjectContext))
 	writeInfoRow(&sb, "PHP Version", report.ProjectContext.PHPVersion)
 	writeInfoRow(&sb, "Scanned Packages", fmt.Sprintf("%d dependencies", len(report.ProjectContext.InstalledPackages)))
 	writeInfoRow(&sb, "Config Files", fmt.Sprintf("%d files analyzed", len(report.ProjectContext.ConfigFiles)))
@@ -225,6 +229,7 @@ func (r *HTMLReporter) Generate(_ context.Context, report *models.ScanReport) er
 		for idx, f := range findings {
 			sevClass := strings.ToLower(f.Severity.String())
 			findingID := fmt.Sprintf("%s-%d", slug, idx)
+			classification := f.Classification()
 
 			sb.WriteString(fmt.Sprintf(`    <div class="finding-card" id="%s">
       <div class="finding-header" onclick="this.parentElement.classList.toggle('is-open')">
@@ -301,12 +306,24 @@ func (r *HTMLReporter) Generate(_ context.Context, report *models.ScanReport) er
 `)
 			}
 
-			hasMetadata := len(f.Tags) > 0 || f.CWE != "" || f.OWASP != "" || f.Confidence != "" || f.CVSSScore > 0 || f.CVSSVector != ""
+			hasMetadata := len(f.Tags) > 0 || f.CWE != "" || f.OWASP != "" || f.Confidence != "" || f.CVSSScore > 0 || f.CVSSVector != "" || classification.VulnerabilityClass != ""
 			if hasMetadata {
 				sb.WriteString(`          <div class="metadata-group">
             <h4>Metadata</h4>
             <div class="meta-pills">
 `)
+				if classification.VulnerabilityClass != "" {
+					sb.WriteString(fmt.Sprintf(`              <span class="meta-pill class-pill">Class: %s</span>
+`, esc(classification.VulnerabilityClass)))
+				}
+				if classification.AttackSurface != "" {
+					sb.WriteString(fmt.Sprintf(`              <span class="meta-pill surface-pill">Surface: %s</span>
+`, esc(classification.AttackSurface)))
+				}
+				if classification.Impact != "" {
+					sb.WriteString(fmt.Sprintf(`              <span class="meta-pill impact-pill">Impact: %s</span>
+`, esc(classification.Impact)))
+				}
 				if f.CVSSScore > 0 {
 					sb.WriteString(fmt.Sprintf(`              <span class="meta-pill cvss-pill">CVSS: %.1f</span>
 `, f.CVSSScore))
@@ -751,6 +768,23 @@ const htmlCSS = `
   .refs-group li { margin-bottom: 6px; }
   .refs-group a { color: var(--primary); text-decoration: none; font-size: 13px; }
   .refs-group a:hover { text-decoration: underline; }
+
+  .meta-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .meta-pill {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.45);
+    color: var(--text);
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+  .class-pill, .surface-pill, .impact-pill { color: var(--text-bright); border-color: rgba(99, 102, 241, 0.55); }
 
   /* Footer */
   .page-footer {

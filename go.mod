@@ -1,4 +1,4 @@
-module vanguard
+module github.com/haliminurja/vanguard
 
 go 1.24.2
 

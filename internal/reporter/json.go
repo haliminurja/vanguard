@@ -7,27 +7,38 @@ import (
 	"os"
 	"path/filepath"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 type jsonFinding struct {
-	ID          string   `json:"id"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Severity    string   `json:"severity"`
-	Category    string   `json:"category"`
-	Scanner     string   `json:"scanner"`
-	File        string   `json:"file,omitempty"`
-	Line        int      `json:"line,omitempty"`
-	CodeSnippet string   `json:"code_snippet,omitempty"`
-	Remediation string   `json:"remediation,omitempty"`
-	References  []string `json:"references,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	CWE         string   `json:"cwe,omitempty"`
-	OWASP       string   `json:"owasp,omitempty"`
-	Confidence  string   `json:"confidence,omitempty"`
-	Fingerprint string   `json:"fingerprint,omitempty"`
+	ID             string             `json:"id"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	Severity       string             `json:"severity"`
+	Category       string             `json:"category"`
+	Scanner        string             `json:"scanner"`
+	File           string             `json:"file,omitempty"`
+	Line           int                `json:"line,omitempty"`
+	CodeSnippet    string             `json:"code_snippet,omitempty"`
+	Remediation    string             `json:"remediation,omitempty"`
+	References     []string           `json:"references,omitempty"`
+	Tags           []string           `json:"tags,omitempty"`
+	CWE            string             `json:"cwe,omitempty"`
+	OWASP          string             `json:"owasp,omitempty"`
+	Confidence     string             `json:"confidence,omitempty"`
+	CVSSScore      float64            `json:"cvss_score,omitempty"`
+	CVSSVector     string             `json:"cvss_vector,omitempty"`
+	Classification jsonClassification `json:"classification"`
+	Fingerprint    string             `json:"fingerprint,omitempty"`
 }
+
+type jsonClassification struct {
+	VulnerabilityClass string   `json:"vulnerability_class"`
+	AttackSurface      string   `json:"attack_surface"`
+	Impact             string   `json:"impact"`
+	Compliance         []string `json:"compliance,omitempty"`
+}
+
 type jsonReport struct {
 	Project  jsonProject   `json:"project"`
 	Summary  jsonSummary   `json:"summary"`
@@ -35,15 +46,19 @@ type jsonReport struct {
 }
 
 type jsonProject struct {
-	Name           string `json:"name"`
-	Path           string `json:"path"`
-	LaravelVersion string `json:"laravel_version,omitempty"`
-	PHPVersion     string `json:"php_version,omitempty"`
+	Name             string `json:"name"`
+	Path             string `json:"path"`
+	Framework        string `json:"framework,omitempty"`
+	FrameworkVersion string `json:"framework_version,omitempty"`
+	LaravelVersion   string `json:"laravel_version,omitempty"`
+	PHPVersion       string `json:"php_version,omitempty"`
 }
 
 type jsonSummary struct {
 	TotalFindings int            `json:"total_findings"`
 	BySeverity    map[string]int `json:"by_severity"`
+	ByClass       map[string]int `json:"by_class,omitempty"`
+	ByImpact      map[string]int `json:"by_impact,omitempty"`
 	Duration      string         `json:"duration"`
 	ScannersRun   []string       `json:"scanners_run"`
 }
@@ -62,16 +77,24 @@ func (r *JSONReporter) Name() string   { return "json" }
 func (r *JSONReporter) Format() string { return "json" }
 
 func (r *JSONReporter) Generate(_ context.Context, report *models.ScanReport) error {
+	if err := ensureOutputDir(r.OutputDir); err != nil {
+		return err
+	}
+
 	jr := jsonReport{
 		Project: jsonProject{
-			Name:           report.ProjectContext.ProjectName,
-			Path:           report.ProjectContext.RootPath,
-			LaravelVersion: report.ProjectContext.LaravelVersion,
-			PHPVersion:     report.ProjectContext.PHPVersion,
+			Name:             report.ProjectContext.ProjectName,
+			Path:             report.ProjectContext.RootPath,
+			Framework:        report.ProjectContext.FrameworkType,
+			FrameworkVersion: report.ProjectContext.FrameworkVersion,
+			LaravelVersion:   report.ProjectContext.LaravelVersion,
+			PHPVersion:       report.ProjectContext.PHPVersion,
 		},
 		Summary: jsonSummary{
 			TotalFindings: len(report.Findings),
 			BySeverity:    make(map[string]int),
+			ByClass:       make(map[string]int),
+			ByImpact:      make(map[string]int),
 			Duration:      report.Duration.String(),
 			ScannersRun:   report.ScannersRun,
 		},
@@ -84,6 +107,10 @@ func (r *JSONReporter) Generate(_ context.Context, report *models.ScanReport) er
 
 	jr.Findings = make([]jsonFinding, 0, len(report.Findings))
 	for _, f := range report.Findings {
+		classification := f.Classification()
+		jr.Summary.ByClass[classification.VulnerabilityClass]++
+		jr.Summary.ByImpact[classification.Impact]++
+
 		jr.Findings = append(jr.Findings, jsonFinding{
 			ID:          f.ID,
 			Title:       f.Title,
@@ -100,6 +127,14 @@ func (r *JSONReporter) Generate(_ context.Context, report *models.ScanReport) er
 			CWE:         f.CWE,
 			OWASP:       f.OWASP,
 			Confidence:  f.Confidence,
+			CVSSScore:   f.CVSSScore,
+			CVSSVector:  f.CVSSVector,
+			Classification: jsonClassification{
+				VulnerabilityClass: classification.VulnerabilityClass,
+				AttackSurface:      classification.AttackSurface,
+				Impact:             classification.Impact,
+				Compliance:         classification.Compliance,
+			},
 			Fingerprint: f.Fingerprint(),
 		})
 	}

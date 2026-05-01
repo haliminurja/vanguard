@@ -3,8 +3,8 @@ package components
 import (
 	"fmt"
 
-	"vanguard/internal/eventbus"
-	"vanguard/internal/tui/theme"
+	"github.com/haliminurja/vanguard/internal/eventbus"
+	"github.com/haliminurja/vanguard/internal/tui/theme"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"

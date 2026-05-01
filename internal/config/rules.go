@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -75,6 +76,33 @@ func LoadRulesFromDir(dir string) ([]RuleDefinition, error) {
 	return allRules, nil
 }
 
+func LoadRulesFromFS(fsys fs.FS, dir string) ([]RuleDefinition, error) {
+	var allRules []RuleDefinition
+
+	entries, err := fs.ReadDir(fsys, dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return allRules, nil
+		}
+		return nil, fmt.Errorf("reading embedded rules directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !isYAMLFile(entry.Name()) {
+			continue
+		}
+
+		filePath := filepath.ToSlash(filepath.Join(dir, entry.Name()))
+		rules, err := LoadRulesFromFSFile(fsys, filePath)
+		if err != nil {
+			return nil, fmt.Errorf("loading embedded rules from %s: %w", filePath, err)
+		}
+		allRules = append(allRules, rules...)
+	}
+
+	return allRules, nil
+}
+
 func LoadRulesFromFile(filePath string) ([]RuleDefinition, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -87,6 +115,19 @@ func LoadRulesFromFile(filePath string) ([]RuleDefinition, error) {
 		return nil, fmt.Errorf("reading file: %w", err)
 	}
 
+	return loadRulesFromBytes(data, filePath)
+}
+
+func LoadRulesFromFSFile(fsys fs.FS, filePath string) ([]RuleDefinition, error) {
+	data, err := fs.ReadFile(fsys, filepath.ToSlash(filePath))
+	if err != nil {
+		return nil, fmt.Errorf("reading embedded file: %w", err)
+	}
+
+	return loadRulesFromBytes(data, filePath)
+}
+
+func loadRulesFromBytes(data []byte, filePath string) ([]RuleDefinition, error) {
 	var wrapped rulesFile
 	if err := yaml.Unmarshal(data, &wrapped); err == nil {
 		var topLevel map[string]any

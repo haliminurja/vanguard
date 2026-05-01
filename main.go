@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"vanguard/cmd"
+	"github.com/haliminurja/vanguard/cmd"
 )
 
 func main() {

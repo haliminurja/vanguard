@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"vanguard/internal/config"
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/config"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 const (
@@ -801,6 +801,11 @@ func resolveTarget(target, root string) []string {
 	seen := make(map[string]bool)
 
 	for _, pat := range patterns {
+		if strings.Contains(filepath.ToSlash(pat), "**") {
+			collectRecursiveGlob(root, pat, seen, &files)
+			continue
+		}
+
 		matches, _ := filepath.Glob(pat)
 		for _, m := range matches {
 			if seen[m] {
@@ -923,6 +928,118 @@ func resolveTarget(target, root string) []string {
 	}
 
 	return files
+}
+
+func collectRecursiveGlob(root, pattern string, seen map[string]bool, files *[]string) {
+	relPattern, err := filepath.Rel(root, pattern)
+	if err != nil {
+		return
+	}
+	relPattern = filepath.ToSlash(strings.TrimPrefix(relPattern, "./"))
+	walkRoot := recursiveGlobWalkRoot(root, relPattern)
+
+	_ = filepath.Walk(walkRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			if skipDir(info.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if info.Size() > MaxFileSize {
+			return nil
+		}
+
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return nil
+		}
+		if !matchGlobPattern(relPattern, rel) {
+			return nil
+		}
+		if seen[path] {
+			return nil
+		}
+		seen[path] = true
+		*files = append(*files, path)
+		return nil
+	})
+}
+
+func recursiveGlobWalkRoot(root, pattern string) string {
+	parts := strings.Split(filepath.ToSlash(pattern), "/")
+	fixed := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if strings.ContainsAny(part, "*?[") {
+			break
+		}
+		if part == "" || part == "." {
+			continue
+		}
+		fixed = append(fixed, part)
+	}
+	if len(fixed) == 0 {
+		return root
+	}
+	segments := append([]string{root}, fixed...)
+	return filepath.Join(segments...)
+}
+
+func matchGlobPattern(pattern, rel string) bool {
+	pattern = filepath.ToSlash(strings.TrimPrefix(pattern, "./"))
+	rel = filepath.ToSlash(strings.TrimPrefix(rel, "./"))
+
+	if !strings.Contains(pattern, "**") {
+		ok, err := filepath.Match(filepath.FromSlash(pattern), filepath.FromSlash(rel))
+		return err == nil && ok
+	}
+
+	re, err := regexp.Compile(globToRegex(pattern))
+	return err == nil && re.MatchString(rel)
+}
+
+func globToRegex(pattern string) string {
+	var b strings.Builder
+	b.WriteString("^")
+
+	for i := 0; i < len(pattern); i++ {
+		ch := pattern[i]
+		switch ch {
+		case '*':
+			if i+1 < len(pattern) && pattern[i+1] == '*' {
+				i++
+				if i+1 < len(pattern) && pattern[i+1] == '/' {
+					b.WriteString("(?:.*/)?")
+					i++
+				} else {
+					b.WriteString(".*")
+				}
+				continue
+			}
+			b.WriteString("[^/]*")
+		case '?':
+			b.WriteString("[^/]")
+		case '[':
+			end := strings.IndexByte(pattern[i+1:], ']')
+			if end >= 0 {
+				class := pattern[i : i+end+2]
+				if strings.HasPrefix(class, "[!") {
+					class = "[^" + class[2:]
+				}
+				b.WriteString(class)
+				i += end + 1
+			} else {
+				b.WriteString(regexp.QuoteMeta(string(ch)))
+			}
+		default:
+			b.WriteString(regexp.QuoteMeta(string(ch)))
+		}
+	}
+
+	b.WriteString("$")
+	return b.String()
 }
 
 func resolveAnyTarget(root string) []string {
@@ -1566,8 +1683,7 @@ func patternAppliesToFile(pat config.PatternDef, relPath string) bool {
 				strings.HasPrefix(relLower, "requests/"))
 	default:
 		if strings.ContainsAny(target, "*?[") {
-			ok, err := filepath.Match(filepath.FromSlash(target), filepath.FromSlash(rel))
-			return err == nil && ok
+			return matchGlobPattern(target, rel)
 		}
 
 		target = strings.TrimPrefix(filepath.ToSlash(target), "./")

@@ -3,7 +3,7 @@ package resolver
 import (
 	"context"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 type ContextResolver interface {

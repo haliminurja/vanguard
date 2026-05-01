@@ -5,9 +5,9 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"vanguard/internal/config"
-	"vanguard/internal/tui/banner"
-	"vanguard/internal/updater"
+	"github.com/haliminurja/vanguard/internal/config"
+	"github.com/haliminurja/vanguard/internal/tui/banner"
+	"github.com/haliminurja/vanguard/internal/updater"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"

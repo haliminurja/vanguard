@@ -6,6 +6,7 @@ type ProjectContext struct {
 	PHPVersion        string
 	ProjectName       string
 	FrameworkType     string
+	FrameworkVersion  string
 	ComposerDeps      map[string]string
 	InstalledPackages []Package
 	EnvVariables      map[string]string

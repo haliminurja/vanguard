@@ -2,11 +2,11 @@ package orchestrator
 
 import (
 	"bufio"
+	"github.com/haliminurja/vanguard/internal/config"
+	"github.com/haliminurja/vanguard/internal/models"
 	"os"
 	"path/filepath"
 	"strings"
-	"vanguard/internal/config"
-	"vanguard/internal/models"
 )
 
 type IgnoreProcessor struct {

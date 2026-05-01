@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -74,6 +75,8 @@ func (c *Config) Merge(other *Config) {
 }
 
 func (c *Config) Validate() error {
+	c.Normalize()
+
 	validSeverities := map[string]bool{"info": true, "low": true, "medium": true, "high": true, "critical": true}
 	if !validSeverities[c.Severity] {
 		return fmt.Errorf("invalid severity: %s", c.Severity)
@@ -91,6 +94,47 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func (c *Config) Normalize() {
+	c.Severity = strings.ToLower(strings.TrimSpace(c.Severity))
+	if c.Severity == "" {
+		c.Severity = "info"
+	}
+
+	for i, f := range c.Output.Formats {
+		f = strings.ToLower(strings.TrimSpace(f))
+		if f == "md" {
+			f = "markdown"
+		}
+		c.Output.Formats[i] = f
+	}
+
+	normalizeList := func(values []string) []string {
+		out := values[:0]
+		seen := make(map[string]bool, len(values))
+		for _, v := range values {
+			v = strings.TrimSpace(v)
+			if v == "" {
+				continue
+			}
+			key := strings.ToLower(v)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, v)
+		}
+		return out
+	}
+
+	c.Scanners.Enable = normalizeList(c.Scanners.Enable)
+	c.Scanners.Disable = normalizeList(c.Scanners.Disable)
+	c.Scanners.RuleEnable = normalizeList(c.Scanners.RuleEnable)
+	c.Scanners.RuleDisable = normalizeList(c.Scanners.RuleDisable)
+	c.Scanners.IgnoreDirs = normalizeList(c.Scanners.IgnoreDirs)
+	c.Ignore.Paths = normalizeList(c.Ignore.Paths)
+	c.Ignore.Rules = normalizeList(c.Ignore.Rules)
 }
 
 func Default() *Config {

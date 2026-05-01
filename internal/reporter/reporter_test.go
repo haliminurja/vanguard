@@ -8,16 +8,18 @@ import (
 	"testing"
 	"time"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 func testReport() *models.ScanReport {
 	return &models.ScanReport{
 		ProjectContext: models.ProjectContext{
-			ProjectName:    "test/app",
-			RootPath:       "/tmp/test",
-			LaravelVersion: "^11.0",
-			PHPVersion:     "^8.2",
+			ProjectName:      "test/app",
+			RootPath:         "/tmp/test",
+			LaravelVersion:   "^11.0",
+			FrameworkType:    "laravel",
+			FrameworkVersion: "^11.0",
+			PHPVersion:       "^8.2",
 		},
 		Findings: []models.Finding{
 			{
@@ -32,6 +34,8 @@ func testReport() *models.ScanReport {
 				CodeSnippet: "$password = 'hardcoded';",
 				Remediation: "Fix it.",
 				References:  []string{"https://example.com"},
+				CVSSScore:   9.8,
+				CVSSVector:  "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
 			},
 			{
 				ID:       "TEST-002",
@@ -75,6 +79,12 @@ func TestJSONReporter(t *testing.T) {
 	if !strings.Contains(content, "test/app") {
 		t.Error("JSON report should contain project name")
 	}
+	if !strings.Contains(content, "framework") || !strings.Contains(content, "cvss_score") {
+		t.Error("JSON report should contain project and finding classification metadata")
+	}
+	if !strings.Contains(content, "classification") || !strings.Contains(content, "vulnerability_class") {
+		t.Error("JSON report should contain deep finding classification")
+	}
 }
 
 func TestSARIFReporter(t *testing.T) {
@@ -105,6 +115,9 @@ func TestSARIFReporter(t *testing.T) {
 	if !strings.Contains(content, "vanguard") {
 		t.Error("SARIF report should contain tool name")
 	}
+	if !strings.Contains(content, "vulnerability-class") {
+		t.Error("SARIF report should contain vulnerability classification")
+	}
 }
 
 func TestHTMLReporter(t *testing.T) {
@@ -131,6 +144,9 @@ func TestHTMLReporter(t *testing.T) {
 	if !strings.Contains(content, "Critical") {
 		t.Error("HTML report should contain severity badge")
 	}
+	if !strings.Contains(content, "Laravel ^11.0") {
+		t.Error("HTML report should contain framework classification")
+	}
 }
 
 func TestMarkdownReporter(t *testing.T) {
@@ -156,5 +172,23 @@ func TestMarkdownReporter(t *testing.T) {
 	}
 	if !strings.Contains(content, "Critical") {
 		t.Error("Markdown report should contain severity section")
+	}
+	if !strings.Contains(content, "**Framework:** Laravel ^11.0") {
+		t.Error("Markdown report should contain framework classification")
+	}
+	if !strings.Contains(content, "**Class:**") || !strings.Contains(content, "**Impact:**") {
+		t.Error("Markdown report should contain deep finding classification")
+	}
+}
+
+func TestReportersCreateOutputDirectory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "nested", "reports")
+	r := NewJSONReporter(dir)
+
+	if err := r.Generate(context.Background(), testReport()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "vanguard-report.json")); err != nil {
+		t.Fatalf("expected report in nested output dir: %v", err)
 	}
 }

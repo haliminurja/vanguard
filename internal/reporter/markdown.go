@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"vanguard/internal/models"
+	"github.com/haliminurja/vanguard/internal/models"
 )
 
 type MarkdownReporter struct {
@@ -29,12 +29,16 @@ func (r *MarkdownReporter) Name() string   { return "markdown" }
 func (r *MarkdownReporter) Format() string { return "md" }
 
 func (r *MarkdownReporter) Generate(_ context.Context, report *models.ScanReport) error {
+	if err := ensureOutputDir(r.OutputDir); err != nil {
+		return err
+	}
+
 	counts := report.CountBySeverity()
 
 	var sb strings.Builder
 	sb.WriteString("# Vanguard Security Report\n\n")
 	sb.WriteString(fmt.Sprintf("**Project:** %s  \n", report.ProjectContext.ProjectName))
-	sb.WriteString(fmt.Sprintf("**Laravel:** %s  \n", report.ProjectContext.LaravelVersion))
+	sb.WriteString(fmt.Sprintf("**Framework:** %s  \n", frameworkLabel(report.ProjectContext)))
 	sb.WriteString(fmt.Sprintf("**PHP:** %s  \n", report.ProjectContext.PHPVersion))
 	sb.WriteString(fmt.Sprintf("**Duration:** %s  \n", report.Duration.Round(1e6)))
 	sb.WriteString(fmt.Sprintf("**Scanners:** %s  \n\n", strings.Join(report.ScannersRun, ", ")))
@@ -57,9 +61,13 @@ func (r *MarkdownReporter) Generate(_ context.Context, report *models.ScanReport
 		sb.WriteString(fmt.Sprintf("### %s %s (%d)\n\n", severityEmoji(sev), sev.String(), len(sevFindings)))
 
 		for _, f := range sevFindings {
-			sb.WriteString(fmt.Sprintf("#### %s — %s\n\n", f.ID, f.Title))
+			classification := f.Classification()
+			sb.WriteString(fmt.Sprintf("#### %s - %s\n\n", f.ID, f.Title))
 			sb.WriteString(fmt.Sprintf("- **File:** `%s:%d`\n", f.File, f.Line))
 			sb.WriteString(fmt.Sprintf("- **Category:** %s\n", f.Category))
+			sb.WriteString(fmt.Sprintf("- **Class:** %s\n", classification.VulnerabilityClass))
+			sb.WriteString(fmt.Sprintf("- **Attack Surface:** %s\n", classification.AttackSurface))
+			sb.WriteString(fmt.Sprintf("- **Impact:** %s\n", classification.Impact))
 			sb.WriteString(fmt.Sprintf("- **Scanner:** %s\n\n", f.Scanner))
 			sb.WriteString(f.Description + "\n\n")
 
@@ -85,6 +93,9 @@ func (r *MarkdownReporter) Generate(_ context.Context, report *models.ScanReport
 			}
 			if f.OWASP != "" {
 				sb.WriteString(fmt.Sprintf("- **OWASP:** %s\n", f.OWASP))
+			}
+			if len(classification.Compliance) > 0 {
+				sb.WriteString(fmt.Sprintf("- **Compliance:** %s\n", strings.Join(classification.Compliance, ", ")))
 			}
 
 			if len(f.References) > 0 {
@@ -112,15 +123,15 @@ func (r *MarkdownReporter) Generate(_ context.Context, report *models.ScanReport
 func severityEmoji(s models.Severity) string {
 	switch s {
 	case models.SeverityCritical:
-		return "\xF0\x9F\x94\xB4"
+		return "[CRITICAL]"
 	case models.SeverityHigh:
-		return "\xF0\x9F\x9F\xA0"
+		return "[HIGH]"
 	case models.SeverityMedium:
-		return "\xF0\x9F\x9F\xA1"
+		return "[MEDIUM]"
 	case models.SeverityLow:
-		return "\xF0\x9F\x9F\xA2"
+		return "[LOW]"
 	default:
-		return "\xF0\x9F\x94\xB5"
+		return "[INFO]"
 	}
 }
 

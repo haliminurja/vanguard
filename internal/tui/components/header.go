@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"vanguard/internal/tui/banner"
-	"vanguard/internal/tui/theme"
+	"github.com/haliminurja/vanguard/internal/tui/banner"
+	"github.com/haliminurja/vanguard/internal/tui/theme"
 
 	"github.com/charmbracelet/lipgloss"
 )
