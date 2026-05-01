@@ -1,4 +1,4 @@
-﻿meta:
+meta:
   category: Laravel - Deserialization
   version: "4.0.0"
   maintainer: "Security Engineering Team"
@@ -42,26 +42,36 @@ rules:
       - "https://laravel.com/docs"
 
   - id: LAR-DESER-002
-    title: "Unsafe Native Unserialize Usage"
+    title: "Laravel Queue Job Dispatched with Unsanitized Request Payload"
     description: >
-      Native unserialize usage is detected and may process untrusted input, enabling object injection risks.
+      A queued job is dispatched with raw request data ($request->all() or
+      $request->getContent()). Queue payloads are serialized and stored in
+      the backend (Redis, database, SQS). If the queue backend is compromised
+      or accessible, an attacker can modify the serialized payload to inject
+      arbitrary objects and execute POP chain attacks when the worker processes
+      the job.
     severity: high
     confidence: high
     cvss_v3:
-      score: 8.0
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H"
-    category: Deserialization
-    tags: [laravel, deserialization, owasp-a08-2021, cwe-502, asvs-5.5.2]
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:N"
+    category: Insecure Deserialization
+    tags: [laravel, deserialization, queue, owasp-a08-2021, cwe-502, asvs-5.5.2]
     owasp: "A08:2021"
     cwe: "CWE-502"
     patterns:
       - type: regex
         target: php-files
-        pattern: 'unserialize\s*\('
-        exclude_pattern: '(allowed_classes|json_decode)'
+        pattern: 'dispatch\s*\(\s*new\s+\w+\s*\(\s*\$request->(all|input|getContent)\s*\(\s*\)'
+        exclude_pattern: '(validate|validated|only\(|specific_field)'
     remediation: |
-      Avoid native unserialize for untrusted data. Use strict JSON schemas, DTO mapping, and explicit allowlists.
+      Validate and filter request data before dispatching to the queue:
+        $data = $request->validate([
+            'email'   => 'required|email',
+            'message' => 'required|string|max:1000',
+        ]);
+        dispatch(new SendNotification($data['email'], $data['message']));
     references:
       - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
       - "https://cwe.mitre.org/data/definitions/502.html"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/queues"

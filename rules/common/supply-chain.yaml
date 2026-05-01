@@ -112,3 +112,61 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/829.html"
       - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+
+  - id: SUPPLY-007
+    title: "Composer production dependencies pinned to dev branches"
+    description: >
+      composer.json requires packages from dev branches or @dev channels inside
+      the production dependency set. This increases exposure to unreviewed code,
+      non-reproducible builds, and sudden upstream behavior changes.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 6.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:L"
+    category: Dependency Management
+    tags: [supply-chain, composer, dependencies, owasp-a06, cwe-829, slsa]
+    cwe: "CWE-829"
+    owasp: "A06:2021"
+    patterns:
+      - type: regex-multiline
+        target: any
+        scope: project
+        pattern: '(?s)"require"\s*:\s*\{[^}]*"[^"]+"\s*:\s*"(dev-[^"]+|[^"]+@dev)"'
+    remediation: |
+      Pin production packages to reviewed stable releases and enforce dependency
+      audit gates in CI. Reserve dev branches for isolated development workflows
+      and never for release artifacts.
+    references:
+      - "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/"
+      - "https://cwe.mitre.org/data/definitions/829.html"
+      - "https://getcomposer.org/doc/articles/versions.md"
+
+  - id: SUPPLY-008
+    title: "Composer repositories configured over plain HTTP"
+    description: >
+      composer.json defines package repositories over plain HTTP. This exposes
+      package metadata and downloadable artifacts to tampering or substitution by
+      a network attacker inside the dependency acquisition path.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 8.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    category: Dependency Management
+    tags: [supply-chain, composer, transport-security, owasp-a08, cwe-494]
+    cwe: "CWE-494"
+    owasp: "A08:2021"
+    patterns:
+      - type: regex-multiline
+        target: any
+        scope: project
+        pattern: '(?s)"repositories"\s*:\s*\[[^\]]*"url"\s*:\s*"http://'
+    remediation: |
+      Use HTTPS for every package source and keep Composer secure-http enabled.
+      Remove or quarantine repositories that cannot provide authenticated and
+      integrity-protected transport.
+    references:
+      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      - "https://cwe.mitre.org/data/definitions/494.html"
+      - "https://getcomposer.org/doc/06-config.md#secure-http"

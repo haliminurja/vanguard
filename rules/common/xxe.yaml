@@ -1,0 +1,185 @@
+meta:
+  category: XML External Entity (XXE)
+  version: "1.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
+  compliance:
+    - OWASP-Top10-2021
+    - CWE-SANS-Top25
+    - NIST-SP-800-53
+rules:
+  - id: XXE-001
+    title: "XXE — simplexml_load_string() with external entity loading"
+    description: >
+      simplexml_load_string() parses XML that may contain external entity declarations.
+      If LIBXML_NOENT is passed or libxml_disable_entity_loader() is not called (PHP < 8.0),
+      an attacker can read arbitrary server files (/etc/passwd, application configs),
+      perform SSRF to internal services, or cause denial-of-service via billion laughs attack.
+    severity: critical
+    confidence: high
+    cvss_v3:
+      score: 9.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:H"
+    category: XXE
+    enabled: true
+    tags: [xxe, xml, owasp-a05-2021, cwe-611, ssrf, file-disclosure]
+    owasp: "A05:2021"
+    cwe: "CWE-611"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'simplexml_load_string\s*\(\s*\$'
+        exclude_pattern: '(LIBXML_NONET|libxml_disable_entity_loader|LIBXML_DTDLOAD.*false|test|Test)'
+    remediation: |
+      Disable external entity loading before parsing XML:
+
+        // PHP 8.0+ — external entities disabled by default, but ensure LIBXML_NOENT is NOT used
+        $xml = simplexml_load_string($data, 'SimpleXMLElement', LIBXML_NONET);
+
+        // PHP < 8.0 — explicitly disable
+        libxml_disable_entity_loader(true);
+        $xml = simplexml_load_string($data);
+
+        // Best practice: validate and sanitize XML before parsing
+    references:
+      - "https://cwe.mitre.org/data/definitions/611.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html"
+      - "https://www.php.net/manual/en/function.libxml-disable-entity-loader.php"
+
+  - id: XXE-002
+    title: "XXE — DOMDocument::loadXML() without disabling entities"
+    description: >
+      DOMDocument::loadXML() or load() processes XML with external entity expansion enabled.
+      The DOMDocument parser follows entity references by default, enabling XXE attacks
+      including file disclosure, SSRF, and denial-of-service.
+    severity: critical
+    confidence: high
+    cvss_v3:
+      score: 9.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:H"
+    category: XXE
+    enabled: true
+    tags: [xxe, xml, domdocument, owasp-a05-2021, cwe-611]
+    owasp: "A05:2021"
+    cwe: "CWE-611"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\$\w+\s*->\s*(loadXML|load)\s*\(\s*\$'
+        exclude_pattern: '(LIBXML_NONET|LIBXML_NOENT.*false|libxml_disable_entity_loader|substituteEntities\s*=\s*false|test|Test)'
+      - type: regex
+        target: php-files
+        pattern: 'new\s+DOMDocument\s*\([^)]*\)\s*;[^}]*loadXML\s*\(\s*\$'
+        exclude_pattern: '(LIBXML_NONET|substituteEntities\s*=\s*false)'
+    remediation: |
+      Disable entity substitution in DOMDocument:
+
+        $dom = new DOMDocument();
+        $dom->substituteEntities = false;
+        $dom->resolveExternals = false;
+
+        // Use LIBXML_NONET to block network access from XML
+        $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOENT);
+
+        // For user-supplied XML, consider using XMLReader with validation
+    references:
+      - "https://cwe.mitre.org/data/definitions/611.html"
+      - "https://www.php.net/manual/en/domdocument.loadxml.php"
+
+  - id: XXE-003
+    title: "XXE — XMLReader processing untrusted XML"
+    description: >
+      XMLReader::xml() or XMLReader::open() processes user-supplied XML without disabling
+      external entity resolution. XMLReader streams XML nodes one at a time, but still
+      resolves external entities unless explicitly configured not to.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
+    category: XXE
+    enabled: true
+    tags: [xxe, xml, xmlreader, owasp-a05-2021, cwe-611]
+    owasp: "A05:2021"
+    cwe: "CWE-611"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'XMLReader\s*::\s*(xml|open)\s*\(\s*\$'
+        exclude_pattern: '(LIBXML_NONET|setParserProperty.*LOADDTD.*false|test|Test)'
+    remediation: |
+      Disable DTD loading and entity resolution:
+
+        $reader = new XMLReader();
+        $reader->xml($xmlData, null, LIBXML_NONET);
+        $reader->setParserProperty(XMLReader::LOADDTD, false);
+        $reader->setParserProperty(XMLReader::SUBST_ENTITIES, false);
+    references:
+      - "https://cwe.mitre.org/data/definitions/611.html"
+      - "https://www.php.net/manual/en/xmlreader.xml.php"
+
+  - id: XXE-004
+    title: "XXE — LIBXML_NOENT flag enables entity substitution"
+    description: >
+      The LIBXML_NOENT flag is passed to an XML parser function. Despite the misleading name,
+      LIBXML_NOENT ENABLES entity substitution rather than disabling it. This flag is the
+      primary cause of XXE vulnerabilities in PHP applications that believe they are protected.
+    severity: critical
+    confidence: high
+    cvss_v3:
+      score: 9.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:H"
+    category: XXE
+    enabled: true
+    tags: [xxe, xml, libxml, owasp-a05-2021, cwe-611, misconfiguration]
+    owasp: "A05:2021"
+    cwe: "CWE-611"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(simplexml_load_string|simplexml_load_file|DOMDocument|loadXML|load)\s*\([^)]*LIBXML_NOENT'
+        exclude_pattern: '(test|Test|mock|Mock)'
+    remediation: |
+      LIBXML_NOENT does NOT disable entities — it ENABLES substitution!
+      Remove LIBXML_NOENT and use LIBXML_NONET instead:
+
+        // WRONG — LIBXML_NOENT enables entity substitution
+        $xml = simplexml_load_string($data, 'SimpleXMLElement', LIBXML_NOENT);
+
+        // CORRECT — LIBXML_NONET blocks network access
+        $xml = simplexml_load_string($data, 'SimpleXMLElement', LIBXML_NONET);
+    references:
+      - "https://cwe.mitre.org/data/definitions/611.html"
+      - "https://www.php.net/manual/en/libxml.constants.php"
+
+  - id: XXE-005
+    title: "XXE — Unsafe SOAP client without disabling external entities"
+    description: >
+      A SoapClient or SoapServer is instantiated with XML input that may contain external
+      entity declarations. SOAP parsers process DTDs and entities by default, making them
+      vectors for XXE file disclosure and SSRF attacks.
+    severity: high
+    confidence: medium
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
+    category: XXE
+    enabled: true
+    tags: [xxe, soap, owasp-a05-2021, cwe-611]
+    owasp: "A05:2021"
+    cwe: "CWE-611"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'new\s+Soap(Client|Server)\s*\(\s*\$'
+        exclude_pattern: '(libxml_disable_entity_loader|LIBXML_NONET|test|Test)'
+    remediation: |
+      For PHP < 8.0, disable entity loading before creating SOAP instances:
+        libxml_disable_entity_loader(true);
+        $client = new SoapClient($wsdl, $options);
+
+      For PHP 8.0+, external entities are disabled by default in libxml2.
+      Ensure your WSDL source is trusted and validate all SOAP input.
+    references:
+      - "https://cwe.mitre.org/data/definitions/611.html"

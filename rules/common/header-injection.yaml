@@ -1,0 +1,66 @@
+meta:
+  category: HTTP Header Injection
+  version: "1.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
+  compliance:
+    - OWASP-Top10-2021
+rules:
+  - id: HDR-001
+    title: "HTTP Header Injection via header() with user input"
+    description: >
+      The header() function is called with data from user input without sanitizing
+      CRLF characters. An attacker can inject additional HTTP headers or split the
+      response to perform cache poisoning, session fixation, or XSS.
+    severity: high
+    confidence: high
+    cvss_v3:
+      score: 7.5
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
+    category: Header Injection
+    tags: [header-injection, crlf, owasp-a03-2021, cwe-113]
+    owasp: "A03:2021"
+    cwe: "CWE-113"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\bheader\s*\(\s*[''"][^''"]*\$(_GET|_POST|_REQUEST|_SERVER|request->)'
+        exclude_pattern: '(str_replace|preg_replace|urlencode|rawurlencode|filter_var|htmlspecialchars)'
+    remediation: |
+      Sanitize user input before using in headers:
+        $value = str_replace(["\r", "\n", "%0d", "%0a"], '', $input);
+        header('Location: ' . filter_var($value, FILTER_SANITIZE_URL));
+    references:
+      - "https://cwe.mitre.org/data/definitions/113.html"
+
+  - id: HDR-002
+    title: "Open Redirect — unvalidated redirect target from user input"
+    description: >
+      The application redirects to a URL provided by the user without validating
+      the target domain. An attacker can craft a link that redirects victims to
+      a phishing site while appearing to originate from the trusted domain.
+    severity: medium
+    confidence: high
+    cvss_v3:
+      score: 6.1
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+    category: Open Redirect
+    tags: [open-redirect, phishing, owasp-a01-2021, cwe-601]
+    owasp: "A01:2021"
+    cwe: "CWE-601"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(header\s*\(\s*[''"]Location:\s*[''"]?\s*\.?\s*\$(_GET|_POST|_REQUEST|request->)|redirect\s*\(\s*\$(_GET|_POST|_REQUEST|request->))'
+        exclude_pattern: '(url\(\)|route\(|parse_url|filter_var|FILTER_VALIDATE_URL|str_starts_with|Str::startsWith|domain)'
+    remediation: |
+      Validate redirect targets against an allowlist:
+        $url = $request->input('redirect');
+        $allowed = ['/', '/dashboard', '/profile'];
+        $target = in_array($url, $allowed) ? $url : '/';
+        return redirect($target);
+    references:
+      - "https://cwe.mitre.org/data/definitions/601.html"
+      - "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"
+

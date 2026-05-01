@@ -53,77 +53,34 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/22.html"
       - "https://snyk.io/research/zip-slip-vulnerability"
-  - id: ADV-XXE01
-    title: "XXE - XML parsed from user-supplied content"
+
+  - id: ADV-RC01
+    title: "Race Condition — TOCTOU in file operations"
     description: >
-      simplexml_load_string(), DOMDocument::loadXML(), or XMLReader accept XML from users without disabling external entity loading. Attackers can read local files (/etc/passwd, /proc/self/environ, .env), perform SSRF to internal services, or cause a denial of service (Billion Laughs / Quadratic Blowup attack).
-
-    severity: critical
-    confidence: high
-    category: XXE
-    tags: [xxe, owasp-a05, cwe-611, ssrf]
-    owasp: "A05:2021"
-    cwe: "CWE-611"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '(simplexml_load_string|simplexml_load_file|loadXML|DOMDocument)\s*\(\s*(\$request->|request\(|\$_POST|\$_GET)'
-      - type: regex
-        target: php-files
-        pattern: 'simplexml_load_string\s*\('
-        exclude_pattern: '(LIBXML_NONET|libxml_disable_entity_loader|LIBXML_NOENT\s*=\s*false|libxml_use_internal_errors)'
-      - type: regex
-        target: php-files
-        pattern: 'new\s+DOMDocument\s*\([^)]*\)'
-        exclude_pattern: '(LIBXML_NONET|libxml_disable_entity_loader|preserveWhiteSpace)'
-    remediation: |
-      In PHP 8.0+ with libxml2 >= 2.9, external entities are disabled by default.
-      For older versions, disable them explicitly:
-
-        // PHP < 8.0 - disable external entity loader
-        $prev = libxml_disable_entity_loader(true);
-        $prev_errors = libxml_use_internal_errors(true);
-
-        $xml = simplexml_load_string(
-            $input,
-            'SimpleXMLElement',
-            LIBXML_NONET | LIBXML_NOERR   // No network, no error messages
-        );
-
-        libxml_disable_entity_loader($prev);
-        libxml_use_internal_errors($prev_errors);
-
-        // Never use LIBXML_NOENT (recursive entity) or
-        // LIBXML_DTDLOAD (load external DTD) with untrusted input
-    references:
-      - "https://cwe.mitre.org/data/definitions/611.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html"
-  - id: ADV-ID01
-    title: "IDOR - Model::update() with unfiltered request payload"
-    description: >
-      update() is called with $request->all() without first authorizing that the authenticated user owns that record. Attackers change the resource ID in the URL or request body to overwrite other users' data - this pattern is one of the most common IDOR vulnerabilities.
-
+      A file existence check (file_exists, is_file, is_readable) is followed by
+      a file operation (fopen, file_get_contents, include) without atomic locking.
+      Between the check and use, the file could be replaced by an attacker (symlink race).
     severity: high
-    confidence: high
-    category: IDOR
-    tags: [idor, owasp-a01, cwe-639]
-    owasp: "A01:2021"
-    cwe: "CWE-639"
+    confidence: medium
+    cvss_v3:
+      score: 7.0
+      vector: "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H"
+    category: Race Condition
+    tags: [race-condition, toctou, owasp-a04-2021, cwe-367]
+    owasp: "A04:2021"
+    cwe: "CWE-367"
     patterns:
-      - type: regex
+      - type: regex-multiline
         target: php-files
-        pattern: '->update\(\s*(\$request->all\(\)|request\(\)->all\(\))'
+        pattern: '(file_exists|is_file|is_readable|is_writable)\s*\(\s*\$\w+\s*\)\s*\)\s*\{[^}]{0,200}(file_get_contents|fopen|include|require|unlink|rename|copy)\s*\(\s*\$'
+        exclude_pattern: '(flock|LOCK_EX|atomic|mutex|test|Test)'
     remediation: |
-      Always authorize ownership before updating, use ->only() for
-      strict field limitations:
-
-        // - CORRECT
-        $post = Post::findOrFail($id);
-        $this->authorize('update', $post);  // Policy verifies $user->id === $post->user_id
-        $post->update($request->only(['title', 'body', 'category_id']));
-
-        // - INCORRECT
-        // Post::findOrFail($id)->update($request->all());
+      Use atomic operations or file locking:
+        $fp = fopen($path, 'r');
+        if (flock($fp, LOCK_SH)) {
+            $data = fread($fp, filesize($path));
+            flock($fp, LOCK_UN);
+        }
+        fclose($fp);
     references:
-      - "https://cwe.mitre.org/data/definitions/639.html"
-      - "https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html"
+      - "https://cwe.mitre.org/data/definitions/367.html"

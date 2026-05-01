@@ -1,0 +1,85 @@
+meta:
+  category: Server-Side Template Injection
+  version: "1.0.0"
+  maintainer: "Security Engineering Team"
+  updated: "2026"
+  scope: "PHP native 8.0-8.4 (framework-agnostic baseline)"
+  compliance:
+    - OWASP-Top10-2021
+rules:
+  - id: SSTI-001
+    title: "SSTI — Dynamic template compilation from user input"
+    description: >
+      Template engine compiles a raw string containing user data. Attacker can inject
+      template directives that execute arbitrary code on the server.
+    severity: critical
+    confidence: high
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: Template Injection
+    tags: [ssti, rce, template, owasp-a03-2021, cwe-1336]
+    owasp: "A03:2021"
+    cwe: "CWE-1336"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '(compileString|createTemplate|renderString|renderTemplate)\s*\(\s*\$'
+        exclude_pattern: '(test|Test|mock|fixture)'
+    remediation: |
+      Never compile templates from user input. Use template files with safe parameters:
+        echo $engine->render('welcome.html', ['name' => $name]);
+    references:
+      - "https://cwe.mitre.org/data/definitions/1336.html"
+      - "https://portswigger.net/research/server-side-template-injection"
+
+  - id: SSTI-003
+    title: "SSTI — eval/assert with dynamic string processing"
+    description: >
+      eval() or assert() processes dynamic content resembling template rendering.
+      Enables arbitrary code execution if any part is user-controlled.
+    severity: critical
+    confidence: high
+    cvss_v3:
+      score: 9.8
+      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    category: Code Injection
+    tags: [ssti, rce, eval, owasp-a03-2021, cwe-95]
+    owasp: "A03:2021"
+    cwe: "CWE-95"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: '\beval\s*\(\s*(str_replace|preg_replace|sprintf|"[^"]*\$)'
+        exclude_pattern: '(test|Test|mock|vendor)'
+      - type: regex
+        target: php-files
+        pattern: '\bassert\s*\(\s*\$'
+        exclude_pattern: '(test|Test|PHPUnit|assert\w+\()'
+    remediation: |
+      Never use eval() for template processing. Use a proper template engine with auto-escaping.
+    references:
+      - "https://cwe.mitre.org/data/definitions/95.html"
+
+  - id: SSTI-004
+    title: "SSTI — Smarty PHP tag handling enabled"
+    description: >
+      Smarty's PHP tag handling is set to PHP_ALLOW, or fetch() uses
+      string: prefix with user input. This allows arbitrary PHP code execution.
+    severity: critical
+    confidence: high
+    category: Template Injection
+    tags: [ssti, rce, smarty, owasp-a03-2021, cwe-1336]
+    owasp: "A03:2021"
+    cwe: "CWE-1336"
+    patterns:
+      - type: regex
+        target: php-files
+        pattern: 'php_handling\s*=\s*Smarty::PHP_ALLOW'
+      - type: regex
+        target: php-files
+        pattern: '(Smarty|smarty)\s*->\s*(fetch|display)\s*\(\s*[''"]string:\s*\$'
+    remediation: |
+      Disable PHP handling: $smarty->php_handling = Smarty::PHP_REMOVE;
+    references:
+      - "https://cwe.mitre.org/data/definitions/1336.html"

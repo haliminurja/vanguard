@@ -43,37 +43,7 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/915.html"
       - "https://laravel.com/docs/eloquent#mass-assignment"
-  - id: LAR-ENT-002
-    title: "SQL Injection — DB::raw() / whereRaw() with variable interpolation"
-    description: >
-      The query builder uses DB::raw(), whereRaw(), selectRaw(), orderByRaw(), havingRaw(), or DB::statement() with direct variable interpolation from the request. Laravel's parameterized queries are bypassed, exposing the database to full SQL Injection.
 
-    severity: critical
-    confidence: high
-    cvss_v3:
-      score: 9.8
-      vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-    category: SQL Injection
-    enabled: true
-    tags: [sqli, eloquent, owasp-a03-2021, cwe-89, laravel, pci-dss-6.2]
-    owasp: "A03:2021"
-    cwe: "CWE-89"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '(DB::raw|whereRaw|selectRaw|orderByRaw|havingRaw|groupByRaw|DB::statement)\s*\(\s*["''][^"'']*\$'
-        exclude_pattern: '(\?\s*,|bindings|->addBinding|escapeString|intval|->integer)'
-    remediation: |
-      Use query bindings for all input:
-        // CORRECT — parameter binding
-        $users = DB::table('users')
-            ->whereRaw('email = ?', [$request->input('email')])
-            ->get();
-        // INCORRECT — direct interpolation
-        // DB::raw("SELECT * FROM users WHERE email = '{$email}'");
-    references:
-      - "https://cwe.mitre.org/data/definitions/89.html"
-      - "https://laravel.com/docs/queries#raw-expressions"
   - id: LAR-ENT-004
     title: "File Upload — without MIME type and extension validation"
     description: >
@@ -199,35 +169,6 @@ rules:
     references:
       - "https://cwe.mitre.org/data/definitions/321.html"
       - "https://laravel.com/docs/encryption"
-  - id: LAR-ENT-010
-    title: "Queue Job — direct user input dispatched without validation"
-    description: >
-      Jobs dispatched to the queue receive $request->all() or raw request data without validation. Job data is serialized and stored in the queue backend (Redis/database). If the queue backend is exposed, an attacker can modify the job payload to execute arbitrary code when the job is processed.
-
-    severity: high
-    confidence: high
-    cvss_v3:
-      score: 7.5
-      vector: "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:N"
-    category: Insecure Deserialization
-    enabled: true
-    tags: [queue, deserialization, owasp-a08-2021, cwe-502, laravel]
-    owasp: "A08:2021"
-    cwe: "CWE-502"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: 'dispatch\s*\(\s*new\s+\w+\s*\(\s*\$request->(all|input|getContent)\s*\(\s*\)'
-        exclude_pattern: '(validate|validated|only\(|specific_field)'
-    remediation: |
-      Validate and filter input before dispatching:
-        $data = $request->validate([
-            'email'   => 'required|email',
-            'message' => 'required|string|max:1000',
-        ]);
-        dispatch(new SendNotification($data['email'], $data['message']));
-    references:
-      - "https://cwe.mitre.org/data/definitions/502.html"
   - id: LAR-ENT-012
     title: "Controller CRUD without authorization check"
     description: >
@@ -576,52 +517,7 @@ rules:
       (e.g., Password::broker()).
     references:
       - "https://cwe.mitre.org/data/definitions/598.html"
-  - id: DBG-001
-    title: "Leftover dd() debug dump in production code"
-    description: >
-      The dd() (dump and die) function in PHP/Blade source terminates execution and can leak 
-      request data, auth state, and environment values to the response.
-    severity: high
-    confidence: high
-    category: Debug Exposure
-    tags: [debug, info-disclosure, owasp-a05, cwe-215, laravel]
-    owasp: "A05:2021"
-    cwe: "CWE-215"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '\bdd\s*\('
-        exclude_pattern: '(//|#\s|/\*|test|Test|spec)'
-      - type: regex
-        target: blade-files
-        pattern: '@dd\s*\('
-    remediation: |
-      Remove all dd() calls before committing. Use Log::debug() for safe debugging.
-    references:
-      - "https://cwe.mitre.org/data/definitions/215.html"
-  - id: DBG-002
-    title: "Leftover dump() debug call in code"
-    description: >
-      The dump() function outputs variable content to the HTTP response without stopping execution, 
-      potentially leaking internal state to the user or API caller.
-    severity: medium
-    confidence: high
-    category: Debug Exposure
-    tags: [debug, info-disclosure, owasp-a05, cwe-215, laravel]
-    owasp: "A05:2021"
-    cwe: "CWE-215"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '\bdump\s*\('
-        exclude_pattern: '(//|#\s|/\*|test|Test|spec|hexdump|mysqldump|mongodump|pg_dump)'
-      - type: regex
-        target: blade-files
-        pattern: '@dump\s*\('
-    remediation: |
-      Remove dump() before merging. Use Log::debug() for structured debug output.
-    references:
-      - "https://cwe.mitre.org/data/definitions/215.html"
+
   - id: LAR-ENT-017
     title: "Trusted Proxies Wildcard Configuration"
     description: >

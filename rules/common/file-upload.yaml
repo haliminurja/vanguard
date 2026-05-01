@@ -196,35 +196,4 @@ rules:
         ],
     references:
       - "https://cwe.mitre.org/data/definitions/732.html"
-  - id: UPL-010
-    title: "Zip Slip - Archive Extraction Without Path Sanitization (RCE/File Overwrite)"
-    description: >
-      The application extracts ZIP files using `ZipArchive::extractTo()` directly. If a malicious ZIP file contains path traversal sequences (such as `../../../../var/www/html/shell.php`), it can overwrite system files or web application code, leading to remote code execution (RCE).
-    severity: critical
-    confidence: high
-    category: Archive Extraction Traversal
-    tags: [file-upload, zip-slip, path-traversal, cwe-22, rce]
-    owasp: "A05:2021"
-    cwe: "CWE-22"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '->extractTo\s*\('
-    remediation: |
-      Do not use `extractTo()` directly on user-uploaded files. Iterate and manually validate/sanitize filenames:
-        $zip = new ZipArchive;
-        if ($zip->open($upload) === TRUE) {
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $filename = $zip->getNameIndex($i);
-                // Check for dangerous traversal
-                if (strpos($filename, '../') !== false || strpos($filename, '..\\') !== false) {
-                    throw new Exception("Illegal path traversal in ZIP");
-                }
-                // Extract files one by one safely
-                $content = $zip->getFromIndex($i);
-                Storage::put('safe_dir/' . basename($filename), $content);
-            }
-        }
-    references:
-      - "https://cwe.mitre.org/data/definitions/22.html"
-      - "https://snyk.io/research/zip-slip-vulnerability"
+

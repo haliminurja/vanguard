@@ -35,68 +35,8 @@ rules:
         }, $subject);
     references:
       - "https://cwe.mitre.org/data/definitions/95.html"
-  - id: INJ-E03
-    title: "Code Injection - create_function() removed in PHP 8.0 (RCE vector)"
-    description: >
-      create_function() was removed in PHP 8.0. Internally it uses eval() to create dynamic closures, making it a remote code execution vector. Remaining usage causes a fatal error in PHP 8.0+ and potentially exposes RCE in PHP < 8.0 if arguments originate from users.
 
-    severity: critical
-    confidence: high
-    category: Code Injection
-    tags: [code-injection, rce, php80, cwe-95, removed-function]
-    owasp: "A03:2021"
-    cwe: "CWE-95"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '\bcreate_function\s*\('
-    remediation: |
-      Replace with arrow functions or anonymous functions:
 
-        // - INCORRECT (removed in PHP 8.0)
-        // $fn = create_function('$a, $b', 'return $a + $b;');
-
-        // - CORRECT - arrow function (PHP 7.4+)
-        $fn = fn($a, $b) => $a + $b;
-
-        // - CORRECT - anonymous function
-        $fn = function ($a, $b) { return $a + $b; };
-    references:
-      - "https://cwe.mitre.org/data/definitions/95.html"
-      - "https://www.php.net/manual/en/migration80.incompatible.php"
-  - id: INJ-D01
-    title: "Unsafe Deserialization - unserialize() on untrusted data"
-    description: >
-      unserialize() is called with data that may be user-controlled. Deserializing attacker-manipulated payloads triggers magic methods (__wakeup, __destruct, __toString) via POP (Property-Oriented Programming) chains, which can lead to RCE, arbitrary file deletion, SSRF, or privilege escalation depending on the classes available in the autoloader.
-
-    severity: critical
-    confidence: high
-    category: Deserialization
-    tags: [deserialization, rce, owasp-a08, cwe-502]
-    owasp: "A08:2021"
-    cwe: "CWE-502"
-    patterns:
-      - type: regex
-        target: php-files
-        pattern: '\bunserialize\s*\(\s*\$'
-        exclude_pattern: '(config\(|env\(|test|Test|allowed_classes\s*=>)'
-    remediation: |
-      Use JSON for data exchange - no magic methods are called:
-
-        // - CORRECT - JSON is safe from deserialization attacks
-        $data = json_decode($input, true, 512, JSON_THROW_ON_ERROR);
-
-        // - If unserialize() is absolutely necessary (legacy cache),
-        //    restrict allowed classes:
-        $obj = unserialize($data, ['allowed_classes' => [SafeValueObject::class]]);
-
-        // - INCORRECT
-        // $obj = unserialize($_POST['data']);
-        // $obj = unserialize(base64_decode($request->input('payload')));
-    references:
-      - "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
-      - "https://cwe.mitre.org/data/definitions/502.html"
-      - "https://www.php.net/manual/en/function.unserialize.php"
   - id: INJ-V01
     title: "Variable Injection - extract() with User Input"
     description: >

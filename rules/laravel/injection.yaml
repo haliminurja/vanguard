@@ -1,4 +1,4 @@
-﻿meta:
+meta:
   category: Laravel - Injection
   version: "4.0.0"
   maintainer: "Security Engineering Team"
@@ -17,30 +17,39 @@
 
 rules:
   - id: LAR-INJ-001
-    title: "Dynamic Query or Command Construction with User Input"
+    title: "SQL Injection — DB::raw() / whereRaw() with variable interpolation"
     description: >
-      Potential query construction from untrusted input is detected. Parameterization or strict allowlists may be missing, increasing injection risk.
+      The query builder uses DB::raw(), whereRaw(), selectRaw(), orderByRaw(),
+      havingRaw(), groupByRaw(), or DB::statement() with direct variable
+      interpolation. Laravel's parameterized queries are bypassed, exposing
+      the database to full SQL Injection.
     severity: critical
     confidence: high
     cvss_v3:
       score: 9.8
       vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-    category: Injection
-    tags: [laravel, injection, sqli, owasp-a03-2021, cwe-89, asvs-5.3.2]
+    category: SQL Injection
+    tags: [laravel, sqli, eloquent, owasp-a03-2021, cwe-89, asvs-5.3.2, pci-dss-6.2]
     owasp: "A03:2021"
     cwe: "CWE-89"
     patterns:
       - type: regex
         target: php-files
-        pattern: '(DB::raw|whereRaw|selectRaw|orderByRaw|havingRaw|groupByRaw)\s*\(\s*[\"]([^\"]*)\$'
-        exclude_pattern: '(prepare\(|bind|intval|absint|escape|quote)'
+        pattern: '(DB::raw|whereRaw|selectRaw|orderByRaw|havingRaw|groupByRaw|DB::statement)\s*\(\s*["''][^"'']*\$'
+        exclude_pattern: '(\?\s*,|bindings|->addBinding|escapeString|intval|->integer|prepare\(|bind|absint|escape|quote)'
     remediation: |
-      Use parameterized queries and strict input validation. Eliminate string interpolation for SQL and command contexts.
+      Use query bindings for all input:
+        // CORRECT — parameter binding
+        $users = DB::table('users')
+            ->whereRaw('email = ?', [$request->input('email')])
+            ->get();
+        // INCORRECT — direct interpolation
+        // DB::raw("SELECT * FROM users WHERE email = '{$email}'");
     references:
       - "https://owasp.org/Top10/A03_2021-Injection/"
       - "https://cwe.mitre.org/data/definitions/89.html"
       - "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html"
-      - "https://laravel.com/docs"
+      - "https://laravel.com/docs/queries#raw-expressions"
 
   - id: LAR-INJ-002
     title: "OS Command Execution with User-Controlled Input"
